@@ -374,7 +374,7 @@ def plot_reconstruction_error(pred_all, values, test_mask, total_unc, parameter_
     plt.show()
 
 
-def plot_simple_reconstruction_error(y_true, y_pred):
+def plot_simple_reconstruction_error(y_true, y_pred, save_as=None):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -406,6 +406,8 @@ def plot_simple_reconstruction_error(y_true, y_pred):
         ax.set_ylim(min_val, max_val)
 
     plt.tight_layout()
+    if save_as is not None:
+        plt.savefig(save_as)
     plt.show()
 
 
