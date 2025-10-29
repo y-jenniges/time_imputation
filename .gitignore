@@ -1,2 +1,4 @@
 output/
 presentations/
+
+slurm_tune.sh
