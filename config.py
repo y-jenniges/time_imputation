@@ -5,11 +5,10 @@ from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from sklearn.linear_model import BayesianRidge
 from sklearn.ensemble import RandomForestRegressor
-from missingpy import MissForest  # https://github.com/dnowacki-usgs/missingpy.git + adapted
+from missingpy import MissForest  # https://github.com/dnowacki-usgs/missingpy.git
 
 from oceanmae.model import OceanMAE
 from oceanmae.losses import HeteroscedasticLoss, PhysicsLoss, MaskedMSELoss
-
 
 # Output directories
 output_dir = "output/"
@@ -41,6 +40,7 @@ dest_db_path = "../ocean_clustering_and_validation/output_global/custom_global.d
 # Specification of the grid
 depth_levels = [0, 50, 100, 200, 300, 400, 500, 1000, 1500, 2000, 3000, 4000, 5000]
 
+time_steps = [1, 5, 10] + list(range(11, 41)) + [50, 100, 300]
 grid_configs = {
     "20y_global": {
         "param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
@@ -59,8 +59,62 @@ grid_configs = {
         "mode": "Y",
         "selection": None,
         "dtime": 20,
-        "note": "Northern Atlantic, all times, 13 depth steps, 6 params"
+        "note": "Global, 6 params"
     },
+    "avg_na": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
+               "lat_min": 0,
+               "lat_max": 70,
+               "dlat": 1,
+               "lon_min": -77,
+               "lon_max": 30,
+               "dlon": 1,
+               "z_min": None,
+               "z_max": None,
+               "dz": None,
+               "z_array": np.array(depth_levels),
+               "time_min": "1772-01-01 00:00:00",
+               "time_max": "2020-07-08 04:45:00",
+               "mode": "Y",
+               "selection": None,
+               "dtime": 300,
+               "note": "NA, 6 params"},
+
+    "100y_na": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
+                "lat_min": 0,
+                "lat_max": 70,
+                "dlat": 1,
+                "lon_min": -77,
+                "lon_max": 30,
+                "dlon": 1,
+                "z_min": None,
+                "z_max": None,
+                "dz": None,
+                "z_array": np.array(depth_levels),
+                "time_min": "1772-01-01 00:00:00",
+                "time_max": "2020-07-08 04:45:00",
+                "mode": "Y",
+                "selection": None,
+                "dtime": 100,
+                "note": "NA, 6 params"},
+
+    "50y_na": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
+               "lat_min": 0,
+               "lat_max": 70,
+               "dlat": 1,
+               "lon_min": -77,
+               "lon_max": 30,
+               "dlon": 1,
+               "z_min": None,
+               "z_max": None,
+               "dz": None,
+               "z_array": np.array(depth_levels),
+               "time_min": "1772-01-01 00:00:00",
+               "time_max": "2020-07-08 04:45:00",
+               "mode": "Y",
+               "selection": None,
+               "dtime": 50,
+               "note": "NA, 6 params"},
+
     "20y_na": {
         "param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
         "lat_min": 0,
@@ -78,151 +132,80 @@ grid_configs = {
         "mode": "Y",
         "selection": None,
         "dtime": 20,
-        "note": "Northern Atlantic, all times, 13 depth steps, 6 params"
+        "note": "NA, 6 params"
     },
-    "avg": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
-            "lat_min": 20,
-            "lat_max": 40,
-            "dlat": 1,
-            "lon_min": -40,
-            "lon_max": -10,
-            "dlon": 1,
-            "z_min": None,
-            "z_max": None,
-            "dz": None,
-            "z_array": np.array(depth_levels),
-            "time_min": "1772-01-01 00:00:00",
-            "time_max": "2020-07-08 04:45:00",
-            "mode": "Y",
-            "selection": None,
-            "dtime": 300,
-            "note": "Subtropical gyre, time average"},
 
-    "100y": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
-             "lat_min": 20,
-             "lat_max": 40,
-             "dlat": 1,
-             "lon_min": -40,
-             "lon_max": -10,
-             "dlon": 1,
-             "z_min": None,
-             "z_max": None,
-             "dz": None,
-             "z_array": np.array(depth_levels),
-             "time_min": "1772-01-01 00:00:00",
-             "time_max": "2020-07-08 04:45:00",
-             "mode": "Y",
-             "selection": None,
-             "dtime": 100,
-             "note": "Subtropical gyre, 100 year step"},
+    "10y_na": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
+               "lat_min": 0,
+               "lat_max": 70,
+               "dlat": 1,
+               "lon_min": -77,
+               "lon_max": 30,
+               "dlon": 1,
+               "z_min": None,
+               "z_max": None,
+               "dz": None,
+               "z_array": np.array(depth_levels),
+               "time_min": "1772-01-01 00:00:00",
+               "time_max": "2020-07-08 04:45:00",
+               "mode": "Y",
+               "selection": None,
+               "dtime": 10,
+               "note": "NA, 6 params"},
 
-    "50y": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
-            "lat_min": 20,
-            "lat_max": 40,
-            "dlat": 1,
-            "lon_min": -40,
-            "lon_max": -10,
-            "dlon": 1,
-            "z_min": None,
-            "z_max": None,
-            "dz": None,
-            "z_array": np.array(depth_levels),
-            "time_min": "1772-01-01 00:00:00",
-            "time_max": "2020-07-08 04:45:00",
-            "mode": "Y",
-            "selection": None,
-            "dtime": 50,
-            "note": "Subtropical gyre, 50 year step"},
+    "5y_na": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
+              "lat_min": 0,
+              "lat_max": 70,
+              "dlat": 1,
+              "lon_min": -77,
+              "lon_max": 30,
+              "dlon": 1,
+              "z_min": None,
+              "z_max": None,
+              "dz": None,
+              "z_array": np.array(depth_levels),
+              "time_min": "1772-01-01 00:00:00",
+              "time_max": "2020-07-08 04:45:00",
+              "mode": "Y",
+              "selection": None,
+              "dtime": 5,
+              "note": "NA, 6 params"},
 
-    "20y": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
-            "lat_min": 20,
-            "lat_max": 40,
-            "dlat": 1,
-            "lon_min": -40,
-            "lon_max": -10,
-            "dlon": 1,
-            "z_min": None,
-            "z_max": None,
-            "dz": None,
-            "z_array": np.array(depth_levels),
-            "time_min": "1772-01-01 00:00:00",
-            "time_max": "2020-07-08 04:45:00",
-            "mode": "Y",
-            "selection": None,
-            "dtime": 20,
-            "note": "Subtropical gyre, 20 year step"},
+    "1y_na": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
+              "lat_min": 0,
+              "lat_max": 70,
+              "dlat": 1,
+              "lon_min": -77,
+              "lon_max": 30,
+              "dlon": 1,
+              "z_min": None,
+              "z_max": None,
+              "dz": None,
+              "z_array": np.array(depth_levels),
+              "time_min": "1772-01-01 00:00:00",
+              "time_max": "2020-07-08 04:45:00",
+              "mode": "Y",
+              "selection": None,
+              "dtime": 1,
+              "note": "NA, 6 params"},
 
-    "10y": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
-            "lat_min": 20,
-            "lat_max": 40,
-            "dlat": 1,
-            "lon_min": -40,
-            "lon_max": -10,
-            "dlon": 1,
-            "z_min": None,
-            "z_max": None,
-            "dz": None,
-            "z_array": np.array(depth_levels),
-            "time_min": "1772-01-01 00:00:00",
-            "time_max": "2020-07-08 04:45:00",
-            "mode": "Y",
-            "selection": None,
-            "dtime": 10,
-            "note": "Subtropical gyre, 10 year step"},
-
-    "5y": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
-           "lat_min": 20,
-           "lat_max": 40,
-           "dlat": 1,
-           "lon_min": -40,
-           "lon_max": -10,
-           "dlon": 1,
-           "z_min": None,
-           "z_max": None,
-           "dz": None,
-           "z_array": np.array(depth_levels),
-           "time_min": "1772-01-01 00:00:00",
-           "time_max": "2020-07-08 04:45:00",
-           "mode": "Y",
-           "selection": None,
-           "dtime": 5,
-           "note": "Subtropical gyre, 10 year step"},
-
-    "y": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
-          "lat_min": 20,
-          "lat_max": 40,
-          "dlat": 1,
-          "lon_min": -40,
-          "lon_max": -10,
-          "dlon": 1,
-          "z_min": None,
-          "z_max": None,
-          "dz": None,
-          "z_array": np.array(depth_levels),
-          "time_min": "1772-01-01 00:00:00",
-          "time_max": "2020-07-08 04:45:00",
-          "mode": "Y",
-          "selection": None,
-          "dtime": 1,
-          "note": "Subtropical gyre, 10 year step"},
-
-    "m": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
-          "lat_min": 20,
-          "lat_max": 40,
-          "dlat": 1,
-          "lon_min": -40,
-          "lon_max": -10,
-          "dlon": 1,
-          "z_min": None,
-          "z_max": None,
-          "dz": None,
-          "z_array": np.array(depth_levels),
-          "time_min": "1772-01-01 00:00:00",
-          "time_max": "2020-07-08 04:45:00",
-          "mode": "M",
-          "selection": None,
-          "dtime": 1,
-          "note": "Subtropical gyre, 12 months step"},
+    # "m_na": {"param_tables": ["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"],
+    #       "lat_min": 0,
+    #       "lat_max": 70,
+    #       "dlat": 1,
+    #       "lon_min": -77,
+    #       "lon_max": 30,
+    #       "dlon": 1,
+    #       "z_min": None,
+    #       "z_max": None,
+    #       "dz": None,
+    #       "z_array": np.array(depth_levels),
+    #       "time_min": "1772-01-01 00:00:00",
+    #       "time_max": "2020-07-08 04:45:00",
+    #       "mode": "M",
+    #       "selection": None,
+    #       "dtime": 1,
+    #       "note": "NA, 6 params"},
 }
 
 bathymetry_path = "../../data/bathymetry/gebco_2022_sub_ice_topo/GEBCO_2022_sub_ice_topo.nc"
@@ -244,9 +227,10 @@ models = {
                                                  "imputation_order": ["ascending", "descending", "random"],
                                                  }},
     "missforest": {"model": MissForest, "hyps": {"n_estimators": [50, 100],
-                                                   "max_depth": [None, 10],
-                                                   "min_samples_split": [2, 5],
-                                                   "max_features": ["sqrt", 0.5, None]}},  # Required since MissForest uses old sklearn version
+                                                 "max_depth": [None, 10],
+                                                 "min_samples_split": [2, 5],
+                                                 "max_features": ["sqrt", 0.5, None]}},
+    # Required since MissForest uses old sklearn version
     "mae_rough": {"model": OceanMAE, "hyps": {"model": {
         "d_model": [32, 64],  # small, medium, large embedding
         "nlayers": [2, 3],  # typical transformer depth
@@ -276,6 +260,30 @@ models = {
     # "gain": {GAIN}
 }
 
+mae_reasonable = {
+    "model": OceanMAE, "hyps":
+        {"model":
+             {"d_model": 64,
+              "nlayers": 4,  # typical transformer depth
+              "nhead": 4,  # variety to test attention width
+              "dim_feedforward": 256,  # FFN capacity
+              "dropout": 0.05,
+              "coord_dim": 5,
+              "value_dim": len(parameters)
+              }
+         ,
+    "train": {
+        "learning_rate": 2e-4,
+        "batch_size": 512,
+        "n_epochs": 50,
+        "optimizer": torch.optim.Adam,
+        "patience": 10,
+        "mask_ratio": 0.5,
+        "loss": {"class": MaskedMSELoss, "kwargs": {}},
+        "mc_dropout": True,
+    }
+}}
+
 # models = {
 #     "mae": {"model": OceanMAE, "hyps": {"model": {
 #                                                 "d_model": [32, 64, 128],  # small, medium, large embedding
@@ -302,3 +310,17 @@ models = {
 # }}
 
 # --- Training --------------------------------------------------------------------------------------------- #
+
+
+# --- Plotting --------------------------------------------------------------------------------------------- #
+parameter_name_map = {"P_TEMPERATURE": "Potential temperature", "P_SALINITY": "Salinity",
+                      "P_OXYGEN": "Oxygen",
+                      "P_NITRATE": "Nitrate",
+                      "P_SILICATE": "Silicate",
+                      "P_PHOSPHATE": "Phosphate"}
+
+parameter_name_unit_map = {"P_TEMPERATURE": "Potential temperature [°C]", "P_SALINITY": "Salinity [psu]",
+                           "P_OXYGEN": "Oxygen [μmol / kg]",
+                           "P_NITRATE": "Nitrate [μmol / kg]",
+                           "P_SILICATE": "Silicate [μmol / kg]",
+                           "P_PHOSPHATE": "Phosphate [μmol / kg]"}
