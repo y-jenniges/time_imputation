@@ -6,6 +6,7 @@ dependencies:
   - python=3.11
   - pytorch-cuda=12.1
   - pytorch=2.5.1
+  - tensorboard
   - xarray
   - hdf5
   - glasbey
@@ -31,6 +32,7 @@ dependencies:
   - gstools
   - esda
   - xarray-spatial
+  - kneed
   - pip
   - pip:
       git+https://github.com/dnowacki-usgs/missingpy.git
