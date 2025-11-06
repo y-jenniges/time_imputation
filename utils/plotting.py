@@ -374,7 +374,7 @@ def plot_reconstruction_error(pred_all, values, test_mask, total_unc, parameter_
     plt.show()
 
 
-def plot_simple_reconstruction_error(y_true, y_pred, save_as=None):
+def plot_simple_reconstruction_error(y_true, y_pred, save_as=None, close=False):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -408,8 +408,11 @@ def plot_simple_reconstruction_error(y_true, y_pred, save_as=None):
     plt.tight_layout()
     if save_as is not None:
         plt.savefig(save_as)
-    plt.show()
 
+    if close:
+        plt.close()
+    else:
+        plt.show()
 
 def animate_depth_panels(
     data,
