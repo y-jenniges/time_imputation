@@ -1,4 +1,9 @@
+# Folders
 output/
 presentations/
 
+# Scripts
 slurm_tune.sh
+
+# Python cache
+**/__pycache__/
