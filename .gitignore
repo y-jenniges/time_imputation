@@ -6,4 +6,7 @@ presentations/
 slurm_tune.sh
 
 # Python cache
-**/__pycache__/
+__pycache__/
+
+# IDE
+.idea/
