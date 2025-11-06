@@ -2,16 +2,15 @@ import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use('Qt5Agg')
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import plotly.express as px  # optional interactive 3D
-from matplotlib.patches import Rectangle
+from matplotlib.colors import ListedColormap
 from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 import json
 import os
-import numpy as np
+import glob
 
 import config
+from utils.gridding import df_to_gridded_da
+from utils.plotting import animate_depth_panels
 
 
 def assign_blocks(df, latlon_step, depth_edges):
@@ -126,89 +125,64 @@ def generate_random_folds(df, n_splits, val_fractions, test_fraction, out_dir):
     return pd.concat(random_splits).reset_index(drop=True)
 
 
-df = pd.read_csv(config.output_dir_gridding + "df_20y_na.csv")
-df["DATEANDTIME"] = pd.to_datetime(df["DATEANDTIME"]).dt.year
+if __name__ == "__main__":
+    df = pd.read_csv(config.data_path)
+    df["DATEANDTIME"] = pd.to_datetime(df["DATEANDTIME"]).dt.year
 
-# Oceanographically relevant subdivisions
-latlons = [5, 15, 40]
-depths = [0, 200, 1000, 12000]  # epi meso bathy pelagic
-seed = 42
+    # Oceanographically relevant subdivisions
+    latlons = [5, 15, 40]
+    depths = [0, 200, 1000, 12000]  # epi meso bathy pelagic
+    seed = 42
 
-# Summarise folds
-df_random = generate_random_folds(df=df,
-                                  n_splits=config.n_splits_per_scheme,
-                                  val_fractions=config.val_fractions,
-                                  test_fraction=config.test_fraction,
-                                  out_dir=config.output_dir_splits)
-df_block = generate_block_folds(df=df,
-                                latlon_steps=latlons,
-                                depths=depths,
-                                val_fractions=config.val_fractions,
-                                test_fraction=config.test_fraction,
-                                n_splits=config.n_splits_per_scheme,
-                                out_dir=config.output_dir_splits)
+    # Summarise folds
+    df_random = generate_random_folds(df=df,
+                                      n_splits=config.n_splits_per_scheme,
+                                      val_fractions=config.val_fractions,
+                                      test_fraction=config.test_fraction,
+                                      out_dir=config.output_dir_splits)
+    df_block = generate_block_folds(df=df,
+                                    latlon_steps=latlons,
+                                    depths=depths,
+                                    val_fractions=config.val_fractions,
+                                    test_fraction=config.test_fraction,
+                                    n_splits=config.n_splits_per_scheme,
+                                    out_dir=config.output_dir_splits)
 
-# Save metadata
-pd.concat([df_random, df_block]).to_csv(os.path.join(config.output_dir_splits, "split_metadata.csv"), index=False)
+    # Save metadata
+    pd.concat([df_random, df_block]).to_csv(os.path.join(config.output_dir_splits, "split_metadata.csv"), index=False)
 
-
-# Plotting
-
-
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.colors import ListedColormap
-from matplotlib.patches import Rectangle
-import matplotlib.colors as mcolors
-import matplotlib
-matplotlib.use('Qt5Agg')
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
-import numpy as np
-import pandas as pd
-import os
-import json
-import glob
-
-import config
-from utils.gridding import df_to_gridded_da
-from utils.plotting import animate_depth_panels
-
-
-# Load dataframe
-df = pd.read_csv(config.output_dir_gridding + "df_20y_na.csv")
-df["DATEANDTIME"] = pd.to_datetime(df["DATEANDTIME"]).dt.year
-
-# Color categories
-CATEGORY_COLORS = {"train": "tab:blue", "validation": "tab:orange", "test": "tab:red", "unobserved": "tab:green"}
-categories = list(CATEGORY_COLORS.keys())
-cat_to_int = {cat: i for i, cat in enumerate(categories)}
-cmap = ListedColormap([CATEGORY_COLORS[cat] for cat in categories])
-
-for fname in glob.glob(os.path.join(config.output_dir_splits, "*.json")):
-    print(fname)
-    temp = df.copy()
-
-    # Load split
-    with open(fname, "r") as f:
-        fold = json.load(f)
-    train_idx = np.array(fold["train_idx"])
-    val_idx   = np.array(fold["val_idx"])
-    test_idx  = np.array(fold["test_idx"])
-
-    # Assign test/train/validation categories to dataframe
-    temp["SPLIT"] = "unassigned"
-    temp.loc[train_idx, "SPLIT"] = "train"
-    temp.loc[val_idx, "SPLIT"]   = "validation"
-    temp.loc[test_idx, "SPLIT"]  = "test"
-    temp.loc[temp.P_TEMPERATURE.isna(), "SPLIT"] = "unobserved"
-    print(temp["SPLIT"].value_counts())
-
-    # Map category names to numeric
-    temp["CAT"] = pd.Categorical(temp["SPLIT"], categories=categories, ordered=True).codes
 
     # Plotting
-    da = df_to_gridded_da(df=temp, value_col="CAT")  # Convert to xarray
-    animate_depth_panels(da, depth_dim="depth", cmap=cmap, save_as=fname.rstrip(".json") + ".mp4")
+    # Color categories
+    CATEGORY_COLORS = {"train": "tab:blue", "validation": "tab:orange", "test": "tab:red", "unobserved": "tab:green"}
+    categories = list(CATEGORY_COLORS.keys())
+    cat_to_int = {cat: i for i, cat in enumerate(categories)}
+    cmap = ListedColormap([CATEGORY_COLORS[cat] for cat in categories])
 
-    print()
+    for fname in glob.glob(os.path.join(config.output_dir_splits, "*.json")):
+        print(fname)
+        temp = df.copy()
+
+        # Load split
+        with open(fname, "r") as f:
+            fold = json.load(f)
+        train_idx = np.array(fold["train_idx"])
+        val_idx   = np.array(fold["val_idx"])
+        test_idx  = np.array(fold["test_idx"])
+
+        # Assign test/train/validation categories to dataframe
+        temp["SPLIT"] = "unassigned"
+        temp.loc[train_idx, "SPLIT"] = "train"
+        temp.loc[val_idx, "SPLIT"]   = "validation"
+        temp.loc[test_idx, "SPLIT"]  = "test"
+        temp.loc[temp.P_TEMPERATURE.isna(), "SPLIT"] = "unobserved"
+        print(temp["SPLIT"].value_counts())
+
+        # Map category names to numeric
+        temp["CAT"] = pd.Categorical(temp["SPLIT"], categories=categories, ordered=True).codes
+
+        # Plotting
+        da = df_to_gridded_da(df=temp, value_col="CAT")  # Convert to xarray
+        animate_depth_panels(da, depth_dim="depth", cmap=cmap, save_as=fname.rstrip(".json") + ".mp4")
+
+        print()
