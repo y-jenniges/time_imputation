@@ -3,9 +3,10 @@ import numpy as np
 import torch
 from itertools import product
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 import os
 import glob
+import json
 
 
 @dataclass
@@ -15,6 +16,7 @@ class TuningResult:
     model: str
     hyp_combo_id: int
     hyps: dict
+
     test_rmse: float = np.nan
     val_rmse: float = np.nan
     train_time: float = np.nan
@@ -24,9 +26,31 @@ class TuningResult:
     stop_epoch: int = np.nan
     reconstruction_rmse: float = np.nan
 
+    metrics_last: dict = field(default_factory=dict)
+    metrics_all: dict = field(default_factory=dict)
+
     def save(self, fname: Path):
+        # Serialize nested dicts as JSON
+        data = asdict(self)
+        data["hyps"] = self.make_json_safe(self.hyps)
+        data["metrics_last"] = self.make_json_safe(self.metrics_last)
+        data["metrics_all"] = self.make_json_safe(self.metrics_all)
+
+        # Store as dataframe
         df = pd.DataFrame([asdict(self)])
         df.to_csv(fname, index=False)
+
+    def make_json_safe(self, obj):
+        if isinstance(obj, dict):  # Dict type
+            return {k: self.make_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):  # List or tuple
+            return [self.make_json_safe(v) for v in obj]
+        elif isinstance(obj, type) or callable(obj):  # Classes, functions, losses
+            return obj.__name__
+        elif isinstance(obj, (np.integer, np.floating)):  # Numbers
+            return obj.item()
+        else:
+            return obj
 
 
 def set_seed(seed):
