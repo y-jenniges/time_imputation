@@ -23,7 +23,7 @@ from oceanmae.dataset import random_feature_mask, prepare_mae_loaders, OceanMAED
 from oceanmae.early_stopping import EarlyStopping
 from oceanmae.losses import PhysicsLoss, MaskedMSELoss, HeteroscedasticLoss, build_loss
 from oceanmae.model import OceanMAE
-from oceanmae.trainer import Trainer
+from oceanmae.trainer import Trainer, compute_metrics
 from utils.plotting import plot_loss, generate_animation, plot_simple_reconstruction_error
 from utils.tuning import TuningResult, set_seed, get_hyperparameter_combinations, combine_csvs
 
@@ -128,10 +128,11 @@ def run_tuning(model_name, split_path):
         split_fname = PurePath(split_path).stem
         base_name = f"split{split_fname}_model{model_name}_seed{seed}_hyps{combo_id}"
         main_path = Path(model_outdir) / base_name
-        print(main_path)
+        csv_fname = main_path.with_name(main_path.name + ".csv")
+        print(csv_fname)
 
         # Check if file already exists
-        if os.path.isfile(main_path.with_suffix(".csv")):
+        if csv_fname.exists():
             return
 
         # Set deterministic seeds
@@ -205,7 +206,7 @@ def run_tuning(model_name, split_path):
 
             # Reconstruction plot
             recplot_fname = main_path.with_name(main_path.name + "_reconstruction_error.png")
-            plot_simple_reconstruction_error(y_true, y_pred, save_as=recplot_fname)
+            plot_simple_reconstruction_error(y_true, y_pred, save_as=recplot_fname, close=True)
 
             # Evaluate on validation and test set separately
             val_rmse = np.sqrt(np.nanmean((y_true[val_idx] - y_pred[val_idx])**2))  # For model tuning
@@ -221,6 +222,8 @@ def run_tuning(model_name, split_path):
             res.std_aleatoric_uncertainty = float(full_var.std())
             res.stop_epoch = early_stopper.epoch
             res.reconstruction_rmse = reconstruction_rmse
+            res.metrics_all = history["metrics"]
+            res.metrics_last = history["metrics"][max(history["metrics"].keys())] if "metrics" in history and history["metrics"] else {}
 
             # Final imputation: keep original where present, use prediction where NaN and where test/validation
             final_imputed = y_true.copy()
@@ -237,7 +240,7 @@ def run_tuning(model_name, split_path):
             ae = np.abs(y_true - final_imputed)
             dfi = pd.DataFrame(ae, columns=config.parameters)
             dfi[config.coordinates] = df[config.coordinates]
-            print(dfi.P_TEMPERATURE.mean(), dfi.P_TEMPERATURE.std())
+            # print(dfi.P_TEMPERATURE.mean(), dfi.P_TEMPERATURE.std())
             generate_animation(dfi, scaler_dict, parameter="P_TEMPERATURE", save_as=ae_fname)
 
         elif issubclass(model_class, sklearn.base.BaseEstimator):
@@ -261,11 +264,15 @@ def run_tuning(model_name, split_path):
             # Evaluate on test set (optional, not relevant in tuning)
             test_rmse = np.sqrt(np.nanmean((y_true[test_idx] - pred[:, coord_dim :][test_idx])**2))
 
+            # Compute metrics
+            metrics = compute_metrics(y_true=y_true, y_pred=pred)
+
             # Store results
             res.train_time = train_time
             res.pred_time = pred_time
             res.val_rmse = val_rmse
             res.test_rmse = test_rmse
+            res.metrics_all = metrics
 
             # Full prediction
             df_imputed = pred[:, coord_dim :].copy()  # Prediction
@@ -277,11 +284,11 @@ def run_tuning(model_name, split_path):
             ae = np.abs(y_true - pred[:, coord_dim:])
             dfi = pd.DataFrame(ae, columns=config.parameters)
             dfi[config.coordinates] = df[config.coordinates]
-            print(dfi.P_TEMPERATURE.mean(), dfi.P_TEMPERATURE.std())
-            generate_animation(dfi, scaler_dict, parameter="P_TEMPERATURE", save_as=ae_fname)
+            # print(dfi.P_TEMPERATURE.mean(), dfi.P_TEMPERATURE.std())
+            # generate_animation(dfi, scaler_dict, parameter="P_TEMPERATURE", save_as=ae_fname)
 
         # Store results on disc
-        res.save(main_path.with_suffix(".csv"))
+        res.save(csv_fname)
 
         # Animated plot
         if df_imputed is not None:
@@ -300,11 +307,17 @@ def run_tuning(model_name, split_path):
             run_seed_hyps(seed, hyps, combo_id)
 
 
-# if __name__ == '__main__':
-#     for fname in glob.glob("output/splits/*.json"):
-#         print(fname)
-#         run_tuning("mean", fname)
-#
-#         d = combine_csvs("output/tuning/mean/", out_name="tuning_mean.csv", remove_files=True)
-#
-#     # run_tuning("mae_rough", "C:/Users/yvjennig/PycharmProjects/github/time_imputation/output/splits/fold_block_0_0.1_15.json")
+if __name__ == '__main__':
+    # for fname in glob.glob("output/splits/*.json"):
+    #     print(fname)
+    #     run_tuning("mean", fname)
+    #
+    #     d = combine_csvs("output/tuning/mean/", out_name="tuning_mean.csv", remove_files=True)
+
+    # fname = "output/splits/fold_block_0_0.1_15.json"
+    # run_tuning("mae_rough", fname)
+
+    fname = "output/splits/fold_block_0_0.1_15.json"
+    run_tuning("missforest", fname)
+
+    # run_tuning("mae_rough", "C:/Users/yvjennig/PycharmProjects/github/time_imputation/output/splits/fold_block_0_0.1_15.json")
