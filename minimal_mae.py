@@ -307,7 +307,7 @@ def run_tuning(model_name, split_path):
             run_seed_hyps(seed, hyps, combo_id)
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
     # for fname in glob.glob("output/splits/*.json"):
     #     print(fname)
     #     run_tuning("mean", fname)
@@ -317,7 +317,7 @@ if __name__ == '__main__':
     # fname = "output/splits/fold_block_0_0.1_15.json"
     # run_tuning("mae_rough", fname)
 
-    fname = "output/splits/fold_block_0_0.1_15.json"
-    run_tuning("missforest", fname)
+    # fname = "output/splits/fold_block_0_0.1_15.json"
+    # run_tuning("missforest", fname)
 
     # run_tuning("mae_rough", "C:/Users/yvjennig/PycharmProjects/github/time_imputation/output/splits/fold_block_0_0.1_15.json")
