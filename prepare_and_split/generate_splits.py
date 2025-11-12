@@ -120,7 +120,7 @@ def generate_random_folds(df, n_splits, val_fractions, test_fraction, out_dir):
             with open(fname, "w") as f:
                 json.dump(fold, f, indent=2)
 
-            random_splits.append(pd.DataFrame({"scheme": [scheme], "split_id": [split_id], "n_splits": [n_splits], "validation_fraction": [val_size], "filepath": [fname]}))
+            random_splits.append(pd.DataFrame({"scheme": [scheme], "split_id": [split_id], "n_splits": [n_splits], "val_size": [val_size], "filepath": [fname]}))
 
     return pd.concat(random_splits).reset_index(drop=True)
 
