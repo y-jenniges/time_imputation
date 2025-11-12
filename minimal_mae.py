@@ -197,7 +197,7 @@ def run_tuning(model_name, split_path):
 
             # Visualize RECONSTRUCTION
             rec_fname = main_path.with_name(main_path.name + "_reconstruction_temperature.mp4")
-            generate_animation(df_imputed, scaler_dict, parameter="P_TEMPERATURE", save_as=rec_fname)
+            # generate_animation(df_imputed, scaler_dict, parameter="P_TEMPERATURE", save_as=rec_fname)
 
             # Transform to numpy
             all_values = torch.cat([values for _, values, _ in full_loader], dim=0)
@@ -241,7 +241,7 @@ def run_tuning(model_name, split_path):
             dfi = pd.DataFrame(ae, columns=config.parameters)
             dfi[config.coordinates] = df[config.coordinates]
             # print(dfi.P_TEMPERATURE.mean(), dfi.P_TEMPERATURE.std())
-            generate_animation(dfi, scaler_dict, parameter="P_TEMPERATURE", save_as=ae_fname)
+            # generate_animation(dfi, scaler_dict, parameter="P_TEMPERATURE", save_as=ae_fname)
 
         elif issubclass(model_class, sklearn.base.BaseEstimator):
             # Prepare data
@@ -291,9 +291,10 @@ def run_tuning(model_name, split_path):
         res.save(csv_fname)
 
         # Animated plot
-        if df_imputed is not None:
-            imputed_fname = main_path.with_name(main_path.name + "_imputation_temperature.mp4")
-            generate_animation(df_imputed, scaler_dict, parameter="P_TEMPERATURE", save_as=imputed_fname)
+        # if df_imputed is not None:
+        #     if not any(Path(model_outdir).glob("*.mp4")):
+        #         imputed_fname = main_path.with_name(main_path.name + "_imputation_temperature.mp4")
+        #         generate_animation(df_imputed, scaler_dict, parameter="P_TEMPERATURE", save_as=imputed_fname)
 
     # Parallelize seeds × hyperparameters
     tasks = [(seed, hyps, combo_id) for combo_id, hyps in enumerate(hyp_combos) for seed in config.tuning_seeds]
