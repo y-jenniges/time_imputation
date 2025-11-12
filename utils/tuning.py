@@ -100,21 +100,28 @@ def combine_csvs(dir_path, out_name="combined.csv", remove_files=False):
     # Load all result files as df
     res_files = glob.glob(f"{dir_path}/*.csv")
 
-    # Load all files as df
-    all_dfs = []
-    for f in res_files:
-        df = pd.read_csv(f)
-        all_dfs.append(df)
-
-    # Concat all result files
-    df_final = pd.concat(all_dfs)
-    df_final.to_csv(f"{dir_path}/{out_name}", index=False)
-    print("Stored file at ", f"{dir_path}/{out_name}")
-
-    # Remove files
-    if remove_files:
+    if len(res_files) > 1:
+        # Load all files as df
+        all_dfs = []
         for f in res_files:
-            os.remove(f)
+            df = pd.read_csv(f)
+            all_dfs.append(df)
+
+        # Concat all result files
+        df_final = pd.concat(all_dfs)
+        df_final.to_csv(f"{dir_path}/{out_name}", index=False)
+        print("Stored file at ", f"{dir_path}/{out_name}")
+
+        # Remove files
+        if remove_files:
+            for f in res_files:
+                os.remove(f)
+    elif len(res_files) == 1:
+        print("Only one file found")
+        df_final = pd.read_csv(res_files[0])
+    else:
+        print("No files found")
+        df_final = pd.DataFrame()
 
     return df_final
 
