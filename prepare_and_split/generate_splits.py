@@ -54,9 +54,9 @@ def generate_block_folds(df, parameters, latlon_steps, depths, val_fractions, n_
         for val_size in val_fractions:
             target_val_n = int(len(df_train) * val_size)
 
-            for split_id in range(n_splits):
+            for split_no in range(n_splits):
                 # Set seed
-                rng = np.random.default_rng(seed + 1000 * ll_step + 100 * split_id + 10 * int(val_size*100))
+                rng = np.random.default_rng(seed + 1000 * ll_step + 100 * split_no + 10 * int(val_size*100))
 
                 found = False
                 for i in range(max_iter):
@@ -96,7 +96,7 @@ def generate_block_folds(df, parameters, latlon_steps, depths, val_fractions, n_
 
                         # Store folds by lat/lon step
                         fold_records.append(
-                            {"scheme": scheme, "fold_id": fold_id, "split_id": split_id, "val_size": val_size, "n_splits": n_splits,
+                            {"scheme": scheme, "fold_id": fold_id, "split_no": split_no, "val_size": val_size, "n_splits": n_splits,
                              "latlon_step": ll_step, "filepath": fname})
 
                         fold_id += 1
@@ -117,10 +117,10 @@ def generate_random_folds(df, train_idx, n_splits, val_fractions, seed, out_dir)
     # Random splits
     random_splits = []
     fold_id = 0
-    for split_id in range(n_splits):
+    for split_no in range(n_splits):
         for val_size in val_fractions:
             # Set seed
-            rng = seed + 100 * split_id + int(1000 * val_size)
+            rng = seed + 100 * split_no + int(1000 * val_size)
 
             # Sample validation set from remaining data
             df_val = df_train_val.sample(frac=val_size, random_state=rng)
@@ -138,7 +138,7 @@ def generate_random_folds(df, train_idx, n_splits, val_fractions, seed, out_dir)
             with open(fname, "w") as f:
                 json.dump(fold, f, indent=2)
 
-            random_splits.append({"scheme": scheme, "fold_id": fold_id, "split_id": split_id, "n_splits": n_splits, "val_size": val_size, "filepath": fname})
+            random_splits.append({"scheme": scheme, "fold_id": fold_id, "split_no": split_no, "n_splits": n_splits, "val_size": val_size, "filepath": fname})
 
             fold_id += 1
 
