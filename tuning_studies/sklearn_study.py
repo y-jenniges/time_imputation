@@ -72,7 +72,7 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     # Check if file already exists
     if csv_fname.exists():
         results = pd.read_csv(csv_fname)
-        return results
+        return results, None, None
 
     # Set deterministic seeds
     set_seed(seed)
@@ -124,7 +124,7 @@ def optuna_objective(trial, model_name):
     df = load_dataset()
 
     # Load all split paths
-    split_paths = sorted(glob.glob(os.path.join(config.output_dir_splits, "fold_*.json")))
+    split_paths = sorted(glob.glob(os.path.join(config.output_dir_splits, "selected_splits/fold_*.json")))
 
     # Priors and model class
     model_class = get_model_class(model_name)
@@ -155,10 +155,10 @@ def optuna_objective(trial, model_name):
 
         val_rmses.append(results.val_rmse)
 
-        # Pruning
-        trial.report(results.val_rmse, step=split_i)
-        if trial.should_prune():
-            raise optuna.TrialPruned()
+        # # Pruning
+        # trial.report(results.val_rmse, step=split_i)
+        # if trial.should_prune():
+        #     raise optuna.TrialPruned()
 
     # Return mean RMSE across splits
     return np.mean(val_rmses)
@@ -184,7 +184,7 @@ if __name__ == "__main__":
                                 pruner=None,
                                 storage=args.db,
                                 load_if_exists=True)
-    study.optimize(partial(optuna_objective, model_name=args.model_name), n_trials=args.n_trials, n_jobs=4)
+    study.optimize(partial(optuna_objective, model_name=args.model_name), n_trials=args.n_trials, n_jobs=1)
 
     # Store results
     df_trials = study.trials_dataframe()
