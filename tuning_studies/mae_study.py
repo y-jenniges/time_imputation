@@ -23,10 +23,6 @@ from utils.plotting import plot_loss, plot_simple_reconstruction_error
 from utils.tuning import set_seed, TuningResult
 
 
-# --- Logging ------------------------------------------------------------------------- #
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-
-
 def suggest_hyperparameters(trial):
     """ Suggest hyperparameters for the masked auto encoder. """
     return {
@@ -218,6 +214,9 @@ def optuna_objective(trial, model_name):
 
 if __name__ == "__main__":
     model_name = "mae"
+
+    # Setup logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     # Parse arguments
     parser = argparse.ArgumentParser()
