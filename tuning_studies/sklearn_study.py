@@ -65,7 +65,7 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
 
     # Output file
     split_fname = PurePath(split_path).stem
-    base_name = f"split{split_fname}_model{model_name}_seed{seed}_hyps{trial_id}"
+    base_name = f"model{model_name}_split{split_fname}_trial{trial_id}"
     main_path = Path(model_outdir) / base_name
     csv_fname = main_path.with_name(main_path.name + ".csv")
 
