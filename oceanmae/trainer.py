@@ -276,7 +276,7 @@ class Trainer:
         return torch.cat(all_coords), torch.cat(all_preds), torch.cat(all_vars)
 
 
-    def fit(self, train_loader:DataLoader, val_loader: DataLoader, max_epochs, early_stopping=None, mc_dropout: bool = False, mask_ratio: float = 0.5):
+    def fit(self, train_loader:DataLoader, val_loader: DataLoader, max_epochs, early_stopping=None, mc_dropout: bool = False, mask_ratio: float = 0.5, optuna_callback=None):
         history = {"train": {}, "val": {}, "metrics": {}}
 
         # Iterate over epochs
@@ -296,6 +296,10 @@ class Trainer:
             # TensorBoard logging
             self.writer.add_scalar("Loss/train", train_loss, epoch)
             self.writer.add_scalar("Loss/val", val_loss, epoch)
+
+            # Optuna logging
+            if optuna_callback is not None:
+                optuna_callback(epoch=epoch, val_losses=list(history["val"].values()))
 
             # Early stopping
             if early_stopping and early_stopping(val_loss):
