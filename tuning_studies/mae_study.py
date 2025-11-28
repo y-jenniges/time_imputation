@@ -244,6 +244,6 @@ if __name__ == "__main__":
     # Save results
     logging.info("Storing OPTUNA study results...")
     df_trials = study.trials_dataframe()
-    df_trials.to_csv("optuna_trials_mae.csv", index=False)
+    df_trials.to_csv(f"optuna_trials_{model_name}.csv", index=False)
 
     logging.info("Best trial:", study.best_trial.params)
