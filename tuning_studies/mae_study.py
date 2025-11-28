@@ -10,10 +10,10 @@ import os
 import argparse
 import logging
 
-from oceanmae.losses import build_loss, name_to_loss_spec
-from oceanmae.trainer import Trainer
-from oceanmae.early_stopping import EarlyStopping
-from oceanmae.dataset import prepare_mae_loaders, load_dataset
+from nn_utils.losses import build_loss, name_to_loss_spec
+from nn_utils.trainer import Trainer
+from nn_utils.early_stopping import EarlyStopping
+from nn_utils.dataset import prepare_mae_loaders, load_dataset
 from models.mae import OceanMAE
 from utils.tuning import make_optuna_callback
 
