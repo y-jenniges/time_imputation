@@ -1,4 +1,5 @@
 import glob
+from functools import partial
 from pathlib import Path, PurePath
 import optuna
 import pandas as pd
@@ -162,7 +163,7 @@ def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, 
     return results, y_true, y_pred
 
 
-def optuna_objective(trial):
+def optuna_objective(trial, model_name):
     """ Optuna objective function: One trial runs on all 5 splits. """
     # Init torch device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -198,7 +199,7 @@ def optuna_objective(trial):
             train_idx=train_idx,
             val_idx=val_idx,
             test_idx=test_idx,
-            model_name="mae_optuna",
+            model_name=model_name,
             split_path=split_path,
             trial_id=trial.number,
             optuna_callback=make_optuna_callback(trial, split_i, n_epochs),
@@ -239,7 +240,7 @@ if __name__ == "__main__":
                                 load_if_exists=True)
 
     logging.info("Starting OPTUNA study...")
-    study.optimize(optuna_objective, n_trials=args.n_trials)
+    study.optimize(partial(optuna_objective, model_name=model_name), n_trials=args.n_trials)
 
     # Save results
     logging.info("Storing OPTUNA study results...")
