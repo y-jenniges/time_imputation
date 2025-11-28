@@ -11,5 +11,5 @@ __pycache__/
 # IDE
 .idea/
 
-# SLURM files
-slurm_*.sh
+# SLURM jobs
+jobs/
