@@ -6,8 +6,8 @@ from scipy import stats
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from oceanmae.losses import MaskedMSELoss, BaseLoss
-from oceanmae.dataset import random_feature_mask
+from nn_utils.losses import MaskedMSELoss, BaseLoss
+from nn_utils.dataset import random_feature_mask
 
 import config
 
