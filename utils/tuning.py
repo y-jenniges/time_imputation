@@ -8,8 +8,6 @@ from dataclasses import dataclass, asdict, field
 import os
 import glob
 
-from oceanmae.losses import MaskedMSELoss, HeteroscedasticLoss
-
 
 @dataclass
 class TuningResult:
@@ -66,36 +64,6 @@ def set_seed(seed):
     generator = torch.Generator()
     generator.manual_seed(seed)
     return generator
-
-
-def get_hyperparameter_combinations(hyps):
-    combinations = []
-
-    # PyTorch-style nested dict
-    if isinstance(hyps, dict) and "model" in hyps and "train" in hyps:
-        model_hyps = hyps["model"]
-        train_hyps = hyps["train"]
-
-        # Get keys and values lists
-        model_keys, model_values = zip(*model_hyps.items()) if model_hyps else ([], [])
-        train_keys, train_values = zip(*train_hyps.items()) if train_hyps else ([], [])
-
-        # Iterate over model hyperparameter combinations
-        for model_combo in product(*model_values) if model_values else [()]:
-            model_dict = dict(zip(model_keys, model_combo))
-
-            # Iterate over train hyperparameter combinations
-            for train_combo in product(*train_values) if train_values else [()]:
-                train_dict = dict(zip(train_keys, train_combo))
-                combinations.append({"model": model_dict, "train": train_dict})
-
-    # Sklearn-style flat dict
-    else:
-        keys, values = zip(*hyps.items()) if hyps else ([], [])
-        for combo in product(*values) if values else [()]:
-            combinations.append(dict(zip(keys, combo)))
-
-    return combinations
 
 
 def combine_csvs(dir_path, out_name="combined.csv", remove_files=False):
