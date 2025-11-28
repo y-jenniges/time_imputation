@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class OceanMAE(nn.Module):
-    def __init__(self, coord_dim=6, value_dim=6, d_model=64, nhead=4, nlayers=2, dropout=0.1, dim_feedforward=128):
+    def __init__(self, coord_dim=5, value_dim=6, d_model=64, nhead=4, nlayers=2, dropout=0.1, dim_feedforward=128):
         super().__init__()
 
         self.coord_dim = coord_dim
