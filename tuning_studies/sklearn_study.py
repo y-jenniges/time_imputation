@@ -3,16 +3,15 @@ import logging
 from functools import partial
 from pathlib import Path, PurePath
 from time import time
-
 import optuna
 import json
 import numpy as np
 import pandas as pd
 import glob
 import os
-
 from missingpy import MissForest
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import KNNImputer, SimpleImputer, IterativeImputer
 from sklearn.linear_model import BayesianRidge
 
@@ -69,10 +68,8 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     base_name = f"split{split_fname}_model{model_name}_seed{seed}_hyps{trial_id}"
     main_path = Path(model_outdir) / base_name
     csv_fname = main_path.with_name(main_path.name + ".csv")
-    print(csv_fname)
 
     # Check if file already exists
-    print("Check for file")
     if csv_fname.exists():
         results = pd.read_csv(csv_fname)
         return results
