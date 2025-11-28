@@ -10,6 +10,17 @@ def build_loss(loss_config):
     return loss_class(**kwargs)
 
 
+def name_to_loss_spec(loss_name):
+    loss_spec = {}
+    if loss_name == "mse":
+        loss_spec["class"] = MaskedMSELoss
+        loss_spec["kwargs"] = {}
+    elif loss_name == "hetero":
+        loss_spec["class"] = HeteroscedasticLoss
+        loss_spec["kwargs"]  = {}
+    return loss_spec
+
+
 class BaseLoss(nn.Module):
     def forward(self, input, target, mask=None, coords=None, pred_var=None, **kwargs):
         """ Computes loss.

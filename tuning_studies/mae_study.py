@@ -10,11 +10,12 @@ import os
 import argparse
 import logging
 
-from oceanmae.losses import MaskedMSELoss, HeteroscedasticLoss, build_loss
+from oceanmae.losses import build_loss, name_to_loss_spec
 from oceanmae.trainer import Trainer
 from oceanmae.early_stopping import EarlyStopping
 from oceanmae.dataset import prepare_mae_loaders, load_dataset
 from models.mae import OceanMAE
+from utils.tuning import make_optuna_callback
 
 import config
 from utils.plotting import plot_loss, plot_simple_reconstruction_error
@@ -25,7 +26,6 @@ from utils.tuning import set_seed, TuningResult
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
-# --- Helpers ------------------------------------------------------------------------- #
 def suggest_hyperparameters(trial):
     return {
             "train": {
@@ -47,32 +47,6 @@ def suggest_hyperparameters(trial):
         }
 
 
-def load_splits(folder_path: str) -> list[str]:
-    return sorted(glob.glob(os.path.join(folder_path, "fold_*.json")))
-
-
-def make_optuna_callback(trial, split_i, n_epochs):
-    def callback(epoch, val_losses):
-        running_mean = np.nanmean(val_losses)
-        global_step = split_i * n_epochs + epoch
-        trial.report(running_mean, step=global_step)
-        if trial.should_prune():
-            raise optuna.TrialPruned()
-    return callback
-
-
-def name_to_loss_spec(loss_name):
-    loss_spec = {}
-    if loss_name == "mse":
-        loss_spec["class"] = MaskedMSELoss
-        loss_spec["kwargs"] = {}
-    elif loss_name == "hetero":
-        loss_spec["class"] = HeteroscedasticLoss
-        loss_spec["kwargs"]  = {}
-    return loss_spec
-
-
-# --- Training single split ------------------------------------------------------------------------- #
 def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, model_name,
                            split_path, trial_id, optuna_callback=None, seed=42, device=torch.device("cpu")):
     # Create output subdir

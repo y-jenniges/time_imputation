@@ -1,3 +1,4 @@
+import optuna
 import pandas as pd
 import numpy as np
 import torch
@@ -6,7 +7,8 @@ from pathlib import Path
 from dataclasses import dataclass, asdict, field
 import os
 import glob
-import json
+
+from oceanmae.losses import MaskedMSELoss, HeteroscedasticLoss
 
 
 @dataclass
@@ -125,3 +127,12 @@ def combine_csvs(dir_path, out_name="combined.csv", remove_files=False):
 
     return df_final
 
+
+def make_optuna_callback(trial, split_i, n_epochs):
+    def callback(epoch, val_losses):
+        running_mean = np.nanmean(val_losses)
+        global_step = split_i * n_epochs + epoch
+        trial.report(running_mean, step=global_step)
+        if trial.should_prune():
+            raise optuna.TrialPruned()
+    return callback
