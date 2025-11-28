@@ -27,6 +27,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 
 def suggest_hyperparameters(trial):
+    """ Suggest hyperparameters for the masked auto encoder. """
     return {
             "train": {
                 "batch_size": trial.suggest_categorical("batch_size", [128, 512, 1024]),
@@ -49,6 +50,7 @@ def suggest_hyperparameters(trial):
 
 def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, model_name,
                            split_path, trial_id, optuna_callback=None, seed=42, device=torch.device("cpu")):
+    """ Run model on one split and store results. """
     # Create output subdir
     model_outdir = Path(config.output_dir_tuning) / model_name
     os.makedirs(model_outdir, exist_ok=True)
@@ -161,7 +163,7 @@ def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, 
 
 
 def optuna_objective(trial):
-    """ Optuna objective function: One training run on one split. """
+    """ Optuna objective function: One trial runs on all 5 splits. """
     # Init torch device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -178,7 +180,7 @@ def optuna_objective(trial):
     hyp_dict = suggest_hyperparameters(trial)
     n_epochs = hyp_dict["train"]["n_epochs"]
 
-    # Training (fixed seed)
+    # Training
     val_losses = []
     for split_i, split_path in enumerate(split_paths):
         logging.info(f"Training trial {trial.number} on split {split_path}")
@@ -237,7 +239,7 @@ if __name__ == "__main__":
                                 load_if_exists=True)
 
     logging.info("Starting OPTUNA study...")
-    study.optimize(optuna_objective, n_trials=args.n_trials)  # , n_jobs=1)
+    study.optimize(optuna_objective, n_trials=args.n_trials)
 
     # Save results
     logging.info("Storing OPTUNA study results...")
