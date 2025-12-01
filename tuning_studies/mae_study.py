@@ -230,10 +230,11 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     # Set up Optuna study
+    journal_path = f"{config.output_dir_tuning}/{model_name}_tuning.log"
     sampler = optuna.samplers.TPESampler(n_startup_trials=20,  # More initial random exploration
                                          multivariate=True)  # Learn joint distributions
     pruner = optuna.pruners.MedianPruner()
-    storage = JournalStorage(JournalFileStorage(f"{config.output_dir_tuning}/{model_name}_tuning.log", lock=JournalFileOpenLock(args.db + ".lock")))
+    storage = JournalStorage(JournalFileStorage(journal_path, lock=JournalFileOpenLock(journal_path + ".lock")))
     study = optuna.create_study(study_name=f"{model_name}_tuning",
                                 direction="minimize",
                                 sampler=sampler,
