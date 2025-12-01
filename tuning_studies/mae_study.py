@@ -11,6 +11,9 @@ import os
 import argparse
 import logging
 
+from optuna.storages import JournalStorage, JournalFileStorage
+from optuna.storages.journal import JournalFileOpenLock
+
 from nn_utils.losses import build_loss, name_to_loss_spec
 from nn_utils.trainer import Trainer
 from nn_utils.early_stopping import EarlyStopping
@@ -221,7 +224,6 @@ if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_trials", type=int, default=1, help="Number of trials to run")
-    parser.add_argument("--db", type=str, default=f"sqlite:///{config.output_dir_tuning}/tuning.db", help="Database path")
     args = parser.parse_args()
 
     # Setup logging
@@ -231,11 +233,12 @@ if __name__ == "__main__":
     sampler = optuna.samplers.TPESampler(n_startup_trials=20,  # More initial random exploration
                                          multivariate=True)  # Learn joint distributions
     pruner = optuna.pruners.MedianPruner()
+    storage = JournalStorage(JournalFileStorage(f"{config.output_dir_tuning}/{model_name}_tuning.log", lock=JournalFileOpenLock(args.db + ".lock")))
     study = optuna.create_study(study_name=f"{model_name}_tuning",
                                 direction="minimize",
                                 sampler=sampler,
                                 pruner=None,
-                                storage=args.db,
+                                storage=storage,
                                 load_if_exists=True)
 
     logging.info("Starting OPTUNA study...")
