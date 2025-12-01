@@ -1,14 +1,5 @@
-import torch.nn as nn
-import torch
 import numpy as np
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
-from sklearn.linear_model import BayesianRidge
-from sklearn.ensemble import RandomForestRegressor
-from missingpy import MissForest  # https://github.com/dnowacki-usgs/missingpy.git
 
-from oceanmae.model import OceanMAE
-from oceanmae.losses import HeteroscedasticLoss, PhysicsLoss, MaskedMSELoss
 
 # Output directories
 output_dir = "output/"
@@ -217,100 +208,8 @@ val_fractions = [0.1, 0.2, 0.5]
 test_fraction = 0.15
 
 # --- Tuning --------------------------------------------------------------------------------------------- #
-tuning_seeds = range(10)
-models = {
-    "mean": {"model": SimpleImputer, "hyps": {"strategy": ["mean"]}},
-    "knn": {"model": KNNImputer, "hyps": {"n_neighbors": [5, 10, 20]}, "weights": ["uniform", "distance"]},
-    "mice": {"model": IterativeImputer, "hyps": {"estimator": [BayesianRidge(), RandomForestRegressor()],
-                                                 "max_iter": [20, 50],
-                                                 "initial_strategy": ["mean", "median"],
-                                                 "imputation_order": ["ascending", "descending", "random"],
-                                                 }},
-    "missforest": {"model": MissForest, "hyps": {"n_estimators": [50, 100],
-                                                 "max_depth": [None, 10],
-                                                 "min_samples_split": [2, 5],
-                                                 "max_features": ["sqrt", 0.5, None]}},
-    # Required since MissForest uses old sklearn version
-    "mae_rough": {"model": OceanMAE, "hyps": {"model": {
-        "d_model": [32, 64],  # small, medium, large embedding
-        "nlayers": [2, 3],  # typical transformer depth
-        "nhead": [2, 4],  # variety to test attention width
-        "dim_feedforward": [128],  # FFN capacity
-        "dropout": [0.05],
-        "coord_dim": [5],
-        "value_dim": [len(parameters)]
-    },
-
-        "train": {
-            "learning_rate": [2e-4, 5e-4],
-            "batch_size": [512],
-            "n_epochs": [50],  # , 100, 200],
-            "optimizer": [torch.optim.Adam],
-            "patience": [5, 10],
-            "mask_ratio": [0.0, 0.5],
-            "loss": [
-                {"class": MaskedMSELoss, "kwargs": {}},
-                {"class": HeteroscedasticLoss, "kwargs": {}},
-            ],
-            "mc_dropout": [True],
-        }
-    },
-                  }
-    # "kriging": {Kriging},
-    # "gain": {GAIN}
-}
-
-mae_reasonable = {
-    "model": OceanMAE, "hyps":
-        {"model":
-             {"d_model": 64,
-              "nlayers": 4,  # typical transformer depth
-              "nhead": 4,  # variety to test attention width
-              "dim_feedforward": 256,  # FFN capacity
-              "dropout": 0.05,
-              "coord_dim": 5,
-              "value_dim": len(parameters)
-              }
-         ,
-    "train": {
-        "learning_rate": 2e-4,
-        "batch_size": 512,
-        "n_epochs": 50,
-        "optimizer": torch.optim.Adam,
-        "patience": 10,
-        "mask_ratio": 0.5,
-        "loss": {"class": MaskedMSELoss, "kwargs": {}},
-        "mc_dropout": True,
-    }
-}}
-
-# models = {
-#     "mae": {"model": OceanMAE, "hyps": {"model": {
-#                                                 "d_model": [32, 64, 128],  # small, medium, large embedding
-#                                                 "nlayers": [2, 3],  # typical transformer depth
-#                                                 "nhead": [2, 4],  # variety to test attention width
-#                                                 "dim_feedforward": [128, 256],  # FFN capacity
-#                                                 "dropout": [0.03, 0.05, 0.07, 0.1],
-#                                                 "coord_dim": [5],
-#                                                 "value_dim": [len(parameters)]
-#                                                 },  # typical for MC dropout
-#
-#                                               "train": {
-# "patience": [10],
-#                                                   "learning_rate": [1e-4, 2e-4, 5e-4, 8e-4, 1e-3],
-#                                                   "batch_size": [512],
-#                                                   "n_epochs": [50],  # , 100, 200],
-#                                                   "optimizer": [torch.optim.Adam],
-#                                                   "loss": [                # {"class": PhysicsLoss, "kwargs": {"base_loss": HeteroscedasticLoss(), "lambda_phys": 0.05}},
-#                 # {"class": PhysicsLoss, "kwargs": {"base_loss": HeteroscedasticLoss(), "lambda_phys": 0.1}},
-#                                                            ],
-#                                                   "mc_dropout": [True],
-#                                               }
-#                                               },
-# }}
 
 # --- Training --------------------------------------------------------------------------------------------- #
-
 
 # --- Plotting --------------------------------------------------------------------------------------------- #
 parameter_name_map = {"P_TEMPERATURE": "Potential temperature", "P_SALINITY": "Salinity",
