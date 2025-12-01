@@ -1,4 +1,5 @@
 import glob
+import platform
 from functools import partial
 from pathlib import Path, PurePath
 import optuna
@@ -12,7 +13,7 @@ import argparse
 import logging
 
 from optuna.storages import JournalStorage, JournalFileStorage
-from optuna.storages.journal import JournalFileOpenLock
+from optuna.storages.journal import JournalFileOpenLock, JournalFileBackend
 
 from nn_utils.losses import build_loss, name_to_loss_spec
 from nn_utils.trainer import Trainer
@@ -230,11 +231,15 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     # Set up Optuna study
-    journal_path = f"{config.output_dir_tuning}/{model_name}_tuning.log"
+    if platform.system() == "Windows":
+        storage = f"sqlite:///{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.db"
+    else:
+        journal_path = f"{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.log"
+        storage = JournalStorage(JournalFileBackend(journal_path))
+
     sampler = optuna.samplers.TPESampler(n_startup_trials=20,  # More initial random exploration
                                          multivariate=True)  # Learn joint distributions
     pruner = optuna.pruners.MedianPruner()
-    storage = JournalStorage(JournalFileStorage(journal_path, lock=JournalFileOpenLock(journal_path + ".lock")))
     study = optuna.create_study(study_name=f"{model_name}_tuning",
                                 direction="minimize",
                                 sampler=sampler,
@@ -245,9 +250,9 @@ if __name__ == "__main__":
     logging.info("Starting OPTUNA study...")
     study.optimize(partial(optuna_objective, model_name=model_name), n_trials=args.n_trials)
 
-    # Save results
-    logging.info("Storing OPTUNA study results...")
-    df_trials = study.trials_dataframe()
-    df_trials.to_csv(f"optuna_trials_{model_name}.csv", index=False)
+    # # Save results
+    # logging.info("Storing OPTUNA study results...")
+    # df_trials = study.trials_dataframe()
+    # df_trials.to_csv(f"optuna_trials_{model_name}.csv", index=False)
 
     logging.info("Best trial:", study.best_trial.params)
