@@ -9,7 +9,10 @@ import numpy as np
 import pandas as pd
 import glob
 import os
+import platform
 from missingpy import MissForest
+from optuna.storages import JournalStorage
+from optuna.storages.journal import JournalFileBackend
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import KNNImputer, SimpleImputer, IterativeImputer
@@ -172,17 +175,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_trials", type=int, default=1, help="Number of trials to run")
     parser.add_argument("--model_name", type=str, default="mean", help="Name of the model to tune")
-    parser.add_argument("--db", type=str, default=f"sqlite:///{config.output_dir_tuning}/tuning.db", help="Database path")
     args = parser.parse_args()
 
     # Set up Optuna study
+    if platform.system() == "Windows":
+        storage = f"sqlite:///{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.db"
+    else:
+        journal_path = f"{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.log"
+        storage = JournalStorage(JournalFileBackend(journal_path))
+
     sampler = optuna.samplers.TPESampler(multivariate=True)  # Learn joint distributions
     pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)
     study = optuna.create_study(study_name=f"{args.model_name}_tuning",
                                 direction="minimize",
                                 sampler=sampler,
                                 pruner=None,
-                                storage=args.db,
+                                storage=storage,
                                 load_if_exists=True)
     study.optimize(partial(optuna_objective, model_name=args.model_name), n_trials=args.n_trials, n_jobs=1)
 
