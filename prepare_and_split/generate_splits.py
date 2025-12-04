@@ -12,7 +12,7 @@ import glob
 import config
 from utils.gridding import df_to_gridded_da
 from utils.plotting import animate_depth_panels
-from oceanmae.dataset import load_dataset
+from nn_utils.dataset import load_dataset
 from utils.plotting import plot_geo
 
 
