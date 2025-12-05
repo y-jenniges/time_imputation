@@ -202,7 +202,7 @@ def optuna_objective(trial, model_name):
             model_name=model_name,
             split_path=split_path,
             trial_id=trial.number,
-            optuna_callback=make_optuna_callback(trial, split_i, n_epochs),
+            optuna_callback=None,  # make_optuna_callback(trial, split_i, n_epochs),
             seed=42 + int(trial.number) + split_i,
             device=device
         )
@@ -232,9 +232,9 @@ if __name__ == "__main__":
 
     # Set up Optuna study
     if platform.system() == "Windows":
-        storage = f"sqlite:///{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.db"
+        storage = f"sqlite:///{config.output_dir_tuning}/{model_name}/{model_name}_tuning.db"
     else:
-        journal_path = f"{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.log"
+        journal_path = f"{config.output_dir_tuning}/{model_name}/{model_name}_tuning.log"
         storage = JournalStorage(JournalFileBackend(journal_path))
 
     sampler = optuna.samplers.TPESampler(n_startup_trials=20,  # More initial random exploration
@@ -255,4 +255,4 @@ if __name__ == "__main__":
     # df_trials = study.trials_dataframe()
     # df_trials.to_csv(f"optuna_trials_{model_name}.csv", index=False)
 
-    logging.info("Best trial:", study.best_trial.params)
+    # logging.info("Best trial:", study.best_trial.params)

@@ -192,7 +192,7 @@ if __name__ == "__main__":
                                 pruner=None,
                                 storage=storage,
                                 load_if_exists=True)
-    study.optimize(partial(optuna_objective, model_name=args.model_name), n_trials=args.n_trials, n_jobs=1)
+    study.optimize(partial(optuna_objective, model_name=args.model_name), n_trials=args.n_trials, n_jobs=4)
 
     # Store results
     df_trials = study.trials_dataframe()
