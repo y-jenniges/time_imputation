@@ -48,10 +48,15 @@ def suggest_hyperparameters(trial, model_name):
                 "weights": trial.suggest_categorical("weights", ["uniform", "distance"])}
     elif model_name == "mice":
         est_name = trial.suggest_categorical("est_name", ["RandomForestRegressor", "BayesianRidge"])
-        estimator = RandomForestRegressor() if est_name == "RandomForestRegressor" else BayesianRidge()
+
+        if est_name == "RandomForestRegressor":
+            n_estimators = trial.suggest_int("n_estimators", 50, 200)
+            max_features = trial.suggest_categorical("max_features", [None, "sqrt", 0.5])
+            estimator = RandomForestRegressor(n_estimators=n_estimators, max_features=max_features)
+        else:
+            estimator = BayesianRidge()
 
         return {"estimator": estimator,
-                "max_iter": trial.suggest_int("max_iter", 10, 50),
                 "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median"]),
                 "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "random"])}
     elif model_name == "missforest":
@@ -192,7 +197,7 @@ if __name__ == "__main__":
                                 pruner=None,
                                 storage=storage,
                                 load_if_exists=True)
-    study.optimize(partial(optuna_objective, model_name=args.model_name), n_trials=args.n_trials, n_jobs=4)
+    study.optimize(partial(optuna_objective, model_name=args.model_name), n_trials=args.n_trials, n_jobs=1)
 
     # Store results
     df_trials = study.trials_dataframe()
