@@ -3,15 +3,17 @@ import torch.nn as nn
 
 
 class Block(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch, out_ch, dropout=0.1):
         super().__init__()
         self.block = nn.Sequential(
             nn.Linear(in_ch, out_ch),
             nn.LayerNorm(out_ch),
             nn.GELU(),
+            nn.Dropout(dropout),
             nn.Linear(out_ch, out_ch),
             nn.LayerNorm(out_ch),
-            nn.GELU()
+            nn.GELU(),
+            nn.Dropout(dropout)
         )
 
     def forward(self, x):
@@ -19,44 +21,55 @@ class Block(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels, out_channels, base_ch=64):
+    def __init__(self, in_channels, out_channels, base_channels=64, num_blocks=3, dropout=0.1):
         super().__init__()
+
         # Encoder
-        self.enc1 = Block(in_channels, base_ch)
-        self.enc2 = Block(base_ch, base_ch*2)
-        self.enc3 = Block(base_ch*2, base_ch*4)
+        self.encoders = nn.ModuleList()
+        self.encoder_channels = []
+        in_ch = in_channels
+        for i in range(num_blocks):
+            out_ch = base_channels * 2**i
+            self.encoders.append(Block(in_ch=in_ch, out_ch=out_ch, dropout=dropout))
+            self.encoder_channels.append(out_ch)
+            in_ch = out_ch
 
         # Bottleneck
-        self.bottleneck = Block(base_ch*4, base_ch*8)
+        self.bottleneck = Block(in_ch=in_ch, out_ch=in_ch*2, dropout=dropout)
 
         # Decoder
-        self.dec3 = Block(base_ch*8 + base_ch*4, base_ch*4)
-        self.dec2 = Block(base_ch*4 + base_ch*2, base_ch*2)
-        self.dec1 = Block(base_ch*2 + base_ch, base_ch)
+        self.decoders = nn.ModuleList()
+        in_ch = in_ch * 2
+        for skip_ch in reversed(self.encoder_channels):
+            self.decoders.append(Block(in_ch=in_ch + skip_ch, out_ch=skip_ch, dropout=dropout))
+            in_ch = skip_ch
 
         # Output layer
-        self.out = nn.Linear(base_ch, out_channels)
+        self.out = nn.Linear(in_ch, out_channels)
 
     def forward(self, x):
+        # Encoder outputs (for skips)
+        skips = []
+
         # Encoder
-        e1 = self.enc1(x)
-        e2 = self.enc2(e1)
-        e3 = self.enc3(e2)
+        h = x
+        for eblock in self.encoders:
+            h = eblock(h)
+            skips.append(h)
 
         # Bottleneck
-        b = self.bottleneck(e3)
+        h = self.bottleneck(h)
 
-        # Decoder with skip connections
-        d3 = self.dec3(torch.cat([b, e3], dim=-1))
-        d2 = self.dec2(torch.cat([d3, e2], dim=-1))
-        d1 = self.dec1(torch.cat([d2, e1], dim=-1))
+        # Decoder
+        for dblock, skip in zip(self.decoders, reversed(skips)):
+            h = torch.cat([h, skip], dim=-1)
+            h = dblock(h)
 
-        out = self.out(d1)
-        return out
+        return self.out(h)
 
 
 class OceanUNet(nn.Module):
-    def __init__(self, coord_dim=5, value_dim=6, include_mask=True):
+    def __init__(self, coord_dim=5, value_dim=6, include_mask=True, base_channels=64, num_blocks=3, dropout=0.0):
         """
         Wrapper for point-wise UNet compatible with Trainer.
         """
@@ -70,7 +83,8 @@ class OceanUNet(nn.Module):
         out_channels = value_dim
 
         # Define point-wise UNet (MLP blocks)
-        self.unet = UNet(in_channels=in_channels, out_channels=out_channels)
+        self.unet = UNet(in_channels=in_channels, out_channels=out_channels, base_channels=base_channels,
+                         num_blocks=num_blocks, dropout=dropout)
 
         # Variance head (optional)
         self.var_head = nn.Sequential(
@@ -82,11 +96,11 @@ class OceanUNet(nn.Module):
         # Fill missing values
         values_filled = torch.where(torch.isnan(values), torch.zeros_like(values), values)
 
-        # Combine inputs: [B, N, C_total]
+        # Construct input
         x = torch.cat([coords, values_filled, feature_mask.float()], dim=-1)
 
         # Forward through point-wise UNet
         pmean = torch.sigmoid(self.unet(x))  # [B, N, value_dim]
-        pvar = torch.exp(self.var_head(pmean))  # [B, N, value_dim]
+        pvar = torch.exp(self.var_head(pmean))  # [B, N, value_dim]  # @todo exp or not?
 
         return pmean, pvar
