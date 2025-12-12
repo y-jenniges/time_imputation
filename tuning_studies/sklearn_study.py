@@ -47,16 +47,7 @@ def suggest_hyperparameters(trial, model_name):
         return {"n_neighbors": trial.suggest_int("n_neighbors", 1, 50),
                 "weights": trial.suggest_categorical("weights", ["uniform", "distance"])}
     elif model_name == "mice":
-        est_name = trial.suggest_categorical("est_name", ["RandomForestRegressor", "BayesianRidge"])
-
-        if est_name == "RandomForestRegressor":
-            n_estimators = trial.suggest_int("n_estimators", 50, 200)
-            max_features = trial.suggest_categorical("max_features", [None, "sqrt", 0.5])
-            estimator = RandomForestRegressor(n_estimators=n_estimators, max_features=max_features)
-        else:
-            estimator = BayesianRidge()
-
-        return {"estimator": estimator,
+        return {"estimator": BayesianRidge(),
                 "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median"]),
                 "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "random"])}
     elif model_name == "missforest":
