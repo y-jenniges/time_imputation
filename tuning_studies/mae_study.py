@@ -27,14 +27,18 @@ from utils.plotting import plot_loss, plot_simple_reconstruction_error
 from utils.tuning import set_seed, TuningResult
 
 
+# Load data globally
+DATA = load_dataset()
+
+
 def suggest_hyperparameters(trial):
     """ Suggest hyperparameters for the masked auto encoder. """
     return {
             "train": {
                 "batch_size": trial.suggest_categorical("batch_size", [128, 512, 1024]),
                 "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
-                "patience": trial.suggest_int("patience", 3, 12),
-                "n_epochs": trial.suggest_int("epochs", 20, 80),
+                "patience": 5,  # trial.suggest_int("patience", 3, 12),
+                "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
                 "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.9),
                 "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
                 "optimizer": torch.optim.Adam
@@ -49,8 +53,8 @@ def suggest_hyperparameters(trial):
         }
 
 
-def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, model_name,
-                           split_path, trial_id, optuna_callback=None, seed=42, device=torch.device("cpu")):
+def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, model_name, split_path, trial_id,
+                           tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu")):
     """ Run model on one split and store results. """
     # Create output subdir
     model_outdir = Path(config.output_dir_tuning) / model_name
@@ -117,40 +121,46 @@ def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, 
         optuna_callback=optuna_callback)
     train_time = time() - strain
 
-    # Loss plot
-    plot_loss(history, close_plot=True, save_as=main_path.with_name(main_path.name + "_lossplot.png"))
+    if not tuning_mode:
+        # Full prediction/reconstruction
+        sval = time()
+        full_coords, full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, mc_dropout=False)
+        df_imputed = pd.DataFrame(full_pred.cpu().detach().numpy().copy(), columns=config.parameters)  # Prediction
+        df_imputed[config.coordinates] = df[config.coordinates]  # Add coordinates
+        pred_time = time() - sval
 
-    # Full prediction/reconstruction
-    sval = time()
-    full_coords, full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, mc_dropout=False)
-    df_imputed = pd.DataFrame(full_pred.cpu().detach().numpy().copy(), columns=config.parameters)  # Prediction
-    df_imputed[config.coordinates] = df[config.coordinates]  # Add coordinates
-    pred_time = time() - sval
+        # Transform to numpy
+        all_values = torch.cat([values for _, values, _ in full_loader], dim=0)
+        y_true = all_values.detach().cpu().numpy()
+        y_pred = full_pred.detach().cpu().numpy()
 
-    # Transform to numpy
-    all_values = torch.cat([values for _, values, _ in full_loader], dim=0)
-    y_true = all_values.detach().cpu().numpy()
-    y_pred = full_pred.detach().cpu().numpy()
+        # Loss plot
+        plot_loss(history, close_plot=True, save_as=main_path.with_name(main_path.name + "_lossplot.png"))
 
-    # Reconstruction plot
-    recplot_fname = main_path.with_name(main_path.name + "_reconstruction_error.png")
-    plot_simple_reconstruction_error(y_true, y_pred, save_as=recplot_fname, close=True)
+        # Reconstruction plot
+        recplot_fname = main_path.with_name(main_path.name + "_reconstruction_error.png")
+        plot_simple_reconstruction_error(y_true, y_pred, save_as=recplot_fname, close=True)
 
-    # Evaluate on validation and test set separately
-    val_rmse = np.sqrt(np.nanmean((y_true[val_idx] - y_pred[val_idx]) ** 2))  # For model tuning
-    test_rmse = np.sqrt(
-        np.nanmean((y_true[test_idx] - y_pred[test_idx]) ** 2))  # Not needed here, final model performance
-    reconstruction_rmse = np.sqrt(np.nanmean((y_true - y_pred) ** 2))  # For representation quality
+        # Evaluate on validation and test set separately
+        val_rmse = np.sqrt(np.nanmean((y_true[val_idx] - y_pred[val_idx]) ** 2))  # For model tuning
+        test_rmse = np.sqrt(
+            np.nanmean((y_true[test_idx] - y_pred[test_idx]) ** 2))  # Not needed here, final model performance
+        reconstruction_rmse = np.sqrt(np.nanmean((y_true - y_pred) ** 2))  # For representation quality
 
-    # Write results to results class
+        # Write results to results class
+        results.test_rmse = test_rmse
+        results.pred_time = pred_time
+        results.mean_aleatoric_uncertainty = float(full_var.mean())
+        results.std_aleatoric_uncertainty = float(full_var.std())
+        results.reconstruction_rmse = reconstruction_rmse
+    else:
+        val_rmse = trainer.best_val_loss
+        y_true = None
+        y_pred = None
+
     results.val_rmse = val_rmse
-    results.test_rmse = test_rmse
     results.train_time = train_time + def_time
-    results.pred_time = pred_time
-    results.mean_aleatoric_uncertainty = float(full_var.mean())
-    results.std_aleatoric_uncertainty = float(full_var.std())
     results.stop_epoch = early_stopper.epoch
-    results.reconstruction_rmse = reconstruction_rmse
     results.metrics_all = history["metrics"]
     results.metrics_last = history["metrics"][max(history["metrics"].keys())] if "metrics" in history and history[
         "metrics"] else {}
@@ -171,9 +181,6 @@ def optuna_objective(trial, model_name):
     # Load test indexes
     test_idx = np.array(json.load(open(f"{config.output_dir_splits}/test_train_split.json"))["test_idx"], dtype=int)
 
-    # Load dataset
-    df = load_dataset()
-
     # Load all split paths
     split_paths = sorted(glob.glob(os.path.join(config.output_dir_splits, "selected_splits/fold_*.json")))
 
@@ -193,7 +200,7 @@ def optuna_objective(trial, model_name):
 
         # Train
         results, _, _ = train_mae_single_split(
-            df=df,
+            df=DATA,
             model_class=OceanMAE,
             hyps=hyp_dict,
             train_idx=train_idx,
@@ -256,3 +263,4 @@ if __name__ == "__main__":
     # df_trials.to_csv(f"optuna_trials_{model_name}.csv", index=False)
 
     # logging.info("Best trial:", study.best_trial.params)
+
