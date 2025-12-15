@@ -8,6 +8,13 @@ from dataclasses import dataclass, asdict, field
 import os
 import glob
 
+from missingpy import MissForest
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
+
+from models.mae import OceanMAE
+from models.unet import OceanUNet
+
 
 @dataclass
 class TuningResult:
@@ -104,3 +111,20 @@ def make_optuna_callback(trial, split_i, n_epochs):
         if trial.should_prune():
             raise optuna.TrialPruned()
     return callback
+
+
+def get_model_class(model_name):
+    """ Get model class by name. """
+    name_class_map = {
+        "mean": SimpleImputer,
+        "knn": KNNImputer,
+        "missforest": MissForest,
+        "mice": IterativeImputer,
+        "mae": OceanMAE,
+        "unet": OceanUNet
+    }
+
+    if model_name not in name_class_map.keys():
+        raise ValueError(f"Unknown model name: {model_name}")
+
+    return name_class_map[model_name]
