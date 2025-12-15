@@ -74,7 +74,7 @@ class OceanUNet(nn.Module):
         Wrapper for point-wise UNet compatible with Trainer.
         """
         super().__init__()
-        print("Init OceanPointWiseUNet")
+        print("Init OceanUNet")
         self.coord_dim = coord_dim
         self.value_dim = value_dim
         self.include_mask = include_mask
