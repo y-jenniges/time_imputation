@@ -12,15 +12,14 @@ import os
 import argparse
 import logging
 
-from optuna.storages import JournalStorage, JournalFileStorage
-from optuna.storages.journal import JournalFileOpenLock, JournalFileBackend
+from optuna.storages import JournalStorage
+from optuna.storages.journal import JournalFileBackend
 
 from nn_utils.losses import build_loss, name_to_loss_spec
 from nn_utils.trainer import Trainer
 from nn_utils.early_stopping import EarlyStopping
 from nn_utils.dataset import prepare_mae_loaders, load_dataset
-from models.mae import OceanMAE
-from utils.tuning import make_optuna_callback
+from utils.tuning import make_optuna_callback, get_model_class
 
 import config
 from utils.plotting import plot_loss, plot_simple_reconstruction_error
@@ -31,9 +30,27 @@ from utils.tuning import set_seed, TuningResult
 DATA = load_dataset()
 
 
-def suggest_hyperparameters(trial):
+def suggest_hyperparameters(trial, model_name="mae"):
     """ Suggest hyperparameters for the masked auto encoder. """
-    return {
+    if model_name == "unet":
+        return {
+                "train": {
+                    "batch_size": 512,  # trial.suggest_categorical("batch_size", [128, 512, 1024]),
+                    "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
+                    "patience": 5,  # trial.suggest_int("patience", 3, 12),
+                    "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
+                    "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.9),
+                    "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
+                    "optimizer": torch.optim.Adam
+                },
+                "model": {
+                    "base_channels": trial.suggest_categorical("base_channels", [32, 64, 128, 256]),
+                    "num_blocks": trial.suggest_int("num_blocks", 2, 5),
+                    "dropout": trial.suggest_float("dropout", 0.0, 0.4)
+                }
+            }
+    elif model_name == "mae":
+        return {
             "train": {
                 "batch_size": trial.suggest_categorical("batch_size", [128, 512, 1024]),
                 "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
@@ -51,6 +68,8 @@ def suggest_hyperparameters(trial):
                 "dropout": trial.suggest_float("dropout", 0.0, 0.4),
             }
         }
+    else:
+        raise NotImplementedError(f"Could not find model {model_name}.")
 
 
 def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, model_name, split_path, trial_id,
@@ -185,7 +204,7 @@ def optuna_objective(trial, model_name):
     split_paths = sorted(glob.glob(os.path.join(config.output_dir_splits, "selected_splits/fold_*.json")))
 
     # Priors
-    hyp_dict = suggest_hyperparameters(trial)
+    hyp_dict = suggest_hyperparameters(trial, model_name=model_name)
     n_epochs = hyp_dict["train"]["n_epochs"]
 
     # Training
@@ -201,7 +220,7 @@ def optuna_objective(trial, model_name):
         # Train
         results, _, _ = train_mae_single_split(
             df=DATA,
-            model_class=OceanMAE,
+            model_class=get_model_class(model_name),
             hyps=hyp_dict,
             train_idx=train_idx,
             val_idx=val_idx,
@@ -224,7 +243,7 @@ def optuna_objective(trial, model_name):
 
 
 if __name__ == "__main__":
-    model_name = "mae"
+    model_name = "mae"  # @todo not needed anymore
 
     # Setup logging
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -232,6 +251,7 @@ if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_trials", type=int, default=1, help="Number of trials to run")
+    parser.add_argument("--model_name", type=str, default="mae", help="Model name")
     args = parser.parse_args()
 
     # Setup logging
@@ -239,15 +259,15 @@ if __name__ == "__main__":
 
     # Set up Optuna study
     if platform.system() == "Windows":
-        storage = f"sqlite:///{config.output_dir_tuning}/{model_name}/{model_name}_tuning.db"
+        storage = f"sqlite:///{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.db"
     else:
-        journal_path = f"{config.output_dir_tuning}/{model_name}/{model_name}_tuning.log"
+        journal_path = f"{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.log"
         storage = JournalStorage(JournalFileBackend(journal_path))
 
     sampler = optuna.samplers.TPESampler(n_startup_trials=20,  # More initial random exploration
                                          multivariate=True)  # Learn joint distributions
     pruner = optuna.pruners.MedianPruner()
-    study = optuna.create_study(study_name=f"{model_name}_tuning",
+    study = optuna.create_study(study_name=f"{args.model_name}_tuning",
                                 direction="minimize",
                                 sampler=sampler,
                                 pruner=None,
@@ -255,7 +275,7 @@ if __name__ == "__main__":
                                 load_if_exists=True)
 
     logging.info("Starting OPTUNA study...")
-    study.optimize(partial(optuna_objective, model_name=model_name), n_trials=args.n_trials)
+    study.optimize(partial(optuna_objective, model_name=args.model_name), n_trials=args.n_trials)
 
     # # Save results
     # logging.info("Storing OPTUNA study results...")
