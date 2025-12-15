@@ -75,13 +75,13 @@ def prepare_mae_loaders(coords: torch.Tensor,
     test_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=test_idx)
 
     # Define data loaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, generator=generator)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Define loader for complete dataset (for complete reconstruction)
     full_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=None)
-    full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
 
     return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1)
 
