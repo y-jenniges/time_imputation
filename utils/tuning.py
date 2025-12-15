@@ -74,6 +74,10 @@ def set_seed(seed):
 
 
 def combine_csvs(dir_path, out_name="combined.csv", remove_files=False):
+    # Load file if exists
+    if Path.exists(Path(dir_path + out_name)):
+        return pd.read_csv(dir_path + out_name)
+
     # Load all result files as df
     res_files = glob.glob(f"{dir_path}/*.csv")
 
