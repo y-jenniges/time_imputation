@@ -21,22 +21,7 @@ from sklearn.linear_model import BayesianRidge
 import config
 from nn_utils.dataset import load_dataset, prepare_sklearn_data
 from nn_utils.trainer import compute_metrics
-from utils.tuning import set_seed, TuningResult
-
-
-def get_model_class(model_name):
-    """ Get model class by name. """
-    name_class_map = {
-        "mean": SimpleImputer,
-        "knn": KNNImputer,
-        "missforest": MissForest,
-        "mice": IterativeImputer,
-    }
-
-    if model_name not in name_class_map.keys():
-        raise ValueError(f"Unknown model name: {model_name}")
-
-    return name_class_map[model_name]
+from utils.tuning import set_seed, TuningResult, get_model_class
 
 
 def suggest_hyperparameters(trial, model_name):
