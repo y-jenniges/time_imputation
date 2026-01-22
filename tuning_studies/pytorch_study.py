@@ -273,8 +273,6 @@ def optuna_objective(trial, model_name):
 
 
 if __name__ == "__main__":
-    model_name = "mae"  # @todo not needed anymore
-
     # Setup logging
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -287,11 +285,15 @@ if __name__ == "__main__":
     # Setup logging
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
+    # Create output directory
+    output_dir = Path(f"{config.output_dir_tuning}/{args.model_name}/")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # Set up Optuna study
     if platform.system() == "Windows":
-        storage = f"sqlite:///{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.db"
+        storage = f"sqlite:///{str(output_dir)}/{args.model_name}_tuning.db"
     else:
-        journal_path = f"{config.output_dir_tuning}/{args.model_name}/{args.model_name}_tuning.log"
+        journal_path = f"{str(output_dir)}/{args.model_name}_tuning.log"
         storage = JournalStorage(JournalFileBackend(journal_path))
 
     sampler = optuna.samplers.TPESampler(n_startup_trials=20,  # More initial random exploration
