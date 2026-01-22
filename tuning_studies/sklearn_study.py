@@ -10,12 +10,8 @@ import pandas as pd
 import glob
 import os
 import platform
-from missingpy import MissForest
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import KNNImputer, SimpleImputer, IterativeImputer
 from sklearn.linear_model import BayesianRidge
 
 import config
@@ -51,11 +47,12 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     split_fname = PurePath(split_path).stem
     base_name = f"model{model_name}_split{split_fname}_trial{trial_id}"
     main_path = Path(model_outdir) / base_name
-    csv_fname = main_path.with_name(main_path.name + ".csv")
+    json_fname = main_path.with_name(main_path.name + ".json")
 
     # Check if file already exists
-    if csv_fname.exists():
-        results = pd.read_csv(csv_fname)
+    if json_fname.exists():
+        with open(json_fname) as f:
+            results = json.load(f)
         return results, None, None
 
     # Set deterministic seeds
@@ -95,9 +92,9 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     results.metrics_all = metrics
 
     # Store results on disc
-    results.save(csv_fname)
+    results.save(json_fname)
 
-    return results, y_true, y_pred
+    return results.make_json_safe(), y_true, y_pred
 
 
 def optuna_objective(trial, model_name):
