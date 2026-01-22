@@ -7,11 +7,14 @@ from pathlib import Path
 from dataclasses import dataclass, asdict, field
 import os
 import glob
-
+import json
+from optuna.storages import JournalStorage
+from optuna.storages.journal import JournalFileBackend
 from missingpy import MissForest
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 
+import config
 from models.mae import OceanMAE
 from models.unet import OceanUNet
 
@@ -37,17 +40,22 @@ class TuningResult:
     metrics_all: dict = field(default_factory=dict)
 
     def save(self, fname: Path):
+        # Make json safe
+        data = self.make_json_safe()
+
+        # Store as json
+        with open(fname, "w") as f:
+            json.dump(data, f, indent=2)
+
+    def make_json_safe(self):
         # Serialize nested dicts as JSON
         data = asdict(self)
-        data["hyps"] = self.make_json_safe(self.hyps)
-        data["metrics_last"] = self.make_json_safe(self.metrics_last)
-        data["metrics_all"] = self.make_json_safe(self.metrics_all)
+        data["hyps"] = self.make_obj_json_safe(self.hyps)
+        data["metrics_last"] = self.make_obj_json_safe(self.metrics_last)
+        data["metrics_all"] = self.make_obj_json_safe(self.metrics_all)
+        return data
 
-        # Store as dataframe
-        df = pd.DataFrame([asdict(self)])
-        df.to_csv(fname, index=False)
-
-    def make_json_safe(self, obj):
+    def make_obj_json_safe(self, obj):
         if isinstance(obj, dict):  # Dict type
             return {k: self.make_json_safe(v) for k, v in obj.items()}
         elif isinstance(obj, (list, tuple)):  # List or tuple
@@ -125,10 +133,25 @@ def get_model_class(model_name):
         "missforest": MissForest,
         "mice": IterativeImputer,
         "mae": OceanMAE,
-        "unet": OceanUNet
+        "unet": OceanUNet,
+        "mae_finetune": OceanMAE,
     }
 
     if model_name not in name_class_map.keys():
         raise ValueError(f"Unknown model name: {model_name}")
 
     return name_class_map[model_name]
+
+
+def load_optuna_study(model_name):
+    # Load Optuna study
+    base_name = f"{config.output_dir_tuning}{model_name}/{model_name}_tuning"
+
+    if Path.exists(Path(base_name + ".db")):
+        study = optuna.load_study(study_name=f"{model_name}_tuning", storage=f"sqlite:///{base_name}.db")
+        print("Study loaded as db")
+    else:
+        storage = JournalStorage(JournalFileBackend(f"{base_name}.log"))
+        study = optuna.load_study(study_name=f"{model_name}_tuning", storage=storage)
+        print("Study loaded as log")
+    return study
