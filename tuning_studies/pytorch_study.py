@@ -35,7 +35,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
     if model_name == "unet":
         return {
                 "train": {
-                    "batch_size": 512,  # trial.suggest_categorical("batch_size", [128, 512, 1024]),
+                    "batch_size": 128,  # trial.suggest_categorical("batch_size", [128, 512, 1024]),
                     "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
                     "patience": 5,  # trial.suggest_int("patience", 3, 12),
                     "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
@@ -66,6 +66,36 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "nlayers": trial.suggest_int("nlayers", 2, 6),
                 "dim_feedforward": trial.suggest_categorical("dim_feedforward", [128, 256, 512]),
                 "dropout": trial.suggest_float("dropout", 0.0, 0.4),
+            }
+        }
+    elif model_name == "mae_finetune":
+        n_epochs = 20
+
+        # Test decreasing mask_ratio as well as higher mask ratios
+        use_decreasing = trial.suggest_categorical("use_decreasing", [True, False])
+        if use_decreasing:
+            start_ratio = trial.suggest_float("mask_start", 0.90, 1.0)
+            end_ratio = trial.suggest_float("mask_end", 0.80, 0.95)
+            mask_ratio = lambda epoch: start_ratio - (epoch / n_epochs) * (start_ratio - end_ratio)
+        else:
+            mask_ratio = trial.suggest_float("mask_ratio", 0.85, 1.0)
+
+        return {
+            "train": {
+                "batch_size": 128,
+                "learning_rate": 9.570854918884402e-05,
+                "patience": 5,
+                "n_epochs": n_epochs,
+                "mask_ratio": mask_ratio,
+                "loss": "hetero",
+                "optimizer": torch.optim.Adam
+            },
+            "model": {
+                "d_model": 128,
+                "nhead": 4,
+                "nlayers": 6,
+                "dim_feedforward": 128,
+                "dropout": 0.007883109330264194,
             }
         }
     else:
