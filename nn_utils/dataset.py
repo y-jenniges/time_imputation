@@ -19,10 +19,12 @@ class OceanMAEDataset(Dataset):
     def __init__(self,
                  coords: torch.Tensor,
                  values: torch.Tensor,
-                 mask_indices: np.ndarray | None = None):
+                 mask_indices: np.ndarray | None = None,
+                 set_size: int = 32):
         self.coords = coords
         self.values = values
         self.n_samples, self.n_features = values.shape
+        self.set_size = set_size
 
         # Initial mask: True for observed, False for NaN
         self.feature_mask = ~torch.isnan(values)
@@ -36,7 +38,9 @@ class OceanMAEDataset(Dataset):
         return self.n_samples
 
     def __getitem__(self, idx):
-        return self.coords[idx], self.values[idx], self.feature_mask[idx]
+        ids = torch.randint(0, self.coords.shape[0], (self.set_size - 1, ))
+        ids = torch.cat([torch.tensor([idx]), ids])  # Add requested point
+        return self.coords[ids], self.values[ids], self.feature_mask[ids]
 
 
 def prepare_mae_loaders(coords: torch.Tensor,
@@ -46,7 +50,8 @@ def prepare_mae_loaders(coords: torch.Tensor,
                         test_idx: np.ndarray,
                         batch_size: int,
                         generator: torch.Generator,
-                        cyclic_time: bool = False
+                        cyclic_time: bool = False,
+                        set_size: int = 32,
                         ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, dict, int, int]:
     # Split raw data
     coords_train_raw = coords[train_idx]
@@ -70,9 +75,9 @@ def prepare_mae_loaders(coords: torch.Tensor,
     )
 
     # Define datasets
-    train_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=train_idx)
-    val_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=val_idx)
-    test_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=test_idx)
+    train_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=train_idx, set_size=set_size)
+    val_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=val_idx, set_size=set_size)
+    test_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=test_idx, set_size=set_size)
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -80,7 +85,7 @@ def prepare_mae_loaders(coords: torch.Tensor,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Define loader for complete dataset (for complete reconstruction)
-    full_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=None)
+    full_dataset = OceanMAEDataset(coords_full, values_full, mask_indices=None, set_size=set_size)
     full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
 
     return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1)
@@ -147,21 +152,22 @@ def prepare_sklearn_data(df, train_idx, val_idx, test_idx):
 
 
 def random_feature_mask(batch_size: int,
+                        set_size: int,
                         feature_dim: int,
                         mask_ratio: float = 0.5,
                         device="cpu"
                         ) -> torch.BoolTensor:
     # Init mask with "False"
-    mask = torch.zeros(batch_size, feature_dim, dtype=torch.bool, device=device)
+    mask = torch.zeros(batch_size, set_size, feature_dim, dtype=torch.bool, device=device)
 
     # Get number of features to mask
     n_mask = max(1, int(feature_dim * mask_ratio))
 
     # Per sample random ordering of features
-    rand_idx = torch.rand(batch_size, feature_dim, device=device).argsort(dim=1)
+    rand_idx = torch.rand(batch_size, set_size, feature_dim, device=device).argsort(dim=2)
 
     # Scatter into bool mask (each row then has n_mask features set to True)
-    mask.scatter_(1, rand_idx[:, :n_mask], True)
+    mask.scatter_(2, rand_idx[:, :, :n_mask], True)
 
     return mask
 
