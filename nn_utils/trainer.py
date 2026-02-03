@@ -3,13 +3,14 @@ import torch
 import numpy as np
 import copy
 from time import time
-from scipy import stats
+
+from torch import nn
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from nn_utils.losses import MaskedMSELoss, BaseLoss
 from nn_utils.dataset import random_feature_mask
-from nn_utils.metrics import compute_metrics
+from utils.metrics import compute_metrics
 
 import config
 
@@ -51,7 +52,7 @@ class Trainer:
 
             # random_feature_mask: True means "mask this feature"
             if mask_ratio > 0:
-                rand_mask = random_feature_mask(values.shape[0], values.shape[1], mask_ratio=mask_ratio, device=self.device)
+                rand_mask = random_feature_mask(batch_size=values.shape[0], set_size=values.shape[1], feature_dim=values.shape[2], mask_ratio=mask_ratio, device=self.device)
 
                 # Observed inputs after random masking
                 input_observed = feature_mask & ~rand_mask
@@ -68,7 +69,7 @@ class Trainer:
             values_masked[~input_observed] = float("nan")
 
             # Predict
-            pred_mean, pred_var = self.model(coords=coords, values=values_masked, feature_mask=input_observed, mc_dropout=False)
+            pred_mean, pred_var = self.model(coords=coords, values=values_masked, feature_mask=input_observed)
 
             # Compute loss
             loss = self.loss_fn(input=pred_mean, target=values, mask=loss_mask, coords=coords, pred_var=pred_var)
@@ -86,8 +87,8 @@ class Trainer:
         return total_loss / max(1, n_samples)
 
     @torch.no_grad()
-    def evaluate(self, loader: DataLoader, mc_dropout: bool = False):
-        self.model.eval()
+    def evaluate(self, loader: DataLoader, do_dropout: bool = False):
+        self.model.eval()  # Disables dropout
         total_loss = 0.0
         n_samples = 0
         all_true, all_pred = [], []
@@ -101,7 +102,14 @@ class Trainer:
             # No random mask in validation: reconstruct all masked (False) values
             loss_mask = ~feature_mask
             values_filled = torch.where(feature_mask, values, torch.zeros_like(values))
-            pred_mean, pred_var = self.model(coords=coords, values=values_filled, feature_mask=feature_mask, mc_dropout=mc_dropout)
+
+            # Enable dropout
+            if do_dropout:
+                for module in self.model.modules():
+                    if isinstance(module, nn.Dropout):
+                        module.train()
+
+            pred_mean, pred_var = self.model(coords=coords, values=values_filled, feature_mask=feature_mask)
 
             # Compute loss
             loss = self.loss_fn(input=pred_mean, target=values, mask=loss_mask, coords=coords, pred_var=pred_var)
@@ -145,7 +153,7 @@ class Trainer:
             self.model.load_state_dict(self.best_model_state)
 
     @torch.no_grad()
-    def reconstruct_full_dataset(self, loader: DataLoader, mc_dropout: bool = False):
+    def reconstruct_full_dataset(self, loader: DataLoader, do_dropout: bool = False):
         self.model.eval()
         all_coords = []
         all_preds = []
@@ -157,8 +165,14 @@ class Trainer:
             values = values.to(self.device, dtype=torch.float32)
             feature_mask = feature_mask.to(self.device, dtype=torch.bool)
 
+            # Enable dropout
+            if do_dropout:
+                for module in self.model.modules():
+                    if isinstance(module, nn.Dropout):
+                        module.train()
+
             # Predict all nan-values (true in feature mask means observed)
-            pred_means, pred_vars = self.model(coords=coords, values=values, feature_mask=feature_mask, mc_dropout=mc_dropout)
+            pred_means, pred_vars = self.model(coords=coords, values=values, feature_mask=feature_mask)
 
             all_coords.append(coords.cpu())
             all_preds.append(pred_means.cpu())
@@ -167,7 +181,7 @@ class Trainer:
         return torch.cat(all_coords), torch.cat(all_preds), torch.cat(all_vars)
 
 
-    def fit(self, train_loader:DataLoader, val_loader: DataLoader, max_epochs, early_stopping=None, mc_dropout: bool = False, mask_ratio: Union[float, Callable[[int], float]] = 0.5, optuna_callback=None):
+    def fit(self, train_loader:DataLoader, val_loader: DataLoader, max_epochs, early_stopping=None, do_dropout: bool = False, mask_ratio: Union[float, Callable[[int], float]] = 0.5, optuna_callback=None):
         history = {"train": {}, "val": {}, "metrics": {}}
 
         # Iterate over epochs
@@ -180,7 +194,7 @@ class Trainer:
 
             # Train and compute losses
             train_loss = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)
-            val_loss, val_metrics = self.evaluate(loader=val_loader, mc_dropout=mc_dropout)
+            val_loss, val_metrics = self.evaluate(loader=val_loader, do_dropout=do_dropout)
 
             # Update best model
             self.update_best_model(val_loss=val_loss)
