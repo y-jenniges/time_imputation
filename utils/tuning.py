@@ -1,3 +1,4 @@
+import joblib
 import optuna
 import pandas as pd
 import numpy as np
@@ -12,7 +13,9 @@ from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from missingpy import MissForest
 from sklearn.experimental import enable_iterative_imputer
+from sklearn.base import BaseEstimator
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
+from torch import nn
 
 import config
 from models.mae import OceanMAE
@@ -21,12 +24,14 @@ from models.unet import OceanUNet
 
 @dataclass
 class TuningResult:
+    # Meta data
     split: str
     seed: int
     model: str
     hyp_combo_id: int
     hyps: dict
 
+    # Metrics
     test_rmse: float = np.nan
     val_rmse: float = np.nan
     train_time: float = np.nan
@@ -39,7 +44,16 @@ class TuningResult:
     metrics_last: dict = field(default_factory=dict)
     metrics_all: dict = field(default_factory=dict)
 
-    def save(self, fname: Path):
+    # Optional model info
+    model_framework: str | None = None
+    model_class: str | None = None
+    model_path: str | None = None
+
+    def save(self, fname: Path, model=None):
+        # Store model if given
+        if model is not None:
+            self.save_model(model=model, model_dir=fname.parent)
+
         # Make json safe
         data = self.make_json_safe()
 
@@ -47,23 +61,43 @@ class TuningResult:
         with open(fname, "w") as f:
             json.dump(data, f, indent=2)
 
+    def save_model(self, model, model_dir:Path):
+        model_dir.mkdir(parents=True, exist_ok=True)
+
+        if isinstance(model, BaseEstimator):
+            path = model_dir / "sklearn.joblib"
+            joblib.dump(model, path)
+            self.model_framework = "sklearn"
+
+        elif isinstance(model, nn.Module):
+            path = model_dir / "pytorch.pt"
+            torch.save(model.state_dict(), path)
+            self.model_framework = "pytorch"
+
+        else:
+            raise TypeError("Unsupported model type")
+
+        self.model_class = model.__class__.__name__
+        self.model_path = str(path)
+
+
     def make_json_safe(self):
         # Serialize nested dicts as JSON
         data = asdict(self)
-        data["hyps"] = self.make_obj_json_safe(self.hyps)
-        data["metrics_last"] = self.make_obj_json_safe(self.metrics_last)
-        data["metrics_all"] = self.make_obj_json_safe(self.metrics_all)
+        data = self.make_obj_json_safe(data)
         return data
 
     def make_obj_json_safe(self, obj):
         if isinstance(obj, dict):  # Dict type
-            return {k: self.make_json_safe(v) for k, v in obj.items()}
+            return {k: self.make_obj_json_safe(v) for k, v in obj.items()}
         elif isinstance(obj, (list, tuple)):  # List or tuple
-            return [self.make_json_safe(v) for v in obj]
+            return [self.make_obj_json_safe(v) for v in obj]
         elif isinstance(obj, type) or callable(obj):  # Classes, functions, losses
             return obj.__name__
-        elif isinstance(obj, (np.integer, np.floating)):  # Numbers
+        elif isinstance(obj, np.generic):  # Numbers
             return obj.item()
+        elif isinstance(obj, torch.dtype):  # Torch dtypes
+            return str(obj)
         else:
             return obj
 
