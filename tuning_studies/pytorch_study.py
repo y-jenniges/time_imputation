@@ -56,15 +56,15 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
                 "patience": 5,  # trial.suggest_int("patience", 3, 12),
                 "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
-                "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.9),
+                "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
                 "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
                 "optimizer": torch.optim.Adam
             },
             "model": {
-                "d_model": trial.suggest_categorical("d_model", [32, 64, 128]),
-                "nhead": trial.suggest_categorical("nhead", [2, 4]),
-                "nlayers": trial.suggest_int("nlayers", 2, 6),
-                "dim_feedforward": trial.suggest_categorical("dim_feedforward", [128, 256, 512]),
+                "d_model": trial.suggest_categorical("d_model", [32, 64, 128, 256, 512]),
+                "nhead": trial.suggest_int("nhead", 2, 8),
+                "nlayers": trial.suggest_int("nlayers", 2, 8),
+                "dim_feedforward": trial.suggest_categorical("dim_feedforward", [128, 256, 512, 1024, 2048]),
                 "dropout": trial.suggest_float("dropout", 0.0, 0.4),
             }
         }
@@ -103,23 +103,30 @@ def suggest_hyperparameters(trial, model_name="mae"):
 
 
 def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, model_name, split_path, trial_id,
-                           tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu")):
+                           tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu"), save_model=False, output_dir=None):
     """ Run model on one split and store results. """
     # Create output subdir
-    model_outdir = Path(config.output_dir_tuning) / model_name
+    if output_dir is None:
+        model_outdir = Path(config.output_dir_tuning) / model_name
+    else:
+        model_outdir = Path(output_dir)
     os.makedirs(model_outdir, exist_ok=True)
 
     # Output file
     split_fname = PurePath(split_path).stem
     base_name = f"model{model_name}_split{split_fname}_trial{trial_id}"
     main_path = Path(model_outdir) / base_name
-    csv_fname = main_path.with_name(main_path.name + ".csv")
+    json_fname = main_path.with_name(main_path.name + ".json")
 
     # Check if file already exists
-    if csv_fname.exists():
+    if json_fname.exists():
         logging.info(f"Results already exist for {split_fname}. Skipping.")
-        results = pd.read_csv(csv_fname)
-        return results, None, None
+        with open(json_fname) as f:
+            results = json.load(f)
+        if tuning_mode:
+            return results, None, None
+        else:
+            return results, None, None, None
 
     # Set deterministic seeds
     generator = set_seed(seed)
@@ -173,7 +180,7 @@ def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, 
     if not tuning_mode:
         # Full prediction/reconstruction
         sval = time()
-        full_coords, full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, mc_dropout=False)
+        full_coords, full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, do_dropout=False)
         df_imputed = pd.DataFrame(full_pred.cpu().detach().numpy().copy(), columns=config.parameters)  # Prediction
         df_imputed[config.coordinates] = df[config.coordinates]  # Add coordinates
         pred_time = time() - sval
@@ -215,14 +222,19 @@ def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, 
         "metrics"] else {}
 
     # Store results on disc
-    results.save(csv_fname)
+    results.save(json_fname, model=model if save_model else None)
 
     logging.info(f"Split {split_fname} finished, val_rmse={val_rmse:.8f}")
 
-    return results, y_true, y_pred
+    if tuning_mode:
+        print("tuning return")
+        return results, y_true, y_pred
+    else:
+        print("not tuning return")
+        return results, y_true, y_pred, full_var.detach().cpu().numpy()
 
 
-def optuna_objective(trial, model_name):
+def optuna_objective(trial, model_name, output_dir):
     """ Optuna objective function: One trial runs on all 5 splits. """
     # Init torch device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -260,7 +272,8 @@ def optuna_objective(trial, model_name):
             trial_id=trial.number,
             optuna_callback=None,  # make_optuna_callback(trial, split_i, n_epochs),
             seed=42 + int(trial.number) + split_i,
-            device=device
+            device=device,
+            output_dir=output_dir,
         )
 
         logging.info(f"Validation RMSE: {results.val_rmse:.8f}")
@@ -280,13 +293,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_trials", type=int, default=1, help="Number of trials to run")
     parser.add_argument("--model_name", type=str, default="mae", help="Model name")
+    parser.add_argument("--output_dir", type=str, default="", help="Output directory")
     args = parser.parse_args()
 
     # Setup logging
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     # Create output directory
-    output_dir = Path(f"{config.output_dir_tuning}/{args.model_name}/")
+    if args.output_dir == "":
+        output_dir = Path(f"{config.output_dir_tuning}/{args.model_name}/")
+    else:
+        output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Set up Optuna study
@@ -307,7 +324,7 @@ if __name__ == "__main__":
                                 load_if_exists=True)
 
     logging.info("Starting OPTUNA study...")
-    study.optimize(partial(optuna_objective, model_name=args.model_name), n_trials=args.n_trials)
+    study.optimize(partial(optuna_objective, model_name=args.model_name, output_dir=output_dir), n_trials=args.n_trials)
 
     # # Save results
     # logging.info("Storing OPTUNA study results...")
