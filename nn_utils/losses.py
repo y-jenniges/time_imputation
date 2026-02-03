@@ -89,21 +89,32 @@ class PhysicsLoss(BaseLoss):
         phys_loss_val = 0
         # Spatiotemporal smoothness penalty (finite differences)
         if coords is not None and self.spacings is not None:
-            for dim in range(coords.shape[1]):
+            batch_size, set_size, feature_size = input.shape
+            coords_size = coords.shape[2]
+
+            # Flatten
+            input_flat = input.reshape(batch_size*set_size, feature_size)
+            coords_flat = coords.reshape(batch_size*set_size, coords_size)
+
+            for dim in range(coords_size):
                 # Sort values and coords
-                sorted_idx = torch.argsort(coords[:, dim])
-                sorted_input = input[sorted_idx]
-                sorted_coord = coords[:, dim][sorted_idx]
+                sorted_idx = torch.argsort(coords_flat[:, dim])
+                sorted_input = input_flat[sorted_idx]
+                sorted_coord = coords_flat[:, dim][sorted_idx]
 
                 # Compute gradient and loss for this dimension
-                grad = torch.gradient(sorted_input, spacing=sorted_coord)[0]
+                grad = torch.gradient(sorted_input, spacing=sorted_coord, edge_order=2)[0]
                 phys_loss_val += torch.mean(grad ** 2)
 
         # Enforce physical bounds
         if self.bounds is not None:
+            # Flatten
+            batch_size, set_size, feature_size = input.shape
+            input_flat = input.reshape(batch_size * set_size, feature_size)
+
             y_min, y_max = self.bounds
-            lower = torch.clamp(y_min - input, min=0) ** 2
-            upper = torch.clamp(input - y_max, min=0) ** 2
+            lower = torch.clamp(y_min - input_flat, min=0) ** 2
+            upper = torch.clamp(input_flat - y_max, min=0) ** 2
             phys_loss_val += lower.mean() + upper.mean()
 
         return (1 - self.lambda_phys) * base_loss_val + self.lambda_phys * phys_loss_val
