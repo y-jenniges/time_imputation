@@ -179,17 +179,13 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time=False, 
     # Convert to dict for easier column referencing
     coord_dict = {name: coords[:, i] for i, name in enumerate(coord_names)}
 
-    # Transform lon according to Zeng et al 2014
-    cLONGITUDE = (np.cos(np.pi / 180 * coord_dict["LONGITUDE"]) + 1) / 2
-    sLONGITUDE = (np.sin(np.pi / 180 * coord_dict["LONGITUDE"]) + 1) / 2
+    # Transform latitude and longitude to cartesian coords on unit sphere (and scale to range [0, 1])
+    lat_radians = np.pi / 180 * coord_dict["LATITUDE"]
+    lon_radians = np.pi / 180 * coord_dict["LONGITUDE"]
 
-    # Scale latitude
-    if "LATITUDE" in scaler_dict.keys():
-        lat_scaled = scaler_dict["LATITUDE"].transform(coord_dict["LATITUDE"].reshape(-1, 1))
-    else:
-        scaler_lat = MinMaxScaler()
-        lat_scaled = scaler_lat.fit_transform(coord_dict["LATITUDE"].reshape(-1, 1))
-        scaler_dict["LATITUDE"] = scaler_lat
+    x = (np.cos(lat_radians) * np.cos(lon_radians) + 1 ) / 2
+    y = (np.cos(lat_radians) * np.sin(lon_radians) + 1 ) / 2
+    z = (np.sin(lat_radians) + 1 ) / 2
 
     # Scale depth
     if "LEV_M" in scaler_dict.keys():
@@ -205,7 +201,7 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time=False, 
         stime = (np.sin(2 * np.pi * coord_dict["DATEANDTIME"] / 12) + 1) / 2
 
         # Combine coordinates
-        x_scaled = np.column_stack([lat_scaled, cLONGITUDE, sLONGITUDE, depth_scaled, ctime, stime])
+        x_scaled = np.column_stack([x, y, z, depth_scaled, ctime, stime])
     else:
         if "DATEANDTIME" in scaler_dict.keys():
             scaled_time = scaler_dict["DATEANDTIME"].transform(coord_dict["DATEANDTIME"].reshape(-1, 1))
@@ -215,7 +211,7 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time=False, 
             scaler_dict["DATEANDTIME"] = scaler_time
 
         # Combine coordinates
-        x_scaled = np.column_stack([lat_scaled, cLONGITUDE, sLONGITUDE, depth_scaled, scaled_time])
+        x_scaled = np.column_stack([x, y, z, depth_scaled, scaled_time])
 
     # Generate mask of observed values
     observed_mask = ~torch.isnan(values).cpu().numpy()
