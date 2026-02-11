@@ -53,7 +53,7 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     if json_fname.exists():
         with open(json_fname) as f:
             results = json.load(f)
-        return results, None, None
+        return results, None, None, None
 
     # Set deterministic seeds
     set_seed(seed)
@@ -121,7 +121,7 @@ def optuna_objective(trial, model_name):
         train_idx = np.array(split["train_idx"])
         val_idx = np.array(split["val_idx"])
 
-        results, _, _ = train_sklearn_single_split(
+        results, _, _, _ = train_sklearn_single_split(
             df=df,
             model_class=model_class,
             hyps=hyp_dict,
