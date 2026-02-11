@@ -98,6 +98,8 @@ class TuningResult:
             return obj.item()
         elif isinstance(obj, torch.dtype):  # Torch dtypes
             return str(obj)
+        elif isinstance(obj, BaseEstimator):
+            return obj.__class__.__name__
         else:
             return obj
 
