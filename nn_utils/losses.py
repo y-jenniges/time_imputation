@@ -37,7 +37,7 @@ class BaseLoss(nn.Module):
         """
         raise NotImplementedError
 
-
+# @todo optionally use n_loss_mask to evaluate error on query point AND neighbours
 class MaskedMSELoss(BaseLoss):
     def __init__(self):
         super().__init__()
@@ -53,9 +53,8 @@ class MaskedMSELoss(BaseLoss):
 
 
 class HeteroscedasticLoss(BaseLoss):
-    def __init__(self, eps: float = 1e-8):
+    def __init__(self):  # , eps: float = 1e-8):
         super().__init__()
-        self.eps = eps
 
     def forward(self, input, target, mask=None, coords=None, pred_var=None, **kwargs):
         # Only use not-nan entries (from ground truth)
@@ -64,7 +63,7 @@ class HeteroscedasticLoss(BaseLoss):
             return None
 
         sq_error = (input[valid_mask] - target[valid_mask]) ** 2
-        loss = 0.5 * (sq_error / (pred_var[valid_mask] + self.eps) + torch.log(pred_var[valid_mask] + self.eps))
+        loss = 0.5 * (sq_error / (pred_var[valid_mask]) + torch.log(pred_var[valid_mask]))
         return loss.mean()
 
 
