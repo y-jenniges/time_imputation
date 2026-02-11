@@ -43,37 +43,42 @@ class Trainer:
         total_loss = 0.0
         n_samples = 0
 
-        for coords, values, feature_mask in tqdm(loader, desc="Train", leave=False):
-            n_samples_in_batch = coords.shape[0]
+        for batch in tqdm(loader, desc="Train", leave=False):
+            q_feat = batch["query_features"].to(self.device)
+            q_mask = batch["query_mask"].to(self.device)
+            q_coords = batch["query_coords"].to(self.device)
+            n_feat = batch["neighbour_features"].to(self.device)
+            n_mask = batch["neighbour_mask"].to(self.device)
+            rel_pos = batch["rel_positions"].to(self.device)
 
-            coords = coords.to(self.device, dtype=torch.float32)
-            values = values.to(self.device, dtype=torch.float32)
-            feature_mask = feature_mask.to(self.device, dtype=torch.bool)
+            batch_size, n_features = q_feat.shape
+            n_neighbours = n_feat.shape[1]
 
             # random_feature_mask: True means "mask this feature"
             if mask_ratio > 0:
-                rand_mask = random_feature_mask(batch_size=values.shape[0], set_size=values.shape[1], feature_dim=values.shape[2], mask_ratio=mask_ratio, device=self.device)
+                q_random_mask, n_random_mask = (
+                    random_feature_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio,
+                                        n_neighbours=n_neighbours, device=self.device, mask_query=True,
+                                        mask_neighbours=True))
 
                 # Observed inputs after random masking
-                input_observed = feature_mask & ~rand_mask
+                q_input_mask = q_mask & ~q_random_mask
+                n_input_mask = n_mask & ~n_random_mask
 
                 # Positions to reconstruct: originally observed but randomly hidden
-                loss_mask = feature_mask & rand_mask
+                q_loss_mask = q_mask & q_random_mask
+                n_loss_mask = n_mask & n_random_mask
             else:
                 # If no random masking, all observed features are inputs and targets, i.e. reconstruct everything
-                input_observed = feature_mask
-                loss_mask = feature_mask
-
-            # Mask input values (replace hidden ones with 0)
-            values_masked = values.clone()
-            values_masked[~input_observed] = float("nan")
+                q_input_mask, q_loss_mask = q_mask, q_mask
+                n_input_mask, n_loss_mask = n_mask, n_mask
 
             # Predict
-            pred_mean, pred_var = self.model(coords=coords, values=values_masked, feature_mask=input_observed)
+            pred_mean, pred_var = self.model(query_features=q_feat, query_mask=q_input_mask, query_coords=q_coords,
+                                             neighbour_features=n_feat, neighbour_mask=n_input_mask, rel_positions=rel_pos)
 
             # Compute loss
-            loss = self.loss_fn(input=pred_mean, target=values, mask=loss_mask, coords=coords, pred_var=pred_var)
-
+            loss = self.loss_fn(input=pred_mean, target=q_feat, mask=q_loss_mask, pred_var=pred_var)
             if loss is None:
                 continue
 
@@ -81,8 +86,8 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
 
-            total_loss += loss.item() * n_samples_in_batch
-            n_samples += n_samples_in_batch
+            total_loss += loss.item() * batch_size
+            n_samples += batch_size
 
         return total_loss / max(1, n_samples)
 
@@ -93,15 +98,15 @@ class Trainer:
         n_samples = 0
         all_true, all_pred = [], []
 
-        for coords, values, feature_mask in tqdm(loader, desc="Val", leave=False):
-            n_samples_in_batch = coords.shape[0]
-            coords = coords.to(self.device, dtype=torch.float32)
-            values = values.to(self.device, dtype=torch.float32)
-            feature_mask = feature_mask.to(self.device, dtype=torch.bool)
+        for batch in tqdm(loader, desc="Val", leave=False):
+            q_feat = batch["query_features"].to(self.device)
+            q_mask = batch["query_mask"].to(self.device)
+            q_coords = batch["query_coords"].to(self.device)
+            n_feat = batch["neighbour_features"].to(self.device)
+            n_mask = batch["neighbour_mask"].to(self.device)
+            rel_pos = batch["rel_positions"].to(self.device)
 
-            # No random mask in validation: reconstruct all masked (False) values
-            loss_mask = ~feature_mask
-            values_filled = torch.where(feature_mask, values, torch.zeros_like(values))
+            batch_size, n_features = q_feat.shape
 
             # Enable dropout
             if do_dropout:
@@ -109,18 +114,20 @@ class Trainer:
                     if isinstance(module, nn.Dropout):
                         module.train()
 
-            pred_mean, pred_var = self.model(coords=coords, values=values_filled, feature_mask=feature_mask)
+            # Predict
+            pred_mean, pred_var = self.model(query_features=q_feat, query_mask=q_mask, query_coords=q_coords,
+                                             neighbour_features=n_feat, neighbour_mask=n_mask, rel_positions=rel_pos)
 
-            # Compute loss
-            loss = self.loss_fn(input=pred_mean, target=values, mask=loss_mask, coords=coords, pred_var=pred_var)
+            # Compute loss (reconstruct originally missing features)
+            loss = self.loss_fn(input=pred_mean, target=q_feat, mask=~q_mask, pred_var=pred_var)
             if loss is None:
                 continue
 
-            total_loss += loss.item() * n_samples_in_batch
-            n_samples += n_samples_in_batch
+            total_loss += loss.item() * batch_size
+            n_samples += batch_size
 
             # Collect flattened tensors for metric calculation
-            all_true.append(values.detach().cpu().numpy())
+            all_true.append(q_feat.detach().cpu().numpy())
             all_pred.append(pred_mean.detach().cpu().numpy())
 
         # Stack for full array metrics
@@ -155,15 +162,19 @@ class Trainer:
     @torch.no_grad()
     def reconstruct_full_dataset(self, loader: DataLoader, do_dropout: bool = False):
         self.model.eval()
-        all_coords = []
         all_preds = []
         all_vars = []
 
         # Iterate over batches
-        for coords, values, feature_mask in loader:
-            coords = coords.to(self.device, dtype=torch.float32)
-            values = values.to(self.device, dtype=torch.float32)
-            feature_mask = feature_mask.to(self.device, dtype=torch.bool)
+        for batch in tqdm(loader, desc="Val", leave=False):
+            q_feat = batch["query_features"].to(self.device)
+            q_mask = batch["query_mask"].to(self.device)
+            q_coords = batch["query_coords"].to(self.device)
+            n_feat = batch["neighbour_features"].to(self.device)
+            n_mask = batch["neighbour_mask"].to(self.device)
+            rel_pos = batch["rel_positions"].to(self.device)
+
+            batch_size, n_features = q_feat.shape
 
             # Enable dropout
             if do_dropout:
@@ -172,13 +183,14 @@ class Trainer:
                         module.train()
 
             # Predict all nan-values (true in feature mask means observed)
-            pred_means, pred_vars = self.model(coords=coords, values=values, feature_mask=feature_mask)
+            pred_mean, pred_var = self.model(query_features=q_feat, query_mask=q_mask, query_coords=q_coords,
+                                             neighbour_features=n_feat, neighbour_mask=n_mask, rel_positions=rel_pos)
 
-            all_coords.append(coords.cpu())
-            all_preds.append(pred_means.cpu())
-            all_vars.append(pred_vars.cpu())
+            # Add predictions to the list
+            all_preds.append(pred_mean.detach().cpu())
+            all_vars.append(pred_var.detach().cpu())
 
-        return torch.cat(all_coords), torch.cat(all_preds), torch.cat(all_vars)
+        return torch.cat(all_preds), torch.cat(all_vars)
 
 
     def fit(self, train_loader:DataLoader, val_loader: DataLoader, max_epochs, early_stopping=None, do_dropout: bool = False, mask_ratio: Union[float, Callable[[int], float]] = 0.5, optuna_callback=None):
