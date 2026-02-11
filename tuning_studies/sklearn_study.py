@@ -146,14 +146,17 @@ def optuna_objective(trial, model_name):
 
 
 if __name__ == "__main__":
-    # Setup logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_trials", type=int, default=1, help="Number of trials to run")
     parser.add_argument("--model_name", type=str, default="mean", help="Name of the model to tune")
     args = parser.parse_args()
+
+    # Setup logging
+    Path("logs").mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s [%(levelname)s] %(message)s",
+                        filename=f"logs/{args.model_name}.log")
 
     # Set up Optuna study
     if platform.system() == "Windows":

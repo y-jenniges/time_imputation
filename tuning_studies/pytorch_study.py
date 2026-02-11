@@ -288,9 +288,6 @@ def optuna_objective(trial, model_name, output_dir):
 
 
 if __name__ == "__main__":
-    # Setup logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_trials", type=int, default=1, help="Number of trials to run")
@@ -299,7 +296,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Setup logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    Path("logs").mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s [%(levelname)s] %(message)s",
+                        filename=f"logs/{args.model_name}.log")
 
     # Create output directory
     if args.output_dir == "":
