@@ -29,7 +29,6 @@ from utils.tuning import set_seed, TuningResult
 # Load data globally
 DATA = load_dataset()
 
-
 def suggest_hyperparameters(trial, model_name="mae"):
     """ Suggest hyperparameters for the masked auto encoder. """
     if model_name == "unet":
@@ -49,9 +48,10 @@ def suggest_hyperparameters(trial, model_name="mae"):
                     "dropout": trial.suggest_float("dropout", 0.0, 0.4)
                 }
             }
-    elif model_name == "mae":
+    elif model_name == "mastnet":
         return {
             "train": {
+                "n_neighbours": trial.suggest_int("n_neighbours", 2, 100),
                 "batch_size": trial.suggest_categorical("batch_size", [128, 512, 1024]),
                 "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
                 "patience": 5,  # trial.suggest_int("patience", 3, 12),
@@ -62,13 +62,13 @@ def suggest_hyperparameters(trial, model_name="mae"):
             },
             "model": {
                 "d_model": trial.suggest_categorical("d_model", [32, 64, 128, 256, 512]),
-                "nhead": trial.suggest_int("nhead", 2, 8),
+                "nhead": trial.suggest_categorical("nhead", [1, 2, 4, 8]),
                 "nlayers": trial.suggest_int("nlayers", 2, 8),
                 "dim_feedforward": trial.suggest_categorical("dim_feedforward", [128, 256, 512, 1024, 2048]),
                 "dropout": trial.suggest_float("dropout", 0.0, 0.4),
             }
         }
-    elif model_name == "mae_finetune":
+    elif model_name == "mastnet_finetune":
         n_epochs = 20
 
         # Test decreasing mask_ratio as well as higher mask ratios
@@ -102,8 +102,9 @@ def suggest_hyperparameters(trial, model_name="mae"):
         raise NotImplementedError(f"Could not find model {model_name}.")
 
 
-def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, model_name, split_path, trial_id,
-                           tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu"), save_model=False, output_dir=None):
+def train_mastnet_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, model_name, split_path, trial_id,
+                               tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu"),
+                               save_model=False, output_dir=None):
     """ Run model on one split and store results. """
     # Create output subdir
     if output_dir is None:
@@ -124,21 +125,22 @@ def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, 
         with open(json_fname) as f:
             results = json.load(f)
         if tuning_mode:
-            return results, None, None
-        else:
             return results, None, None, None
+        else:
+            return results, None, None, None, None
 
     # Set deterministic seeds
     generator = set_seed(seed)
 
     # Get hyperparameters
+    n_neighbours = hyps["train"]["n_neighbours"]
     batch_size = hyps["train"]["batch_size"]
-    model_hyps = hyps["model"]
     optimizer_class = hyps["train"]["optimizer"]
     learning_rate = hyps["train"]["learning_rate"]
     patience = hyps["train"]["patience"]
     n_epochs = hyps["train"]["n_epochs"]
     mask_ratio = hyps["train"]["mask_ratio"]
+    model_hyps = hyps["model"]
 
     # Get Loss specification
     loss_spec = name_to_loss_spec(loss_name=hyps["train"]["loss"])
@@ -154,7 +156,8 @@ def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, 
         val_idx=val_idx,
         test_idx=test_idx,
         batch_size=batch_size,
-        generator=generator
+        generator=generator,
+        n_neighbours=n_neighbours
     )
 
     # Initialize model and trainer
@@ -180,13 +183,13 @@ def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, 
     if not tuning_mode:
         # Full prediction/reconstruction
         sval = time()
-        full_coords, full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, do_dropout=False)
+        full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, do_dropout=False)
         df_imputed = pd.DataFrame(full_pred.cpu().detach().numpy().copy(), columns=config.parameters)  # Prediction
         df_imputed[config.coordinates] = df[config.coordinates]  # Add coordinates
         pred_time = time() - sval
 
         # Transform to numpy
-        all_values = torch.cat([values for _, values, _ in full_loader], dim=0)
+        all_values = torch.cat([batch["query_features"] for batch in full_loader], dim=0)
         y_true = all_values.detach().cpu().numpy()
         y_pred = full_pred.detach().cpu().numpy()
 
@@ -227,11 +230,9 @@ def train_mae_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, 
     logging.info(f"Split {split_fname} finished, val_rmse={val_rmse:.8f}")
 
     if tuning_mode:
-        print("tuning return")
-        return results, y_true, y_pred
+        return results, y_true, y_pred, scaler_dict
     else:
-        print("not tuning return")
-        return results, y_true, y_pred, full_var.detach().cpu().numpy()
+        return results, y_true, y_pred, full_var.detach().cpu().numpy(), scaler_dict
 
 
 def optuna_objective(trial, model_name, output_dir):
@@ -260,7 +261,7 @@ def optuna_objective(trial, model_name, output_dir):
         val_idx = np.array(split["val_idx"])
 
         # Train
-        results, _, _ = train_mae_single_split(
+        results, _, _, _ = train_mastnet_single_split(
             df=DATA,
             model_class=get_model_class(model_name),
             hyps=hyp_dict,
