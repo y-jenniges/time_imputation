@@ -94,7 +94,7 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     # Store results on disc
     results.save(json_fname, model=imputer if save_model else None)
 
-    return results.make_json_safe(), y_true, y_pred
+    return results.make_json_safe(), y_true, y_pred, scaler_dict
 
 
 def optuna_objective(trial, model_name):
