@@ -18,7 +18,7 @@ from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from torch import nn
 
 import config
-from models.mae import OceanMAE
+from models.mastnet import MaSTNeT
 from models.unet import OceanUNet
 
 
@@ -166,9 +166,10 @@ def get_model_class(model_name):
         "knn": KNNImputer,
         "missforest": MissForest,
         "mice": IterativeImputer,
-        "mae": OceanMAE,
+        "mastnet": MaSTNeT,
         "unet": OceanUNet,
-        "mae_finetune": OceanMAE,
+        # "mae": MaSTNeT,
+        # "mae_finetune": MaSTNeT,
     }
 
     if model_name not in name_class_map.keys():
