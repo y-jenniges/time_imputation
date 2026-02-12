@@ -134,7 +134,7 @@ def optuna_objective(trial, model_name):
             optuna_callback=None,
             seed=42+trial.number)
 
-        val_rmses.append(results.val_rmse)
+        val_rmses.append(results["val_rmse"])
 
         # # Pruning
         # trial.report(results.val_rmse, step=split_i)
