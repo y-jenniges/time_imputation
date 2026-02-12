@@ -239,7 +239,7 @@ def optuna_objective(trial, model_name, output_dir):
     """ Optuna objective function: One trial runs on all 5 splits. """
     # Init torch device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    logging.info(f"Using device: {device}")
 
     # Load test indexes
     test_idx = np.array(json.load(open(f"{config.output_dir_splits}/test_train_split.json"))["test_idx"], dtype=int)
