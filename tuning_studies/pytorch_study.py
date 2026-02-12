@@ -231,6 +231,7 @@ def train_mastnet_single_split(coords_raw, values_raw, model_class, hyps, train_
 
     # Clean up
     del full_loader, train_loader, val_loader, test_loader
+    del model, trainer, optimizer, loss_fn
 
     if tuning_mode:
         return results, y_true, y_pred, scaler_dict
@@ -290,6 +291,7 @@ def optuna_objective(trial, model_name, output_dir):
 
         # Clean up
         del results
+        torch.cuda.empty_cache()
         gc.collect()
 
     # Validation RMSE across all splits
