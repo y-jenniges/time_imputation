@@ -298,8 +298,7 @@ if __name__ == "__main__":
     # Setup logging
     Path("logs").mkdir(parents=True, exist_ok=True)
     logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s [%(levelname)s] %(message)s",
-                        filename=f"logs/{args.model_name}.log")
+                        format="%(asctime)s [%(levelname)s] %(message)s")
 
     # Create output directory
     if args.output_dir == "":
