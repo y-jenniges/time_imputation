@@ -117,19 +117,24 @@ def set_seed(seed):
     return generator
 
 
-def combine_csvs(dir_path, out_name="combined.csv", remove_files=False):
+def combine_resfiles(dir_path, file_ending=".csv", out_name="combined.csv", remove_files=False):
     # Remove file if exists
     if Path.exists(Path(dir_path + out_name)):
         Path(dir_path + out_name).unlink()
 
     # Load all result files as df
-    res_files = glob.glob(f"{dir_path}/*.csv")
+    res_files = glob.glob(f"{dir_path}/*{file_ending}")
 
     if len(res_files) > 1:
         # Load all files as df
         all_dfs = []
         for f in res_files:
-            df = pd.read_csv(f)
+            if file_ending == ".csv":
+                df = pd.read_csv(f)
+            elif file_ending == ".json":
+                df = pd.DataFrame([json.loads(open(f).read())])
+            else:
+                raise TypeError(f"Unsupported file ending {file_ending}")
             all_dfs.append(df)
 
         # Concat all result files
