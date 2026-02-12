@@ -21,7 +21,7 @@ class OceanMAEDataset(Dataset):
     def __init__(self,
                  coords: torch.Tensor,
                  values: torch.Tensor,
-                 neighbour_indices: np.ndarray,
+                 neighbour_indices: torch.Tensor,
                  mask_indices: np.ndarray | None = None,
                  ):
         self.coords = coords
@@ -103,6 +103,7 @@ def prepare_mae_loaders(coords: torch.Tensor,
     n_samples = values.shape[0]
     neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(coords.cpu().numpy())
     neighbour_indices = neighbours.kneighbors(coords.cpu().numpy(), return_distance=False)[:, 1:]  # Exclude self
+    neighbour_indices = torch.as_tensor(neighbour_indices, dtype=torch.long, device="cpu")
 
     # Define datasets
     train_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=train_idx, neighbour_indices=neighbour_indices)
@@ -295,4 +296,10 @@ def load_dataset():
     # Load data
     df = pd.read_csv(config.data_path)
     df["DATEANDTIME"] = pd.to_datetime(df["DATEANDTIME"]).dt.year
+
+    # Drop not-needed columns
+    if "idx" in df.columns:
+        df = df.drop(columns=["idx"])
+    if "water" in df.columns:
+        df = df.drop(columns=["water"])
     return df
