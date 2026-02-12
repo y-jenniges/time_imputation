@@ -11,7 +11,7 @@ from time import time
 import os
 import argparse
 import logging
-
+import gc
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 
@@ -102,7 +102,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
         raise NotImplementedError(f"Could not find model {model_name}.")
 
 
-def train_mastnet_single_split(df, model_class, hyps, train_idx, val_idx, test_idx, model_name, split_path, trial_id,
+def train_mastnet_single_split(coords_raw, values_raw, model_class, hyps, train_idx, val_idx, test_idx, model_name, split_path, trial_id,
                                tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu"),
                                save_model=False, output_dir=None):
     """ Run model on one split and store results. """
@@ -150,8 +150,8 @@ def train_mastnet_single_split(df, model_class, hyps, train_idx, val_idx, test_i
 
     # Prepare data
     full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim = prepare_mae_loaders(
-        coords=torch.tensor(df[config.coordinates].astype(float).to_numpy()),
-        values=torch.tensor(df[config.parameters].astype(float).to_numpy()),
+        coords=coords_raw,
+        values=values_raw,
         train_idx=train_idx,
         val_idx=val_idx,
         test_idx=test_idx,
@@ -185,7 +185,7 @@ def train_mastnet_single_split(df, model_class, hyps, train_idx, val_idx, test_i
         sval = time()
         full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, do_dropout=False)
         df_imputed = pd.DataFrame(full_pred.cpu().detach().numpy().copy(), columns=config.parameters)  # Prediction
-        df_imputed[config.coordinates] = df[config.coordinates]  # Add coordinates
+        df_imputed[config.coordinates] = coords_raw  # Add coordinates
         pred_time = time() - sval
 
         # Transform to numpy
@@ -229,6 +229,9 @@ def train_mastnet_single_split(df, model_class, hyps, train_idx, val_idx, test_i
 
     logging.info(f"Split {split_fname} finished, val_rmse={val_rmse:.8f}")
 
+    # Clean up
+    del full_loader, train_loader, val_loader, test_loader
+
     if tuning_mode:
         return results, y_true, y_pred, scaler_dict
     else:
@@ -251,6 +254,9 @@ def optuna_objective(trial, model_name, output_dir):
     hyp_dict = suggest_hyperparameters(trial, model_name=model_name)
     n_epochs = hyp_dict["train"]["n_epochs"]
 
+    coords_raw = torch.tensor(DATA[config.coordinates].astype(float).to_numpy())
+    values_raw = torch.tensor(DATA[config.parameters].astype(float).to_numpy())
+
     # Training
     val_losses = []
     for split_i, split_path in enumerate(split_paths):
@@ -263,7 +269,8 @@ def optuna_objective(trial, model_name, output_dir):
 
         # Train
         results, _, _, _ = train_mastnet_single_split(
-            df=DATA,
+            coords_raw=coords_raw,
+            values_raw=values_raw,
             model_class=get_model_class(model_name),
             hyps=hyp_dict,
             train_idx=train_idx,
@@ -280,6 +287,10 @@ def optuna_objective(trial, model_name, output_dir):
 
         logging.info(f"Validation RMSE: {results.val_rmse:.8f}")
         val_losses.append(results.val_rmse)
+
+        # Clean up
+        del results
+        gc.collect()
 
     # Validation RMSE across all splits
     mean_val_rmse = np.mean(val_losses)
