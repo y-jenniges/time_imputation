@@ -44,12 +44,14 @@ class Trainer:
         n_samples = 0
 
         for batch in tqdm(loader, desc="Train", leave=False):
-            q_feat = batch["query_features"].to(self.device)
-            q_mask = batch["query_mask"].to(self.device)
-            q_coords = batch["query_coords"].to(self.device)
-            n_feat = batch["neighbour_features"].to(self.device)
-            n_mask = batch["neighbour_mask"].to(self.device)
-            rel_pos = batch["rel_positions"].to(self.device)
+            batch = {k: v.to(self.device) for k, v in batch.items()}
+
+            q_feat = batch["query_features"]  # .to(self.device)
+            q_mask = batch["query_mask"]  #.to(self.device)
+            q_coords = batch["query_coords"]  # .to(self.device)
+            n_feat = batch["neighbour_features"]  # .to(self.device)
+            n_mask = batch["neighbour_mask"]  # .to(self.device)
+            rel_pos = batch["rel_positions"]  # .to(self.device)
 
             batch_size, n_features = q_feat.shape
             n_neighbours = n_feat.shape[1]
@@ -99,12 +101,14 @@ class Trainer:
         all_true, all_pred = [], []
 
         for batch in tqdm(loader, desc="Val", leave=False):
-            q_feat = batch["query_features"].to(self.device)
-            q_mask = batch["query_mask"].to(self.device)
-            q_coords = batch["query_coords"].to(self.device)
-            n_feat = batch["neighbour_features"].to(self.device)
-            n_mask = batch["neighbour_mask"].to(self.device)
-            rel_pos = batch["rel_positions"].to(self.device)
+            batch = {k: v.to(self.device) for k, v in batch.items()}
+
+            q_feat = batch["query_features"]#.to(self.device)
+            q_mask = batch["query_mask"]#.to(self.device)
+            q_coords = batch["query_coords"]#.to(self.device)
+            n_feat = batch["neighbour_features"]#.to(self.device)
+            n_mask = batch["neighbour_mask"]#.to(self.device)
+            rel_pos = batch["rel_positions"]#.to(self.device)
 
             batch_size, n_features = q_feat.shape
 
@@ -167,12 +171,14 @@ class Trainer:
 
         # Iterate over batches
         for batch in tqdm(loader, desc="Val", leave=False):
-            q_feat = batch["query_features"].to(self.device)
-            q_mask = batch["query_mask"].to(self.device)
-            q_coords = batch["query_coords"].to(self.device)
-            n_feat = batch["neighbour_features"].to(self.device)
-            n_mask = batch["neighbour_mask"].to(self.device)
-            rel_pos = batch["rel_positions"].to(self.device)
+            batch = {k: v.to(self.device) for k, v in batch.items()}
+
+            q_feat = batch["query_features"]#.#to(self.device)
+            q_mask = batch["query_mask"]#.to(self.device)
+            q_coords = batch["query_coords"]#.to(self.device)
+            n_feat = batch["neighbour_features"]#.to(self.device)
+            n_mask = batch["neighbour_mask"]#.to(self.device)
+            rel_pos = batch["rel_positions"]#.to(self.device)
 
             batch_size, n_features = q_feat.shape
 
@@ -231,5 +237,8 @@ class Trainer:
 
         # Load best model
         self.load_best_model()
+
+        # Close writer
+        self.writer.close()
 
         return history
