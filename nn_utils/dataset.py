@@ -21,12 +21,13 @@ class OceanMAEDataset(Dataset):
     def __init__(self,
                  coords: torch.Tensor,
                  values: torch.Tensor,
+                 neighbour_indices: np.ndarray,
                  mask_indices: np.ndarray | None = None,
-                 n_neighbours: int = 24):
+                 ):
         self.coords = coords
         self.values = values
         self.n_samples, self.n_features = values.shape
-        self.n_neighbours = n_neighbours
+        self.neighbour_indices = neighbour_indices
 
         # Initial mask: True = observed (False = NaN)
         self.feature_mask = ~torch.isnan(values)
@@ -35,12 +36,6 @@ class OceanMAEDataset(Dataset):
         if mask_indices is not None:
             mask_indices = torch.as_tensor(mask_indices, dtype=torch.long)
             self.feature_mask[mask_indices, :] = False
-
-        # Build graph for neighbour search
-        self.neighbours = NearestNeighbors(n_neighbors=min(self.n_neighbours, self.n_samples), algorithm="auto").fit(self.coords.cpu().numpy())
-
-        # Precompute neighbour indices (excluding self)
-        self.neighbour_indices = self.neighbours.kneighbors(self.coords.cpu().numpy(), return_distance=False)[:, 1:]
 
     def __len__(self):
         return self.n_samples
@@ -104,10 +99,15 @@ def prepare_mae_loaders(coords: torch.Tensor,
         scaler_dict=train_scaler_dict
     )
 
+    # Build graph for neighbour search
+    n_samples = values.shape[0]
+    neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(coords.cpu().numpy())
+    neighbour_indices = neighbours.kneighbors(coords.cpu().numpy(), return_distance=False)[:, 1:]  # Exclude self
+
     # Define datasets
-    train_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=train_idx, n_neighbours=n_neighbours)
-    val_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=val_idx, n_neighbours=n_neighbours)
-    test_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=test_idx, n_neighbours=n_neighbours)
+    train_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=train_idx, neighbour_indices=neighbour_indices)
+    val_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=val_idx, neighbour_indices=neighbour_indices)
+    test_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=test_idx, neighbour_indices=neighbour_indices)
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -115,7 +115,7 @@ def prepare_mae_loaders(coords: torch.Tensor,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Define loader for complete dataset (for complete reconstruction)
-    full_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=None, n_neighbours=n_neighbours)
+    full_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=None, neighbour_indices=neighbour_indices)
     full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
 
     return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1)
