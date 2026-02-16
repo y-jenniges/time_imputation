@@ -34,6 +34,21 @@ def suggest_hyperparameters(trial, model_name):
     elif model_name == "missforest":
         return {"n_estimators": trial.suggest_int("n_estimators", 50, 200),
                 "max_features": trial.suggest_categorical("max_features", [None, "sqrt", 0.5])}
+    elif model_name == "remasker":
+        # Ensure valid embed_dim and num_heads combinations
+        embed_dim = trial.suggest_categorical("embed_dim", [64, 128, 256, 512])
+        valid_heads = [h for h in [2, 4, 8] if embed_dim % h == 0]
+        num_heads = trial.suggest_categorical("num_heads", valid_heads)
+
+        return {"batch_size": trial.suggest_categorical("batch_size", [64, 128, 512]),
+                "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
+                "embed_dim": embed_dim,
+                "depth": trial.suggest_int("depth", 2, 8),
+                "decoder_depth": trial.suggest_int("decoder_depth", 1, 4),
+                "num_heads": num_heads,
+                "encode_func": trial.suggest_categorical("encode_func", ["linear", "active"]),
+                "max_epochs": 1,#50,
+                }
     else:
         raise NotImplementedError(f"Could not find model {model_name}.")
 
