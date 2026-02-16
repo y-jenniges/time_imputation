@@ -20,6 +20,7 @@ from torch import nn
 import config
 from models.mastnet import MaSTNeT
 from models.unet import OceanUNet
+from remasker.remasker_impute import ReMasker
 
 
 @dataclass
@@ -175,6 +176,7 @@ def get_model_class(model_name):
         "mice": IterativeImputer,
         "mastnet": MaSTNeT,
         "unet": OceanUNet,
+        "remasker": ReMasker,
         # "mae": MaSTNeT,
         # "mae_finetune": MaSTNeT,
     }
