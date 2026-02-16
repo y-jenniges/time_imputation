@@ -156,7 +156,7 @@ class Trainer:
         """ Save model state if current validation loss is the best so far. """
         if val_loss < self.best_val_loss:
             self.best_val_loss = val_loss
-            self.best_model_state = copy.deepcopy(self.model.state_dict())
+            self.best_model_state = { k: v.cpu() for k, v in self.model.state_dict().items()}
 
     def load_best_model(self):
         """ Restore the best model state. """
