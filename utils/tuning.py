@@ -20,6 +20,7 @@ from torch import nn
 import config
 from models.mastnet import MaSTNeT
 from models.unet import OceanUNet
+from models.mlp import MLP
 from remasker.remasker_impute import ReMasker
 
 
@@ -177,6 +178,7 @@ def get_model_class(model_name):
         "mastnet": MaSTNeT,
         "unet": OceanUNet,
         "remasker": ReMasker,
+        "mlp": MLP,
         # "mae": MaSTNeT,
         # "mae_finetune": MaSTNeT,
     }
