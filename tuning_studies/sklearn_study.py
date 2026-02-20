@@ -30,7 +30,8 @@ def suggest_hyperparameters(trial, model_name):
     elif model_name == "mice":
         return {"estimator": BayesianRidge(),
                 "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median"]),
-                "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "random"])}
+                "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "random"]),
+                "sample_posterior": True}
     elif model_name == "missforest":
         return {"n_estimators": trial.suggest_int("n_estimators", 50, 200),
                 "max_features": trial.suggest_categorical("max_features", [None, "sqrt", 0.5])}
@@ -47,7 +48,7 @@ def suggest_hyperparameters(trial, model_name):
                 "decoder_depth": trial.suggest_int("decoder_depth", 1, 4),
                 "num_heads": num_heads,
                 "encode_func": trial.suggest_categorical("encode_func", ["linear", "active"]),
-                "max_epochs": 1,#50,
+                "max_epochs": 20,
                 }
     else:
         raise NotImplementedError(f"Could not find model {model_name}.")
@@ -149,7 +150,7 @@ def optuna_objective(trial, model_name):
             optuna_callback=None,
             seed=42+trial.number)
 
-        val_rmses.append(results["val_rmse"])
+        val_rmses.append(results["val_loss"])
 
         # # Pruning
         # trial.report(results.val_rmse, step=split_i)
