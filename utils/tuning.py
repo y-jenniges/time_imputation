@@ -16,6 +16,7 @@ from sklearn.experimental import enable_iterative_imputer
 from sklearn.base import BaseEstimator
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from torch import nn
+import math
 
 import config
 from models.mastnet import MaSTNeT
@@ -34,13 +35,23 @@ class TuningResult:
     hyps: dict
 
     # Metrics
-    test_rmse: float = np.nan
-    val_rmse: float = np.nan
+    test_metrics: dict = field(default_factory=dict)
+    val_metrics: dict = field(default_factory=dict)
+    val_loss: float = np.nan
+
     train_time: float = np.nan
     pred_time: float = np.nan
+    pred_time_std: float = np.nan
+
     mean_aleatoric_uncertainty: float = np.nan
     std_aleatoric_uncertainty: float = np.nan
+    mean_epistemic_uncertainty: float = np.nan
+    std_epistemic_uncertainty: float = np.nan
+    mean_total_uncertainty: float = np.nan
+    std_total_uncertainty: float = np.nan
+
     stop_epoch: int = np.nan
+
     reconstruction_rmse: float = np.nan
 
     metrics_last: dict = field(default_factory=dict)
@@ -102,6 +113,8 @@ class TuningResult:
             return str(obj)
         elif isinstance(obj, BaseEstimator):
             return obj.__class__.__name__
+        elif isinstance(obj, float) and math.isnan(obj):
+            return None
         else:
             return obj
 
