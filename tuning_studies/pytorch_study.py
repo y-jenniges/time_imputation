@@ -14,11 +14,13 @@ import logging
 import gc
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
+from tqdm import tqdm
 
 from nn_utils.losses import build_loss, name_to_loss_spec
-from nn_utils.trainer import Trainer
+from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter
 from nn_utils.early_stopping import EarlyStopping
-from nn_utils.dataset import prepare_mae_loaders, load_dataset
+from nn_utils.dataset import prepare_neighbourhood_loaders, load_dataset, prepare_pointwise_loaders
+from utils.metrics import compute_metrics
 from utils.tuning import make_optuna_callback, get_model_class
 
 import config
@@ -51,8 +53,8 @@ def suggest_hyperparameters(trial, model_name="mae"):
     elif model_name == "mastnet":
         return {
             "train": {
-                "n_neighbours": trial.suggest_int("n_neighbours", 2, 100),
-                "batch_size": trial.suggest_categorical("batch_size", [128, 512, 1024]),
+                "n_neighbours": trial.suggest_int("n_neighbours", 2, 60),
+                "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
                 "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
                 "patience": 5,  # trial.suggest_int("patience", 3, 12),
                 "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
@@ -62,9 +64,9 @@ def suggest_hyperparameters(trial, model_name="mae"):
             },
             "model": {
                 "d_model": trial.suggest_categorical("d_model", [32, 64, 128, 256, 512]),
-                "nhead": trial.suggest_categorical("nhead", [1, 2, 4, 8]),
+                "nhead": trial.suggest_categorical("nhead", [2, 4, 8]),
                 "nlayers": trial.suggest_int("nlayers", 2, 8),
-                "dim_feedforward": trial.suggest_categorical("dim_feedforward", [128, 256, 512, 1024, 2048]),
+                "dim_feedforward": trial.suggest_categorical("dim_feedforward", [128, 256, 512, 1024]),
                 "dropout": trial.suggest_float("dropout", 0.0, 0.4),
             }
         }
@@ -98,28 +100,54 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "dropout": 0.007883109330264194,
             }
         }
+    elif model_name == "mlp":
+        return {"train": {
+                    "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
+                    "learning_rate": trial.suggest_float("lr", 1e-5, 1e-2, log=True),
+                    "patience": 10,  # trial.suggest_int("patience", 3, 12),
+                    "n_epochs": 80,  # trial.suggest_int("epochs", 20, 80),
+                    "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
+                    "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
+                    "optimizer": torch.optim.Adam
+                },
+                "model": {
+                    "hidden_dims": trial.suggest_categorical("hidden_dims", [
+                        [64, 64],  # Narrow and shallow
+                        [128, 64],  # Moderate
+                        [256, 128],  # Wider
+                        [128, 64, 32],  # Deeper and narrow
+                        [256, 128, 64]  # Deeper and wider
+                    ]),
+                    "dropout": trial.suggest_float("dropout", 0.0, 0.4)
+            }
+                }
     else:
         raise NotImplementedError(f"Could not find model {model_name}.")
 
 
-def train_mastnet_single_split(coords_raw, values_raw, model_class, hyps, train_idx, val_idx, test_idx, model_name, split_path, trial_id,
-                               tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu"),
-                               save_model=False, output_dir=None):
-    """ Run model on one split and store results. """
-    # Create output subdir
-    if output_dir is None:
-        model_outdir = Path(config.output_dir_tuning) / model_name
-    else:
-        model_outdir = Path(output_dir)
-    os.makedirs(model_outdir, exist_ok=True)
+def get_hyp(hyps, *keys, default=None):
+    """Safely retrieve nested hyperparameters from dict."""
+    val = hyps
+    for k in keys:
+        val = val.get(k, default) if isinstance(val, dict) else default
+    return val
 
-    # Output file
+
+def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_idx, val_idx, test_idx, model_name,
+                               split_path, trial_id,
+                               tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu"),
+                               save_model=False, output_dir=None,
+                               coords_only=False, do_dropout=False, n_inferences=1):
+    """ Run model on one split and store results. """
+    # Output dir and file
+    model_outdir = Path(output_dir) if output_dir else Path(config.output_dir_tuning) / model_name
+    os.makedirs(model_outdir, exist_ok=True)
     split_fname = PurePath(split_path).stem
     base_name = f"model{model_name}_split{split_fname}_trial{trial_id}"
     main_path = Path(model_outdir) / base_name
     json_fname = main_path.with_name(main_path.name + ".json")
 
-    # Check if file already exists
+    # Skip if file already exists
     if json_fname.exists():
         logging.info(f"Results already exist for {split_fname}. Skipping.")
         with open(json_fname) as f:
@@ -129,43 +157,52 @@ def train_mastnet_single_split(coords_raw, values_raw, model_class, hyps, train_
         else:
             return results, None, None, None, None
 
-    # Set deterministic seeds
+    # Set seeds
     generator = set_seed(seed)
 
-    # Get hyperparameters
-    n_neighbours = hyps["train"]["n_neighbours"]
-    batch_size = hyps["train"]["batch_size"]
-    optimizer_class = hyps["train"]["optimizer"]
-    learning_rate = hyps["train"]["learning_rate"]
-    patience = hyps["train"]["patience"]
-    n_epochs = hyps["train"]["n_epochs"]
-    mask_ratio = hyps["train"]["mask_ratio"]
-    model_hyps = hyps["model"]
-
-    # Get Loss specification
-    loss_spec = name_to_loss_spec(loss_name=hyps["train"]["loss"])
+    # Hyperparameters
+    n_neighbours = get_hyp(hyps, "train", "n_neighbours", default=5)
+    batch_size = get_hyp(hyps, "train", "batch_size", default=64)
+    optimizer_class = get_hyp(hyps, "train", "optimizer", default=torch.optim.Adam)
+    learning_rate = get_hyp(hyps, "train", "learning_rate", default=1e-3)
+    patience = get_hyp(hyps, "train", "patience", default=5)
+    n_epochs = get_hyp(hyps, "train", "n_epochs", default=20)
+    mask_ratio = get_hyp(hyps, "train", "mask_ratio", default=0.8)
+    model_hyps = get_hyp(hyps, "model", default={})
+    loss_spec = name_to_loss_spec(get_hyp(hyps, "train", "loss", default="mse"))
 
     # Init results object
     results = TuningResult(split=split_fname, seed=seed, model=model_name, hyp_combo_id=trial_id, hyps=hyps)
 
-    # Prepare data
-    full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim = prepare_mae_loaders(
-        coords=coords_raw,
-        values=values_raw,
-        train_idx=train_idx,
-        val_idx=val_idx,
-        test_idx=test_idx,
-        batch_size=batch_size,
-        generator=generator,
-        n_neighbours=n_neighbours
-    )
+    # Adapter and data loaders
+    model_adapters = {"mastnet": NeighbourAdapter, "mlp": PointwiseAdapter}
+    loader_funcs = {"mastnet": prepare_neighbourhood_loaders, "mlp": prepare_pointwise_loaders}
 
-    # Initialize model and trainer
+    if model_name not in model_adapters.keys():
+        raise ValueError(f"Unknown model_name {model_name}")
+
+    # Hyps for data loader
+    loader_kwargs = dict(coords=coords_raw,
+            values=values_raw,
+            train_idx=train_idx,
+            val_idx=val_idx,
+            test_idx=test_idx,
+            batch_size=batch_size,
+            generator=generator)
+    if model_name == "mastnet":
+        loader_kwargs["n_neighbours"] = n_neighbours
+
+    # Adapter and loader
+    adapter = model_adapters[model_name]()
+    full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim = (
+        loader_funcs[model_name](**loader_kwargs))
+
+    # Initialize model optimizer, loss and trainer
     st = time()
     model = model_class(**model_hyps).to(device)
     optimizer = optimizer_class(model.parameters(), lr=learning_rate)
     loss_fn = build_loss(loss_spec)
-    trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn, device=device)
+    trainer = Trainer(model=model, adapter=adapter, optimizer=optimizer, loss_fn=loss_fn, device=device, coords_only=coords_only)
     early_stopper = EarlyStopping(patience=patience)
     def_time = time() - st
 
@@ -177,57 +214,101 @@ def train_mastnet_single_split(coords_raw, values_raw, model_class, hyps, train_
         max_epochs=n_epochs,
         early_stopping=early_stopper,
         mask_ratio=mask_ratio,
-        optuna_callback=optuna_callback)
+        optuna_callback=optuna_callback,
+        do_dropout=do_dropout
+    )
     train_time = time() - strain
 
+    # Full prediction/reconstruction
     if not tuning_mode:
-        # Full prediction/reconstruction
-        sval = time()
-        full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, do_dropout=False)
-        df_imputed = pd.DataFrame(full_pred.cpu().detach().numpy().copy(), columns=config.parameters)  # Prediction
-        df_imputed[config.coordinates] = coords_raw  # Add coordinates
-        pred_time = time() - sval
 
-        # Transform to numpy
-        all_values = torch.cat([batch["query_features"] for batch in full_loader], dim=0)
+        # Store predictions for all MC passes
+        all_preds = []
+        all_vars = []
+        all_times = []
+
+        for i in range(n_inferences):
+            # Update seed
+            set_seed(seed + i)
+
+            # Prediction
+            sval = time()
+            full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, do_dropout=do_dropout, show_progress=(i==0))
+            pred_time = time() - sval
+
+            all_preds.append(full_pred.unsqueeze(0))
+            all_vars.append(full_var.unsqueeze(0))
+            all_times.append(pred_time)
+
+        # Stack predictions (n_inferences, N, output_dim)
+        all_preds = torch.cat(all_preds, dim=0)
+        all_vars = torch.cat(all_vars, dim=0)
+
+        # Compute uncertainties
+        y_pred_mean = all_preds.mean(dim=0)  # Mean prediction
+        epistemic_uncertainty = all_preds.var(dim=0, unbiased=False)
+        aleatoric_uncertainty = all_vars.mean(dim=0)
+        total_uncertainty = epistemic_uncertainty + aleatoric_uncertainty
+        total_uncertainty = total_uncertainty.detach().cpu().numpy()
+
+        # Prediction time
+        time_mean = np.mean(all_times)
+        time_std = np.std(all_times)
+
+        # True values
+        if model_name == "mastnet":
+            all_values = torch.cat([batch["query_features"] for batch in full_loader], dim=0)
+        elif model_name == "mlp":
+            all_values = torch.cat([batch["features"] for batch in full_loader], dim=0)
+        else:
+            raise ValueError(f"Unknown model_name {model_name}")
+
+        # To CPU and numpy
         y_true = all_values.detach().cpu().numpy()
-        y_pred = full_pred.detach().cpu().numpy()
+        y_pred = y_pred_mean.detach().cpu().numpy()
+        epistemic_uncertainty = epistemic_uncertainty.detach().cpu().numpy()
+        aleatoric_uncertainty = aleatoric_uncertainty.detach().cpu().numpy()
 
         # Loss plot
         plot_loss(history, close_plot=True, save_as=main_path.with_name(main_path.name + "_lossplot.png"))
 
-        # Reconstruction plot
+        # Reconstruction  RMSE and plot
+        reconstruction_rmse = np.sqrt(np.nanmean((y_pred - y_true) ** 2))
         recplot_fname = main_path.with_name(main_path.name + "_reconstruction_error.png")
         plot_simple_reconstruction_error(y_true, y_pred, save_as=recplot_fname, close=True)
 
         # Evaluate on validation and test set separately
-        val_rmse = np.sqrt(np.nanmean((y_true[val_idx] - y_pred[val_idx]) ** 2))  # For model tuning
-        test_rmse = np.sqrt(
-            np.nanmean((y_true[test_idx] - y_pred[test_idx]) ** 2))  # Not needed here, final model performance
-        reconstruction_rmse = np.sqrt(np.nanmean((y_true - y_pred) ** 2))  # For representation quality
+        val_metrics = compute_metrics(y_true=y_true[val_idx], y_pred=y_pred[val_idx], var_names=config.parameters)
+        test_metrics = compute_metrics(y_true=y_true[test_idx], y_pred=y_pred[test_idx], var_names=config.parameters)
 
         # Write results to results class
-        results.test_rmse = test_rmse
-        results.pred_time = pred_time
-        results.mean_aleatoric_uncertainty = float(full_var.mean())
-        results.std_aleatoric_uncertainty = float(full_var.std())
-        results.reconstruction_rmse = reconstruction_rmse
-    else:
-        val_rmse = trainer.best_val_loss
-        y_true = None
-        y_pred = None
+        results.test_metrics = test_metrics
+        results.val_metrics = val_metrics
 
-    results.val_rmse = val_rmse
+        results.pred_time = float(time_mean)
+        results.pred_time_std = float(time_std)
+
+        # results.reconstruction_rmse = reconstruction_rmse
+
+        results.mean_epistemic_uncertainty = float(epistemic_uncertainty.mean())
+        results.std_epistemic_uncertainty = float(epistemic_uncertainty.std())
+        results.mean_aleatoric_uncertainty = float(aleatoric_uncertainty.mean())
+        results.std_aleatoric_uncertainty = float(aleatoric_uncertainty.std())
+        results.mean_total_uncertainty = float(total_uncertainty.mean())
+        results.std_total_uncertainty = float(total_uncertainty.std())
+    else:
+        y_true, y_pred, full_var = None, None, None
+
+    results.val_loss = trainer.best_val_loss
     results.train_time = train_time + def_time
     results.stop_epoch = early_stopper.epoch
     results.metrics_all = history["metrics"]
-    results.metrics_last = history["metrics"][max(history["metrics"].keys())] if "metrics" in history and history[
-        "metrics"] else {}
+    results.metrics_last = history["metrics"][max(history["metrics"].keys())] if "metrics" in history and history["metrics"] else {}
 
     # Store results on disc
     results.save(json_fname, model=model if save_model else None)
 
-    logging.info(f"Split {split_fname} finished, val_rmse={val_rmse:.8f}")
+    logging.info(f"Split {split_fname} finished, val_loss={val_loss:.8f}")
 
     # Clean up
     del full_loader, train_loader, val_loader, test_loader
@@ -236,7 +317,7 @@ def train_mastnet_single_split(coords_raw, values_raw, model_class, hyps, train_
     if tuning_mode:
         return results, y_true, y_pred, scaler_dict
     else:
-        return results, y_true, y_pred, full_var.detach().cpu().numpy(), scaler_dict
+        return results, y_true, y_pred, [aleatoric_uncertainty, epistemic_uncertainty], scaler_dict
 
 
 def optuna_objective(trial, model_name, output_dir):
@@ -269,7 +350,7 @@ def optuna_objective(trial, model_name, output_dir):
         val_idx = np.array(split["val_idx"])
 
         # Train
-        results, _, _, _ = train_mastnet_single_split(
+        results, _, _, _ = train_pytorch_single_split(
             coords_raw=coords_raw,
             values_raw=values_raw,
             model_class=get_model_class(model_name),
@@ -284,20 +365,21 @@ def optuna_objective(trial, model_name, output_dir):
             seed=42 + int(trial.number) + split_i,
             device=device,
             output_dir=output_dir,
+            coords_only=False
         )
 
-        logging.info(f"Validation RMSE: {results.val_rmse:.8f}")
-        val_losses.append(results.val_rmse)
+        logging.info(f"Validation loss: {results.val_loss:.8f}")
+        val_losses.append(results.val_loss)
 
         # Clean up
         del results
         torch.cuda.empty_cache()
         gc.collect()
 
-    # Validation RMSE across all splits
-    mean_val_rmse = np.mean(val_losses)
-    logging.info(f"Trial {trial.number} finished, mean_val_rmse={mean_val_rmse:.4f}")
-    return mean_val_rmse
+    # Validation loss across all splits
+    mean_val_loss = np.mean(val_losses)
+    logging.info(f"Trial {trial.number} finished, mean_val_loss={mean_val_loss:.4f}")
+    return mean_val_loss
 
 
 if __name__ == "__main__":
