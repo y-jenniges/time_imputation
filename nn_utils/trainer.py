@@ -386,7 +386,7 @@ class Trainer:
             history["train"][epoch] = train_loss
             history["val"][epoch] = val_loss
             history["metrics"][epoch] = val_metrics
-            tqdm.write((f"Epoch {epoch:03d}: Train Loss={train_loss:.6f} | Val Loss={val_loss:.6f}")
+            tqdm.write(f"Epoch {epoch:03d}: Train Loss={train_loss:.6f} | Val Loss={val_loss:.6f}")
 
             # TensorBoard logging
             self.writer.add_scalar("Loss/train", train_loss, epoch)
