@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class MLP(nn.Module):
-    def __init__(self, input_dim=11, hidden_dims=[128, 64], output_dim=6, dropout=0.1):
+    def __init__(self, input_dim=17, hidden_dims=[128, 64], output_dim=6, dropout=0.1):
         super().__init__()
 
         layers = []
