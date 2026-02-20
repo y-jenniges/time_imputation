@@ -2,15 +2,15 @@ from typing import Tuple
 import numpy as np
 import torch
 from sklearn.neighbors import NearestNeighbors
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
 import config
 
 
-class OceanMAEDataset(Dataset):
-    """ Dataset for OceanMAE.
+class NeighbourDataset(Dataset):
+    """ Dataset returning query point data and neighbourhood data.
     Returns:
         coords: [N, coord_dim] tensor
         values: [N, value_dim] tensor
@@ -22,32 +22,36 @@ class OceanMAEDataset(Dataset):
                  coords: torch.Tensor,
                  values: torch.Tensor,
                  neighbour_indices: torch.Tensor,
-                 mask_indices: np.ndarray | None = None,
+                 query_indices: np.ndarray | None = None
                  ):
         self.coords = coords
         self.values = values
-        self.n_samples, self.n_features = values.shape
         self.neighbour_indices = neighbour_indices
 
         # Initial mask: True = observed (False = NaN)
         self.feature_mask = ~torch.isnan(values)
 
-        # Mask indices
-        if mask_indices is not None:
-            mask_indices = torch.as_tensor(mask_indices, dtype=torch.long)
-            self.feature_mask[mask_indices, :] = False
+        # Store original indices of query points
+        if query_indices is None:
+            self.query_indices = torch.arange(values.shape[0], dtype=torch.long)
+        else:
+            self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
 
     def __len__(self):
-        return self.n_samples
+        return self.query_indices.shape[0]
 
     def __getitem__(self, idx):
-        # Query point
-        q_feat = self.values[idx]
-        q_mask = self.feature_mask[idx]
-        q_coord = self.coords[idx]
+        # Map local query point idx to global idx
+        q_idx = self.query_indices[idx]
 
-        # Neighbours
-        n_idx = self.neighbour_indices[idx]
+        # Query point
+        q_feat = self.values[q_idx]
+        q_mask = self.feature_mask[q_idx]
+        q_coord = self.coords[q_idx]
+
+        # Neighbours (global indices)
+        n_idx = self.neighbour_indices[q_idx]
+
         n_feat = self.values[n_idx]
         n_mask = self.feature_mask[n_idx]
         n_coord = self.coords[n_idx]
@@ -55,7 +59,7 @@ class OceanMAEDataset(Dataset):
         # Relative positions
         rel_positions = n_coord - q_coord
 
-        sample = {
+        return {
             "query_features": q_feat,
             "query_mask": q_mask,
             "query_coords": q_coord,
@@ -64,19 +68,30 @@ class OceanMAEDataset(Dataset):
             "rel_positions": rel_positions
         }
 
-        return sample
+
+class PointwiseDataset(Dataset):
+    def __init__(self, coords: torch.Tensor, values: torch.Tensor):
+        self.coords = coords
+        self.values = values
+        self.feature_mask = ~torch.isnan(values)  # Mask indices (True = observed)
+
+    def __len__(self):
+        return self.values.shape[0]
+
+    def __getitem__(self, idx):
+        return {"features": self.values[idx], "coords": self.coords[idx], "mask": self.feature_mask[idx]}
 
 
-def prepare_mae_loaders(coords: torch.Tensor,
-                        values: torch.Tensor,
-                        train_idx: np.ndarray,
-                        val_idx: np.ndarray,
-                        test_idx: np.ndarray,
-                        batch_size: int,
-                        generator: torch.Generator,
-                        cyclic_time: bool = False,
-                        n_neighbours: int = 24,
-                        ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, dict, int, int]:
+def prepare_neighbourhood_loaders(coords: torch.Tensor,
+                                  values: torch.Tensor,
+                                  train_idx: np.ndarray,
+                                  val_idx: np.ndarray,
+                                  test_idx: np.ndarray,
+                                  batch_size: int,
+                                  generator: torch.Generator,
+                                  cyclic_time: bool = False,
+                                  n_neighbours: int = 24,
+                                  ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, dict, int, int]:
     # Split raw data
     coords_train_raw = coords[train_idx]
     values_train_raw = values[train_idx]
@@ -102,13 +117,13 @@ def prepare_mae_loaders(coords: torch.Tensor,
     # Build graph for neighbour search
     n_samples = values.shape[0]
     neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(coords.cpu().numpy())
-    neighbour_indices = neighbours.kneighbors(coords.cpu().numpy(), return_distance=False)[:, 1:]  # Exclude self
-    neighbour_indices = torch.as_tensor(neighbour_indices, dtype=torch.long, device="cpu")
+    neighbour_indices = neighbours.kneighbors(coords.cpu().numpy(), return_distance=False)
+    neighbour_indices = torch.as_tensor(neighbour_indices[:, 1:], dtype=torch.long, device="cpu")  # Exclude self and convert to tensor
 
     # Define datasets
-    train_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=train_idx, neighbour_indices=neighbour_indices)
-    val_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=val_idx, neighbour_indices=neighbour_indices)
-    test_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=test_idx, neighbour_indices=neighbour_indices)
+    train_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, neighbour_indices=neighbour_indices)
+    val_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, neighbour_indices=neighbour_indices)
+    test_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, neighbour_indices=neighbour_indices)
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -116,8 +131,54 @@ def prepare_mae_loaders(coords: torch.Tensor,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Define loader for complete dataset (for complete reconstruction)
-    full_dataset = OceanMAEDataset(coords=coords_full, values=values_full, mask_indices=None, neighbour_indices=neighbour_indices)
+    full_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=None, neighbour_indices=neighbour_indices)
     full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
+
+    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1)
+
+def prepare_pointwise_loaders(coords: torch.Tensor,
+                                  values: torch.Tensor,
+                                  train_idx: np.ndarray,
+                                  val_idx: np.ndarray,
+                                  test_idx: np.ndarray,
+                                  batch_size: int,
+                                  generator: torch.Generator,
+                                  cyclic_time: bool = False):
+    # Split raw data
+    coords_train_raw = coords[train_idx]
+    values_train_raw = values[train_idx]
+
+    # Preprocess training data
+    coords_train, values_train, train_scaler_dict = preprocess(coords=coords_train_raw,
+                                                               values=values_train_raw,
+                                                               coord_names=config.coordinates,
+                                                               parameter_names=config.parameters,
+                                                               cyclic_time=cyclic_time,
+                                                               scaler_dict=None)
+
+    # Preprocess full dataset using training scalers
+    coords_full, values_full, _ = preprocess(
+        coords=coords,
+        values=values,
+        coord_names=config.coordinates,
+        parameter_names=config.parameters,
+        cyclic_time=cyclic_time,
+        scaler_dict=train_scaler_dict
+    )
+
+    # Full dataset and loader (no splitting yet, for reconstruction)
+    full_dataset = PointwiseDataset(coords=coords_full, values=values_full)
+    full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
+
+    # Define datasets
+    train_dataset = Subset(full_dataset, train_idx)
+    val_dataset   = Subset(full_dataset, val_idx)
+    test_dataset  = Subset(full_dataset, test_idx)
+
+    # Define data loaders
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1)
 
@@ -275,6 +336,9 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time=False, 
         y_col = values[:, i].cpu().numpy()
         obs = observed_mask[:, i]
         y_obs = y_col[obs].reshape(-1, 1)
+        
+        if len(y_obs) == 0:
+            continue
 
         # Transform observed values
         if pn in scaler_dict.keys():
