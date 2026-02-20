@@ -308,7 +308,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     # Store results on disc
     results.save(json_fname, model=model if save_model else None)
 
-    logging.info(f"Split {split_fname} finished, val_loss={val_loss:.8f}")
+    logging.info(f"Split {split_fname} finished, val_loss={trainer.best_val_loss:.8f}")
 
     # Clean up
     del full_loader, train_loader, val_loader, test_loader
