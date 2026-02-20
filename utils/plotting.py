@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
+from shapely.geometry import box
+from cartopy.io import shapereader
 import matplotlib.animation as animation
 from scipy.interpolate import griddata
 import cartopy.crs as ccrs
@@ -392,7 +394,17 @@ def plot_simple_reconstruction_error(y_true, y_pred, save_as=None, close=False):
         b = b[mask]
 
         ax = axes[i]
-        ax.scatter(a, b, alpha=0.05, s=5)
+        hb = ax.hexbin(a, b, gridsize=40, cmap="viridis", mincnt=1, bins="log")
+
+        # Correlation
+        r, _ = pearsonr(a, b)
+        ax.text(
+            0.05, 0.95, f"r = {r:.2f}",
+            transform=ax.transAxes,
+            verticalalignment='top',
+            fontsize=10,
+            bbox=dict(facecolor='white', alpha=0.6, edgecolor='none')
+        )
 
         # 1:1 reference line
         min_val = min(a.min(), b.min())
@@ -401,11 +413,14 @@ def plot_simple_reconstruction_error(y_true, y_pred, save_as=None, close=False):
 
         ax.set_xlabel("True")
         ax.set_ylabel("Predicted")
-        ax.set_title(feature_name)
+        ax.set_title(config.parameter_name_map[feature_name])
         ax.set_xlim(min_val, max_val)
         ax.set_ylim(min_val, max_val)
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 0.88, 1])
+    cax = fig.add_axes((0.90, 0.15, 0.02, 0.7))
+    fig.colorbar(hb, cax=cax, label='Point count')
+
     if save_as is not None:
         plt.savefig(save_as)
 
@@ -527,14 +542,15 @@ def animate_depth_panels(
         plt.show()
 
 
-def generate_animation(df_imputed, scaler_dict, parameter="P_TEMPERATURE", save_as=None):
+def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", save_as=None):
     temp = df_imputed.copy()
 
     # Undo scaling
-    for param, scaler in scaler_dict.items():
-        # Only unscale parameters
-        if param in config.parameters:
-            temp[param] = scaler.inverse_transform(temp[param].values.reshape(-1, 1))
+    if scaler_dict is not None:
+        for param, scaler in scaler_dict.items():
+            # Only unscale parameters
+            if param in config.parameters:
+                temp[param] = scaler.inverse_transform(temp[param].values.reshape(-1, 1))
 
     # Transform to xarray
     ds = df_to_gridded_da(temp, value_col=parameter)
@@ -710,3 +726,85 @@ def color_code_labels(df, color_noise_black=False, drop_noise=False, column_name
         temp = temp[temp[column_name] != -1]
 
     return temp
+
+
+def plot_geo(df, color_label="color", save_as=None, figsize=(6, 6),
+             adjust_left=0, adjust_right=0.92, adjust_top=1.1, adjust_bottom=-0.05, pointsize=0.5, dpi=600,
+             xlabelpad=20, ylabelpad=0, zlabelpad=0):
+    """ 3d scatter plot of a cluster set with given colors. """
+
+    # Define figure and plot grid cells as scatter points
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(df["LONGITUDE"], df["LATITUDE"], df["LEV_M"], c=df[color_label], s=pointsize, alpha=1, zorder=1)
+
+    # Get coastlines from Cartopy feature
+    # Create a bounding box for the data region
+    bbox = box(df["LONGITUDE"].min(), df["LATITUDE"].min(), df["LONGITUDE"].max(), df["LATITUDE"].max())
+
+    # Get cartopy coastline
+    shpfilename = shapereader.natural_earth(resolution="110m", category="physical", name="coastline")
+    reader = shapereader.Reader(shpfilename)
+
+    # Loop through geometries and clip to desired range
+    for record in reader.records():
+        # Clip geometry to desited range
+        geom = record.geometry.intersection(bbox)
+
+        # Skip geometry, if no intersection with desired range
+        if geom.is_empty:
+            continue
+
+        # Convert geometry to a list of lines
+        if geom.geom_type == "MultiLineString":
+            lines = geom.geoms
+        elif geom.geom_type == "LineString":
+            lines = [geom]
+        else:
+            continue  # skip if it's not a line
+
+        # Add each line to the plot
+        for line in lines:
+            x, y = line.xy
+            z = np.full_like(x, 0.0)  # Place at surface
+            ax.plot(x, y, z, color='black', linewidth=1.5, zorder=10)
+
+    # Set axis limits
+    ax.set_xlim(df["LONGITUDE"].min(), df["LONGITUDE"].max())
+    ax.set_ylim(df["LATITUDE"].min(), df["LATITUDE"].max())
+
+    ax.set_box_aspect((np.ptp(df["LONGITUDE"]), np.ptp(df["LATITUDE"]), np.ptp(df["LEV_M"]) / 50))
+
+    # Add axis labels
+    ax.set_xlabel('Longitude', labelpad=xlabelpad)
+    ax.set_ylabel('Latitude', labelpad=ylabelpad)
+    ax.set_zlabel('Depth [m]', labelpad=zlabelpad)
+
+    # Invert the Z-axis for depth representation
+    plt.gca().invert_zaxis()
+
+    # Define coarse ticks for longitude and latitude
+    lon_ticks = np.linspace(df["LONGITUDE"].min(), df["LONGITUDE"].max(), num=5)  # Adjust num for desired spacing
+    lat_ticks = np.linspace(df["LATITUDE"].min(), df["LATITUDE"].max(), num=5)
+
+    # Set ticks and labels
+    ax.set_xticks(lon_ticks)  # Longitude ticks
+    ax.set_xticklabels([f"{tick:.1f}°" for tick in lon_ticks], rotation=45, ha="right")  # Format as degrees
+
+    ax.set_yticks(lat_ticks)  # Latitude ticks
+    ax.set_yticklabels([f"{tick:.1f}°" for tick in lat_ticks], rotation=0, ha="left")  # Format as degrees
+
+    # Increase padding between ticks and their labels
+    ax.tick_params(axis='x', pad=-5)  # Horizontal ticks
+    ax.tick_params(axis='y', pad=-5)  # Vertical ticks
+    ax.tick_params(axis='z', pad=10)  # Depth ticks
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.subplots_adjust(left=adjust_left, right=adjust_right, top=adjust_top, bottom=adjust_bottom)
+
+    # Save figure
+    if save_as:
+        plt.savefig(save_as, dpi=dpi)
+    # plt.show()
+
