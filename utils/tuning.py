@@ -62,10 +62,18 @@ class TuningResult:
     model_class: str | None = None
     model_path: str | None = None
 
+    # Scalers
+    scalers_path: str | None = None
+    scalers: dict = field(default_factory=dict)
+
     def save(self, fname: Path, model=None):
         # Store model if given
         if model is not None:
             self.save_model(model=model, model_dir=fname.parent)
+
+        # Store scalers if given
+        if len(self.scalers) > 0:
+            self.save_scalers(out_dir=fname.parent)
 
         # Make json safe
         data = self.make_json_safe()
@@ -93,6 +101,12 @@ class TuningResult:
         self.model_class = model.__class__.__name__
         self.model_path = str(path)
 
+    def save_scalers(self, out_dir: Path):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / "scalers.joblib"
+        print("Stored scalers in {}".format(path))
+        joblib.dump(self.scalers, path)
+        self.scalers_path = str(path)
 
     def make_json_safe(self):
         # Serialize nested dicts as JSON
