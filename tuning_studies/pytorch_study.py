@@ -220,6 +220,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     train_time = time() - strain
 
     # Full prediction/reconstruction
+    aleatoric_uncertainty, epistemic_uncertainty = np.nan, np.nan
     if not tuning_mode:
 
         # Store predictions for all MC passes
@@ -288,7 +289,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         results.pred_time = float(time_mean)
         results.pred_time_std = float(time_std)
 
-        # results.reconstruction_rmse = reconstruction_rmse
+        results.reconstruction_rmse = reconstruction_rmse
 
         results.mean_epistemic_uncertainty = float(epistemic_uncertainty.mean())
         results.std_epistemic_uncertainty = float(epistemic_uncertainty.std())
@@ -306,6 +307,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     results.metrics_last = history["metrics"][max(history["metrics"].keys())] if "metrics" in history and history["metrics"] else {}
 
     # Store results on disc
+    results.scalers = scaler_dict
     results.save(json_fname, model=model if save_model else None)
 
     logging.info(f"Split {split_fname} finished, val_loss={trainer.best_val_loss:.8f}")
