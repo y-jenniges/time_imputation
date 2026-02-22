@@ -106,6 +106,7 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     results.val_rmse = val_rmse
     results.test_rmse = test_rmse
     results.metrics_all = metrics
+    results.scalers = scaler_dict
 
     # Store results on disc
     results.save(json_fname, model=imputer if save_model else None)
