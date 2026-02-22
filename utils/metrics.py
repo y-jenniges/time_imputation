@@ -95,16 +95,19 @@ def compute_metrics(y_true, y_pred, var_names=None, coords=None):
         global_valid_true.append(yt)
         global_valid_pred.append(yp)
 
-    # Combine for global metrics
-    global_valid_true = np.concatenate(global_valid_true)
-    global_valid_pred = np.concatenate(global_valid_pred)
+    if len(global_valid_true) == 0:
+        rmse_global, nse_global, r_global, p_global, mse_global = np.nan, np.nan, np.nan, np.nan, np.nan
+    else:
+        # Combine for global metrics
+        global_valid_true = np.concatenate(global_valid_true)
+        global_valid_pred = np.concatenate(global_valid_pred)
 
-    mse_global = np.mean((global_valid_true - global_valid_pred) ** 2)
-    rmse_global = np.sqrt(mse_global)
-    nse_global = 1 - np.sum((global_valid_true - global_valid_pred) ** 2) / np.sum(
-        (global_valid_true - np.mean(global_valid_true)) ** 2
-    )
-    r_global, p_global = stats.pearsonr(global_valid_true, global_valid_pred)
+        mse_global = np.mean((global_valid_true - global_valid_pred) ** 2)
+        rmse_global = np.sqrt(mse_global)
+        nse_global = 1 - np.sum((global_valid_true - global_valid_pred) ** 2) / np.sum(
+            (global_valid_true - np.mean(global_valid_true)) ** 2
+        )
+        r_global, p_global = stats.pearsonr(global_valid_true, global_valid_pred)
 
     metrics = {
         "Global": {"RMSE": rmse_global, "NSE": nse_global, "Pearson": r_global, "Pearson_p": p_global},
