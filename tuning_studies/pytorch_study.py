@@ -15,6 +15,7 @@ import gc
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from tqdm import tqdm
+import psutil, os
 
 from nn_utils.losses import build_loss, name_to_loss_spec
 from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter
@@ -30,6 +31,12 @@ from utils.tuning import set_seed, TuningResult
 
 # Load data globally
 DATA = load_dataset()
+
+
+def ram():
+    return psutil.Process(os.getpid()).memory_info().rss / 1024**3
+
+print("RAM after loading DATA:", ram())
 
 def suggest_hyperparameters(trial, model_name="mae"):
     """ Suggest hyperparameters for the masked auto encoder. """
@@ -197,6 +204,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim = (
         loader_funcs[model_name](**loader_kwargs))
 
+    print("RAM after loader init:", ram())
+
     # Initialize model optimizer, loss and trainer
     st = time()
     model = model_class(**model_hyps).to(device)
@@ -215,9 +224,12 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         early_stopping=early_stopper,
         mask_ratio=mask_ratio,
         optuna_callback=optuna_callback,
-        do_dropout=do_dropout
+        do_dropout=do_dropout,
+        full_metrics=not tuning_mode
     )
     train_time = time() - strain
+
+    print("RAM after fit: ", ram())
 
     # Full prediction/reconstruction
     aleatoric_uncertainty, epistemic_uncertainty = np.nan, np.nan
@@ -316,6 +328,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     del full_loader, train_loader, val_loader, test_loader
     del model, trainer, optimizer, loss_fn
 
+    print("RAM after cleanup:", ram())
+
     if tuning_mode:
         return results, y_true, y_pred, scaler_dict
     else:
@@ -338,12 +352,13 @@ def optuna_objective(trial, model_name, output_dir):
     hyp_dict = suggest_hyperparameters(trial, model_name=model_name)
     n_epochs = hyp_dict["train"]["n_epochs"]
 
-    coords_raw = torch.tensor(DATA[config.coordinates].astype(float).to_numpy())
-    values_raw = torch.tensor(DATA[config.parameters].astype(float).to_numpy())
+    coords_raw = torch.from_numpy(DATA[config.coordinates].astype(float).to_numpy())
+    values_raw = torch.from_numpy(DATA[config.parameters].astype(float).to_numpy())
 
     # Training
     val_losses = []
     for split_i, split_path in enumerate(split_paths):
+        print("RAM before split:", ram())
         logging.info(f"Training trial {trial.number} on split {split_path}")
 
         # Load split
@@ -377,6 +392,8 @@ def optuna_objective(trial, model_name, output_dir):
         del results
         torch.cuda.empty_cache()
         gc.collect()
+
+        print("RAM after split:", ram())
 
     # Validation loss across all splits
     mean_val_loss = np.mean(val_losses)
