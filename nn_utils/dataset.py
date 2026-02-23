@@ -356,9 +356,12 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time=False, 
     return x_scaled, y_scaled, scaler_dict
 
 
-def load_dataset():
+def load_dataset(data_path=None):
+    if data_path is None:
+        data_path = config.data_path
+
     # Load data
-    df = pd.read_csv(config.data_path)
+    df = pd.read_csv(data_path)
     df["DATEANDTIME"] = pd.to_datetime(df["DATEANDTIME"]).dt.year
 
     # Drop not-needed columns
