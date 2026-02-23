@@ -109,7 +109,6 @@ class NeighbourAdapter(ModelAdapter):
         return model(query_features=q_feat, query_mask=q_input_mask, query_coords=q_coords, neighbour_features=n_feat,
                      neighbour_mask=n_input_mask, rel_positions=rel_pos)
 
-
     def loss_inputs(self, batch, outputs, masks):
         pred_mean, pred_var = outputs
 
@@ -256,7 +255,7 @@ class Trainer:
                 module.train() if enable else module.eval()
 
     @torch.no_grad()
-    def evaluate(self, loader: DataLoader, mask_ratio: float, do_dropout: bool = False, metrics_key: str = "Metrics"):
+    def evaluate(self, loader: DataLoader, mask_ratio: float, do_dropout: bool = False, metrics_key: str = "Metrics", full_metrics: bool = True):
         self.model.eval()  # Disables dropout
         total_loss, n_samples = 0.0, 0
         all_true, all_pred = [], []
@@ -281,28 +280,32 @@ class Trainer:
             n_samples += batch_size
 
             # Collect flattened tensors for metric calculation (only on loss mask)
-            y_true, y_pred = self.adapter.outputs_to_cpu(batch, outputs, to_numpy=True)
-            loss_mask = loss_inputs["mask"].detach().cpu().numpy()
+            if full_metrics:
+                y_true, y_pred = self.adapter.outputs_to_cpu(batch, outputs, to_numpy=True)
+                loss_mask = loss_inputs["mask"].detach().cpu().numpy()
 
-            y_true_masked = y_true.copy()
-            y_pred_masked = y_pred.copy()
-            y_true_masked[~loss_mask] = np.nan
-            y_pred_masked[~loss_mask] = np.nan
+                y_true_masked = y_true.copy()
+                y_pred_masked = y_pred.copy()
+                y_true_masked[~loss_mask] = np.nan
+                y_pred_masked[~loss_mask] = np.nan
 
-            all_true.append(y_true_masked)
-            all_pred.append(y_pred_masked)
+                all_true.append(y_true_masked)
+                all_pred.append(y_pred_masked)
 
-        if len(all_true) == 0:
-            print("Warning: No valid entries to evaluate!")
-            return total_loss / max(1, n_samples), {}
+        if full_metrics:
+            if len(all_true) == 0:
+                print("Warning: No valid entries to evaluate!")
+                return total_loss / max(1, n_samples), {}
 
-        # Stack for full array metrics
-        y_true = np.concatenate(all_true, axis=0)
-        y_pred = np.concatenate(all_pred, axis=0)
+            # Stack for full array metrics
+            y_true = np.concatenate(all_true, axis=0)
+            y_pred = np.concatenate(all_pred, axis=0)
 
-        # Compute and log metrics
-        metrics = compute_metrics(y_true=y_true, y_pred=y_pred, var_names=config.parameters)
-        self.log_metrics(metrics_key, metrics)
+            # Compute and log metrics
+            metrics = compute_metrics(y_true=y_true, y_pred=y_pred, var_names=config.parameters)
+            self.log_metrics(metrics_key, metrics)
+        else:
+            metrics = {}
 
         return total_loss / max(1, n_samples), metrics
 
@@ -365,7 +368,8 @@ class Trainer:
             early_stopping=None,
             do_dropout: bool = False,
             mask_ratio: Union[float, Callable[[int], float]] = 0.5,
-            optuna_callback=None):
+            optuna_callback=None,
+            full_metrics: bool = False):
         history = {"train": {}, "val": {}, "metrics": {}}
 
         # Iterate over epochs
@@ -378,7 +382,7 @@ class Trainer:
 
             # Train and compute losses
             train_loss = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)
-            val_loss, val_metrics = self.evaluate(loader=val_loader, mask_ratio=mask_ratio, do_dropout=do_dropout, metrics_key=f"Epoch_{epoch}")
+            val_loss, val_metrics = self.evaluate(loader=val_loader, mask_ratio=mask_ratio, do_dropout=do_dropout, metrics_key=f"Epoch_{epoch}", full_metrics=full_metrics)
 
             # Update best model
             self.update_best_model(val_loss=val_loss)
