@@ -54,7 +54,8 @@ def suggest_hyperparameters(trial, model_name):
         raise NotImplementedError(f"Could not find model {model_name}.")
 
 
-def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_idx, model_name, split_path, trial_id, optuna_callback=None, seed=42, save_model=False):
+def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_idx, model_name, split_path, trial_id,
+                               optuna_callback=None, seed=42, save_model=False, tuning_mode=True):
     # Create output subdir
     model_outdir = Path(config.output_dir_tuning) / model_name
     os.makedirs(model_outdir, exist_ok=True)
@@ -102,7 +103,10 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     results.pred_time = pred_time
     results.val_loss = val_rmse
     results.metrics_all = metrics
-    results.scalers = scaler_dict
+
+    if not tuning_mode:
+        # Store scalers only for full training (not in tuning mode)
+        results.scalers = scaler_dict
 
     # Store results on disc
     results.save(json_fname, model=imputer if save_model else None)
@@ -145,6 +149,7 @@ def optuna_objective(trial, model_name):
             split_path=split_path,
             trial_id=trial.number,
             optuna_callback=None,
+            tuning_mode=True,
             seed=42+trial.number)
 
         val_rmses.append(results["val_loss"])

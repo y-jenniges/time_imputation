@@ -309,6 +309,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         results.std_aleatoric_uncertainty = float(aleatoric_uncertainty.std())
         results.mean_total_uncertainty = float(total_uncertainty.mean())
         results.std_total_uncertainty = float(total_uncertainty.std())
+
+        results.scalers = scaler_dict
     else:
         y_true, y_pred, full_var = None, None, None
 
@@ -319,7 +321,6 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     results.metrics_last = history["metrics"][max(history["metrics"].keys())] if "metrics" in history and history["metrics"] else {}
 
     # Store results on disc
-    results.scalers = scaler_dict
     results.save(json_fname, model=model if save_model else None)
 
     logging.info(f"Split {split_fname} finished, val_loss={trainer.best_val_loss:.8f}")
