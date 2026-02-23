@@ -94,17 +94,13 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     # Evaluate on validation set
     val_rmse = np.sqrt(np.nanmean((y_true[val_idx] - y_pred[:, coord_dim:][val_idx]) ** 2))
 
-    # Evaluate on test set (optional, not relevant in tuning)
-    test_rmse = np.sqrt(np.nanmean((y_true[test_idx] - y_pred[:, coord_dim:][test_idx]) ** 2))
-
     # Compute other metrics
     metrics = compute_metrics(y_true=y_true, y_pred=y_pred)
 
     # Store results
     results.train_time = train_time
     results.pred_time = pred_time
-    results.val_rmse = val_rmse
-    results.test_rmse = test_rmse
+    results.val_loss = val_rmse
     results.metrics_all = metrics
     results.scalers = scaler_dict
 
