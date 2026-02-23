@@ -41,6 +41,7 @@ class MLP(nn.Module):
         return pmean, pvar
 
     def predict(self, x, y, batch_size, device: torch.device = torch.device("cpu")):
+        """ Impute missing data given scaled x (coordinates) and y (values). """
         # Define dataset and loader (to predict everything)
         dataset = PointwiseDataset(coords=x, values=y)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)

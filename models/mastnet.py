@@ -75,6 +75,7 @@ class MaSTNeT(nn.Module):
         return pmean, pvar
 
     def predict(self, x, y, n_neighbours, batch_size, device: torch.device = torch.device("cpu")):
+        """ Impute missing data given scaled x (coordinates) and y (values). """
         # Compute neighbours
         n_samples = y.shape[0]
         neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(x.cpu().numpy())
