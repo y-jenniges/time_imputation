@@ -1,5 +1,10 @@
 import torch
 import torch.nn as nn
+from sklearn.neighbors import NearestNeighbors
+from torch.utils.data import DataLoader
+
+from nn_utils.dataset import NeighbourDataset
+from nn_utils.trainer import NeighbourAdapter
 
 
 class MaSTNeT(nn.Module):
@@ -68,3 +73,27 @@ class MaSTNeT(nn.Module):
         pvar = self.var_decoder(query_encoded)  # [batch_size, n_features]
 
         return pmean, pvar
+
+    def predict(self, x, y, n_neighbours, batch_size, device: torch.device = torch.device("cpu")):
+        # Compute neighbours
+        n_samples = y.shape[0]
+        neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(x.cpu().numpy())
+        neighbour_indices = neighbours.kneighbors(x.cpu().numpy(), return_distance=False)
+        neighbour_indices = torch.as_tensor(neighbour_indices[:, 1:], dtype=torch.long, device="cpu")  # Exclude self and convert to tensor
+
+        # Define dataset and loader (to predict everything)
+        dataset = NeighbourDataset(coords=x, values=y, query_indices=None, neighbour_indices=neighbour_indices)
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        adapter = NeighbourAdapter()
+
+        # Predict batch-wise
+        y_hat = []
+        with torch.no_grad():
+            for batch in loader:
+                batch = adapter.prepare_batch(batch, device=device)
+                masks = adapter.make_masks(batch=batch, mask_ratio=0.0, mode="reconstruct", device=device)
+                pmean, _ = adapter.forward(self, batch=batch, masks=masks)
+
+                y_hat.append(pmean.cpu())
+
+        return torch.cat(y_hat, dim=0).cpu().numpy()
