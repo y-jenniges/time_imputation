@@ -89,12 +89,14 @@ class MaSTNeT(nn.Module):
 
         # Predict batch-wise
         y_hat = []
+        y_var = []
         with torch.no_grad():
             for batch in loader:
                 batch = adapter.prepare_batch(batch, device=device)
                 masks = adapter.make_masks(batch=batch, mask_ratio=0.0, mode="reconstruct", device=device)
-                pmean, _ = adapter.forward(self, batch=batch, masks=masks)
+                pmean, pvar = adapter.forward(self, batch=batch, masks=masks)
 
                 y_hat.append(pmean.cpu())
+                y_var.append(pvar.cpu())
 
-        return torch.cat(y_hat, dim=0).cpu().numpy()
+        return torch.cat(y_hat, dim=0).cpu().numpy(), torch.cat(y_var, dim=0).cpu().numpy()
