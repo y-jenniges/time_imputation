@@ -249,18 +249,21 @@ class Trainer:
         return total_loss / max(1, n_samples)
 
     def _enable_dropout(self, enable=True):
-        # Enable dropout
-        for module in self.model.modules():
-            if isinstance(module, nn.Dropout):
-                module.train() if enable else module.eval()
+        if enable:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        # # Enable dropout
+        # for module in self.model.modules():
+        #     if isinstance(module, nn.Dropout):
+        #         module.train() if enable else module.eval()
 
     @torch.no_grad()
-    def evaluate(self, loader: DataLoader, mask_ratio: float, do_dropout: bool = False, metrics_key: str = "Metrics", full_metrics: bool = True):
+    def evaluate(self, loader: DataLoader, mask_ratio: float, metrics_key: str = "Metrics", full_metrics: bool = True):
         self.model.eval()  # Disables dropout
         total_loss, n_samples = 0.0, 0
         all_true, all_pred = [], []
-
-        self._enable_dropout(enable=do_dropout)
 
         for batch in tqdm(loader, desc="Val", leave=False):
             batch = self.adapter.prepare_batch(batch, self.device)
@@ -366,7 +369,6 @@ class Trainer:
             val_loader: DataLoader,
             max_epochs,
             early_stopping=None,
-            do_dropout: bool = False,
             mask_ratio: Union[float, Callable[[int], float]] = 0.5,
             optuna_callback=None,
             full_metrics: bool = False):
@@ -382,7 +384,7 @@ class Trainer:
 
             # Train and compute losses
             train_loss = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)
-            val_loss, val_metrics = self.evaluate(loader=val_loader, mask_ratio=mask_ratio, do_dropout=do_dropout, metrics_key=f"Epoch_{epoch}", full_metrics=full_metrics)
+            val_loss, val_metrics = self.evaluate(loader=val_loader, mask_ratio=mask_ratio, metrics_key=f"Epoch_{epoch}", full_metrics=full_metrics)
 
             # Update best model
             self.update_best_model(val_loss=val_loss)
