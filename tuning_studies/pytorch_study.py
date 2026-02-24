@@ -224,7 +224,6 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         early_stopping=early_stopper,
         mask_ratio=mask_ratio,
         optuna_callback=optuna_callback,
-        do_dropout=do_dropout,
         full_metrics=not tuning_mode
     )
     train_time = time() - strain
@@ -281,6 +280,12 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         y_pred = y_pred_mean.detach().cpu().numpy()
         epistemic_uncertainty = epistemic_uncertainty.detach().cpu().numpy()
         aleatoric_uncertainty = aleatoric_uncertainty.detach().cpu().numpy()
+        all_preds_np = all_preds.cpu().numpy()
+        all_vars_np = all_vars.cpu().numpy()
+
+        # Store inferences
+        np.save(main_path.with_name(main_path.name + "_all_preds.npy"), all_preds_np)
+        np.save(main_path.with_name(main_path.name + "_all_vars.npy"), all_vars_np)
 
         # Loss plot
         plot_loss(history, close_plot=True, save_as=main_path.with_name(main_path.name + "_lossplot.png"))
