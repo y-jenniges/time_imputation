@@ -1,6 +1,7 @@
 import glob
 import platform
 from functools import partial
+from itertools import chain
 from pathlib import Path, PurePath
 import optuna
 import pandas as pd
@@ -210,7 +211,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     st = time()
     model = model_class(**model_hyps).to(device)
     loss_fn = build_loss(loss_spec)
-    optimizer = optimizer_class(model.parameters() + list(loss_fn.parameters()), lr=learning_rate)
+    optimizer = optimizer_class(chain(model.parameters(), loss_fn.parameters()), lr=learning_rate)
     trainer = Trainer(model=model, adapter=adapter, optimizer=optimizer, loss_fn=loss_fn, device=device, coords_only=coords_only)
     early_stopper = EarlyStopping(patience=patience)
     def_time = time() - st
