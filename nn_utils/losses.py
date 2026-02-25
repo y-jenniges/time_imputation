@@ -72,13 +72,19 @@ class HeteroscedasticLoss(BaseLoss):
 
 
 class StudentTHeteroscedasticLoss(BaseLoss):
-    def __init__(self, n_features: int = 6, nu_init: float = 4.0):
+    def __init__(self, n_features: int = 6, nu_init: float = 4.0, nu_min: float = 2.1):
         super().__init__()
-        self.nu_raw = nn.Parameter(torch.full((n_features,), nu_init))  # Learnable parameter
+        self.nu_min = nu_min
+        nu_init_tensor = torch.full((n_features,), nu_init).to()
+        self.nu_raw = nn.Parameter(nu_init_tensor)  # Learnable parameter
+
+    @property
+    def nu(self):
+        # Ensure nu > nu_min
+        return self.nu_min + torch.nn.functional.softplus(self.nu_raw - self.nu_min)
 
     def forward(self, input, target, mask=None, coords=None, pred_var=None, **kwargs):
-        if mask is None:
-            mask = torch.ones_like(target, dtype=torch.bool)
+        device = input.device
 
         # Only use not-nan entries (from ground truth)
         valid = mask & (~torch.isnan(target))
@@ -87,13 +93,11 @@ class StudentTHeteroscedasticLoss(BaseLoss):
 
         # Predicted mean and variances for valid entries
         mu = input[valid]
-        var = pred_var[valid].clamp_min(1e-6)
-        sigma = torch.sqrt(var)
+        sigma = torch.sqrt(pred_var[valid].clamp_min(1e-6))
 
-        # Compute nu per feature, broadcast over batch
-        nu_full = F.softplus(self.raw_nu) + 2.0  # Ensure nu > 2
-        feature_idx = valid.nonzero()[:, 1]  # which column/feature
-        nu = nu_full[feature_idx]
+        # Broadcast nu per feature
+        feature_idx = valid.nonzero(as_tuple=False)[:, 1]  # Get feature indices of valid entries
+        nu = self.nu.to(device)[feature_idx]
 
         # Student-T distribution
         dist = D.StudentT(df=nu, loc=mu, scale=sigma)
