@@ -124,7 +124,14 @@ def suggest_hyperparameters(trial, model_name="mae"):
                         [128, 64],  # Moderate
                         [256, 128],  # Wider
                         [128, 64, 32],  # Deeper and narrow
-                        [256, 128, 64]  # Deeper and wider
+                        [256, 128, 64],  # Deeper and wider
+
+                        # Slightly larger / deeper options
+                        [256, 128, 64, 32],  # Deeper
+                        [512, 256, 128],  # Wider
+                        [512, 256, 128, 64],  # Deep + wide
+                        [256, 256, 128, 64],  # Wide first layers
+                        [128, 128, 64, 32, 16],  # Very deep narrow
                     ]),
                     "dropout": trial.suggest_float("dropout", 0.0, 0.4)
             }
