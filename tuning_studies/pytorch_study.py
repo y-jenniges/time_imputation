@@ -66,7 +66,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "patience": 5,  # trial.suggest_int("patience", 3, 12),
                 "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
                 "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
-                "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
+                "loss": trial.suggest_categorical("loss", ["mse", "hetero", "studentt"]),
                 "optimizer": torch.optim.Adam
             },
             "model": {
@@ -114,7 +114,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                     "patience": 10,  # trial.suggest_int("patience", 3, 12),
                     "n_epochs": 80,  # trial.suggest_int("epochs", 20, 80),
                     "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
-                    "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
+                    "loss": trial.suggest_categorical("loss", ["mse", "hetero", "studentt"]),
                     "optimizer": torch.optim.Adam
                 },
                 "model": {
@@ -209,8 +209,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     # Initialize model optimizer, loss and trainer
     st = time()
     model = model_class(**model_hyps).to(device)
-    optimizer = optimizer_class(model.parameters(), lr=learning_rate)
     loss_fn = build_loss(loss_spec)
+    optimizer = optimizer_class(model.parameters() + list(loss_fn.parameters()), lr=learning_rate)
     trainer = Trainer(model=model, adapter=adapter, optimizer=optimizer, loss_fn=loss_fn, device=device, coords_only=coords_only)
     early_stopper = EarlyStopping(patience=patience)
     def_time = time() - st

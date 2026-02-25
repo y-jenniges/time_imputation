@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.distributions as D
 import gsw
 
 
@@ -18,6 +19,9 @@ def name_to_loss_spec(loss_name):
     elif loss_name == "hetero":
         loss_spec["class"] = HeteroscedasticLoss
         loss_spec["kwargs"]  = {}
+    elif loss_name == "studentt":
+        loss_spec["class"] = StudentTHeteroscedasticLoss
+        loss_spec["kwargs"] = {}
     return loss_spec
 
 
@@ -37,7 +41,7 @@ class BaseLoss(nn.Module):
         """
         raise NotImplementedError
 
-# @todo optionally use n_loss_mask to evaluate error on query point AND neighbours
+
 class MaskedMSELoss(BaseLoss):
     def __init__(self):
         super().__init__()
@@ -65,6 +69,39 @@ class HeteroscedasticLoss(BaseLoss):
         sq_error = (input[valid_mask] - target[valid_mask]) ** 2
         loss = 0.5 * (sq_error / (pred_var[valid_mask]) + torch.log(pred_var[valid_mask]))
         return loss.mean()
+
+
+class StudentTHeteroscedasticLoss(BaseLoss):
+    def __init__(self, n_features: int = 6, nu_init: float = 4.0):
+        super().__init__()
+        self.nu_raw = nn.Parameter(torch.full((n_features,), nu_init))  # Learnable parameter
+
+    def forward(self, input, target, mask=None, coords=None, pred_var=None, **kwargs):
+        if mask is None:
+            mask = torch.ones_like(target, dtype=torch.bool)
+
+        # Only use not-nan entries (from ground truth)
+        valid = mask & (~torch.isnan(target))
+        if valid.sum() == 0:
+            return None
+
+        # Predicted mean and variances for valid entries
+        mu = input[valid]
+        var = pred_var[valid].clamp_min(1e-6)
+        sigma = torch.sqrt(var)
+
+        # Compute nu per feature, broadcast over batch
+        nu_full = F.softplus(self.raw_nu) + 2.0  # Ensure nu > 2
+        feature_idx = valid.nonzero()[:, 1]  # which column/feature
+        nu = nu_full[feature_idx]
+
+        # Student-T distribution
+        dist = D.StudentT(df=nu, loc=mu, scale=sigma)
+
+        # Negative log-likelihood
+        nll = -dist.log_prob(target[valid])
+
+        return nll.mean()
 
 
 class PhysicsLoss(BaseLoss):
