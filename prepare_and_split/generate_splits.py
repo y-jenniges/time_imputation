@@ -32,7 +32,7 @@ def assign_blocks(df, latlon_step, depth_edges):
     return temp["BLOCK_ID"]
 
 
-def generate_block_folds(df, parameters, latlon_steps, depths, val_fractions, n_splits, train_idx, seed, out_dir, tolerance=0.05, max_iter=100):
+def generate_block_folds(df, parameters, latlon_steps, depths_steps, val_fractions, n_splits, train_idx, seed, out_dir, tolerance=0.05, max_iter=100):
     scheme = "block"
 
     # Use only training subset
@@ -43,7 +43,7 @@ def generate_block_folds(df, parameters, latlon_steps, depths, val_fractions, n_
     for ll_step in latlon_steps:
         # Assign blocks
         id_col = "BLOCK_ID_" + str(ll_step)
-        df_train[id_col] = assign_blocks(df_train, latlon_step=ll_step, depth_edges=depths)
+        df_train[id_col] = assign_blocks(df_train, latlon_step=ll_step, depth_edges=depths_steps)
         block_groups = df_train.groupby(id_col)
         block_sizes = block_groups.size()
         block_ids = block_sizes.index.to_numpy()
@@ -145,7 +145,7 @@ def generate_random_folds(df, train_idx, n_splits, val_fractions, seed, out_dir)
     return pd.DataFrame(random_splits)
 
 
-def generate_test_set(df, latlon_step, depths, test_fraction, parameters, tolerance=0.05, max_iter=100, seed=42, save_as=None):
+def generate_test_set(df, latlon_step, depths_steps, test_fraction, parameters, tolerance=0.05, max_iter=100, seed=42, save_as=None):
     """ Generate a test-train split so that the test set contains at least test_fraction rows and the
     parameter coverages resemble those of the original data set with a tolerance. """
     df_tmp = df.copy()
@@ -155,7 +155,7 @@ def generate_test_set(df, latlon_step, depths, test_fraction, parameters, tolera
 
     # Assign blocks
     block_col = "BLOCK_ID"
-    df_tmp[block_col] = assign_blocks(df_tmp, latlon_step=latlon_step, depth_edges=depths)
+    df_tmp[block_col] = assign_blocks(df_tmp, latlon_step=latlon_step, depth_edges=depths_steps)
 
     # Compute global coverage ratios (per parameter)
     coverage_ratios = df_tmp[parameters].notna().mean()
@@ -229,7 +229,7 @@ if __name__ == "__main__":
     df_block = generate_block_folds(df=df_train,
                                       parameters=config.parameters,
                                       latlon_steps=latlons,
-                                      depths=depths,
+                                      depths_steps=depths,
                                       val_fractions=config.val_fractions,
                                       n_splits=config.n_splits_per_scheme,
                                       train_idx=train_idx,
