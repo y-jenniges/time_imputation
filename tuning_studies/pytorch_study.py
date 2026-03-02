@@ -152,7 +152,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
                                split_path, trial_id,
                                tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu"),
                                save_model=False, output_dir=None,
-                               coords_only=False, do_dropout=False, n_inferences=1):
+                               do_dropout=False, n_inferences=1):
     """ Run model on one split and store results. """
     # Output dir and file
     model_outdir = Path(output_dir) if output_dir else Path(config.output_dir_tuning) / model_name
@@ -219,7 +219,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     model = model_class(**model_hyps).to(device)
     loss_fn = build_loss(loss_spec)
     optimizer = optimizer_class(chain(model.parameters(), loss_fn.parameters()), lr=learning_rate)
-    trainer = Trainer(model=model, adapter=adapter, optimizer=optimizer, loss_fn=loss_fn, device=device, coords_only=coords_only)
+    trainer = Trainer(model=model, adapter=adapter, optimizer=optimizer, loss_fn=loss_fn, device=device)
     early_stopper = EarlyStopping(patience=patience)
     def_time = time() - st
 
@@ -395,8 +395,7 @@ def optuna_objective(trial, model_name, output_dir):
             optuna_callback=None,  # make_optuna_callback(trial, split_i, n_epochs),
             seed=42 + int(trial.number) + split_i,
             device=device,
-            output_dir=output_dir,
-            coords_only=False
+            output_dir=output_dir
         )
 
         logging.info(f"Validation loss: {results.val_loss:.8f}")

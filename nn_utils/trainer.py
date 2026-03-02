@@ -27,7 +27,7 @@ class ModelAdapter(ABC):
         pass
 
     @abstractmethod
-    def make_masks(self, batch, mask_ratio, mode="train", device:torch.device = torch.device("cpu"), coords_only: bool = False):
+    def make_masks(self, batch, mask_ratio, mode="train", device:torch.device = torch.device("cpu")):
         pass
 
     @abstractmethod
@@ -50,7 +50,7 @@ class NeighbourAdapter(ModelAdapter):
     def prepare_batch(self, batch, device):
         return {k: v.to(device) for k, v in batch.items()}
 
-    def make_masks(self, batch, mask_ratio=0.0, mode="train", device=torch.device("cpu"), coords_only=False):
+    def make_masks(self, batch, mask_ratio=0.0, mode="train", device=torch.device("cpu")):
         q_feat = batch["query_features"]
         n_feat = batch["neighbour_features"]
 
@@ -60,14 +60,7 @@ class NeighbourAdapter(ModelAdapter):
         batch_size, n_features = q_feat.shape
         n_neighbours = n_feat.shape[1]
 
-        if coords_only:
-            # Coordinates-only experiment: Mask all features as input
-            q_input_mask = torch.zeros_like(q_mask, dtype=torch.bool)
-            n_input_mask = torch.zeros_like(n_mask, dtype=torch.bool)
-            q_loss_mask = q_mask
-            n_loss_mask = n_mask
-
-        elif mode in ["train", "eval"] and mask_ratio > 0:
+        if mode in ["train", "eval"] and mask_ratio > 0:
             # random_feature_mask: True means "mask this feature"
             q_random_mask, n_random_mask = (
                 random_feature_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio,
@@ -136,17 +129,12 @@ class PointwiseAdapter(ModelAdapter):
     def prepare_batch(self, batch, device):
         return {k: v.to(device) for k, v in batch.items()}
 
-    def make_masks(self, batch, mask_ratio, mode="train", device=torch.device("cpu"), coords_only=False):
+    def make_masks(self, batch, mask_ratio, mode="train", device=torch.device("cpu")):
         feat = batch["features"]
         mask = batch["mask"]
         batch_size, n_features = feat.shape
 
-        if coords_only:
-            # Coordinates-only experiment: Mask all features as input
-            input_mask = torch.zeros_like(mask, dtype=torch.bool)
-            loss_mask = mask
-
-        elif mode in ["train", "eval"] and mask_ratio > 0:
+        if mode in ["train", "eval"] and mask_ratio > 0:
             # random_feature_mask: True means "mask/hide this feature"
             random_mask, _ = (
                 random_feature_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio,
@@ -197,7 +185,7 @@ class PointwiseAdapter(ModelAdapter):
 class Trainer:
     """ Trainer class for OceanMAE, which handles training and evaluation loops."""
     def __init__(self, model: torch.nn.Module, adapter: ModelAdapter, optimizer: torch.optim.Optimizer,
-                 device: torch.cuda.device = "cpu", loss_fn: BaseLoss = MaskedMSELoss(), coords_only: bool = False):
+                 device: torch.cuda.device = "cpu", loss_fn: BaseLoss = MaskedMSELoss()):
         """
         Args:
             model: MAE model
@@ -210,7 +198,6 @@ class Trainer:
         self.optimizer = optimizer
         self.device = device
         self.loss_fn = loss_fn
-        self.coords_only = coords_only
 
         # Early stopping
         self.best_model_state = None
@@ -226,7 +213,7 @@ class Trainer:
         for batch in tqdm(loader, desc="Train", leave=False):
             batch = self.adapter.prepare_batch(batch=batch, device=self.device)
 
-            masks = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="train", device=self.device, coords_only=self.coords_only)
+            masks = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="train", device=self.device)
 
             # Predict
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
@@ -267,7 +254,7 @@ class Trainer:
 
         for batch in tqdm(loader, desc="Val", leave=False):
             batch = self.adapter.prepare_batch(batch, self.device)
-            masks = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="eval", device=self.device, coords_only=self.coords_only)
+            masks = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="eval", device=self.device)
 
             # Predict
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
@@ -349,7 +336,7 @@ class Trainer:
             batch = self.adapter.prepare_batch(batch, self.device)
 
             # In reconstruction, everything becomes input (truly missing features are predicted)
-            masks = self.adapter.make_masks(batch, mask_ratio=0.0, mode="reconstruct", device=self.device, coords_only=self.coords_only)
+            masks = self.adapter.make_masks(batch, mask_ratio=0.0, mode="reconstruct", device=self.device)
 
             # Predict all nan-values (true in feature mask means observed)
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
