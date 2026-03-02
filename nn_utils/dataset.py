@@ -10,14 +10,7 @@ import config
 
 
 class NeighbourDataset(Dataset):
-    """ Dataset returning query point data and neighbourhood data.
-    Returns:
-        coords: [N, coord_dim] tensor
-        values: [N, value_dim] tensor
-        mask_indices: [N, value_dim] boolean tensor, additional masking
-        n_neighbors: int, number of neighbours
-    """
-
+    """ Dataset returning query point data and neighbourhood data. """
     def __init__(self,
                  coords: torch.Tensor,
                  values: torch.Tensor,
@@ -70,6 +63,7 @@ class NeighbourDataset(Dataset):
 
 
 class PointwiseDataset(Dataset):
+    """ Dataset returning pointwise data. """
     def __init__(self, coords: torch.Tensor, values: torch.Tensor):
         self.coords = coords
         self.values = values
@@ -92,6 +86,28 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
                                   cyclic_time: bool = False,
                                   n_neighbours: int = 24,
                                   ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, dict, int, int]:
+    """
+    Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
+    return query and spatio-temporally neighbouring tokens.
+
+    :param coords: Latitude, longitude, depth and time data
+    :param values: Variable data (torch.tensor)
+    :param train_idx: Rows meant for training
+    :param val_idx: Rows meant for validation
+    :param test_idx: Rows meant for testing
+    :param batch_size: Batch size
+    :param generator: Random number generator
+    :param cyclic_time: Whether to encode time cyclically (e.g. for monthly data) or not (e.g. for yearly data)
+    :param n_neighbours: Number of neighbours to use
+    :return:
+        - full_loader
+        - train_loader
+        - val_loader
+        - test_loader
+        - train_scaler_dict
+        - n_coords
+        - n_values
+    """
     # Split raw data
     coords_train_raw = coords[train_idx]
     values_train_raw = values[train_idx]
@@ -118,12 +134,16 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
     n_samples = values.shape[0]
     neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(coords.cpu().numpy())
     neighbour_indices = neighbours.kneighbors(coords.cpu().numpy(), return_distance=False)
-    neighbour_indices = torch.as_tensor(neighbour_indices[:, 1:], dtype=torch.long, device="cpu")  # Exclude self and convert to tensor
+    neighbour_indices = torch.as_tensor(neighbour_indices[:, 1:], dtype=torch.long,
+                                        device="cpu")  # Exclude self and convert to tensor
 
     # Define datasets
-    train_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, neighbour_indices=neighbour_indices)
-    val_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, neighbour_indices=neighbour_indices)
-    test_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, neighbour_indices=neighbour_indices)
+    train_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx,
+                                     neighbour_indices=neighbour_indices)
+    val_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx,
+                                   neighbour_indices=neighbour_indices)
+    test_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx,
+                                    neighbour_indices=neighbour_indices)
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -131,19 +151,43 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Define loader for complete dataset (for complete reconstruction)
-    full_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=None, neighbour_indices=neighbour_indices)
+    full_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=None,
+                                    neighbour_indices=neighbour_indices)
     full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
 
-    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1)
+    return (full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1),
+            values_train.size(1))
+
 
 def prepare_pointwise_loaders(coords: torch.Tensor,
-                                  values: torch.Tensor,
-                                  train_idx: np.ndarray,
-                                  val_idx: np.ndarray,
-                                  test_idx: np.ndarray,
-                                  batch_size: int,
-                                  generator: torch.Generator,
-                                  cyclic_time: bool = False):
+                              values: torch.Tensor,
+                              train_idx: np.ndarray,
+                              val_idx: np.ndarray,
+                              test_idx: np.ndarray,
+                              batch_size: int,
+                              generator: torch.Generator,
+                              cyclic_time: bool = False):
+    """
+    Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
+    return data pointwise.
+
+    :param coords: Latitude, longitude, depth and time data
+    :param values: Variable data (torch.tensor)
+    :param train_idx: Rows meant for training
+    :param val_idx: Rows meant for validation
+    :param test_idx: Rows meant for testing
+    :param batch_size: Batch size
+    :param generator: Random number generator
+    :param cyclic_time: Whether to encode time cyclically (e.g. for monthly data) or not (e.g. for yearly data)
+    :return:
+        - full_loader
+        - train_loader
+        - val_loader
+        - test_loader
+        - train_scaler_dict
+        - n_coords
+        - n_values
+    """
     # Split raw data
     coords_train_raw = coords[train_idx]
     values_train_raw = values[train_idx]
@@ -172,18 +216,33 @@ def prepare_pointwise_loaders(coords: torch.Tensor,
 
     # Define datasets
     train_dataset = Subset(full_dataset, train_idx)
-    val_dataset   = Subset(full_dataset, val_idx)
-    test_dataset  = Subset(full_dataset, test_idx)
+    val_dataset = Subset(full_dataset, val_idx)
+    test_dataset = Subset(full_dataset, test_idx)
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1)
+    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(
+        1), values_train.size(1)
 
 
 def prepare_sklearn_data(df, train_idx, val_idx, test_idx):
+    """
+    Prepare data for sklearn model training.
+
+    :param df: Input pandas.DataFrame
+    :param train_idx: Rows meant for training
+    :param val_idx: Rows meant for validation
+    :param test_idx: Rows meant for testing
+    :return:
+        - x_train
+        - y_true_scaled
+        - scaler_dict
+        - coord_dim
+        - values_dim
+    """
     values_raw = df[config.parameters].to_numpy().astype(float)
     coords_raw = df[config.coordinates].to_numpy().astype(float)
 
@@ -251,6 +310,20 @@ def random_feature_mask(batch_size: int,
                         mask_query: bool = True,
                         mask_neighbours: bool = False
                         ) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Generates masks that hide a given proportion of the data randomly per feature.
+
+    :param batch_size: Batch size
+    :param feature_dim: Number of features
+    :param mask_ratio: Proportion to hide
+    :param n_neighbours: Number of neighbours
+    :param device: Device to use
+    :param mask_query: Whether to mask the query points
+    :param mask_neighbours: Whether to mask the neighbour points
+    :return:
+        - query_mask
+        - neighbour_mask
+    """
     # Query mask
     if mask_query:
         # Init mask with "False"
@@ -286,7 +359,22 @@ def random_feature_mask(batch_size: int,
     return query_mask, neighbour_mask
 
 
-def preprocess(coords, values, coord_names, parameter_names, cyclic_time=False, scaler_dict=None):
+def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool = False, scaler_dict: dict = None):
+    """
+    Preprocess coordinates and values of the inputa data by scaling and/or encoding them. Most variables are
+    transformed using MinMax scaling. Latitude and longitude are mapped to Cartesian coordinates on a unit sphere.
+
+    :param coords: Input coordinates
+    :param values: Input values
+    :param coord_names: Names of the coordinates
+    :param parameter_names: Names of the parameters
+    :param cyclic_time: Whether to encode time cyclically. Default is False.
+    :param scaler_dict: Optional dict of scalers to use instead of creating new ones. Default is None.
+    :return:
+        - x_scaled - Scaled coordinates
+        - y_scaled - Scaled values
+        - scaler_dict - Dictionary of used scalers
+    """
     if scaler_dict is None:
         scaler_dict = {}
 
@@ -297,9 +385,9 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time=False, 
     lat_radians = np.pi / 180 * coord_dict["LATITUDE"]
     lon_radians = np.pi / 180 * coord_dict["LONGITUDE"]
 
-    x = (np.cos(lat_radians) * np.cos(lon_radians) + 1 ) / 2
-    y = (np.cos(lat_radians) * np.sin(lon_radians) + 1 ) / 2
-    z = (np.sin(lat_radians) + 1 ) / 2
+    x = (np.cos(lat_radians) * np.cos(lon_radians) + 1) / 2
+    y = (np.cos(lat_radians) * np.sin(lon_radians) + 1) / 2
+    z = (np.sin(lat_radians) + 1) / 2
 
     # Scale depth
     if "LEV_M" in scaler_dict.keys():
@@ -336,7 +424,7 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time=False, 
         y_col = values[:, i].cpu().numpy()
         obs = observed_mask[:, i]
         y_obs = y_col[obs].reshape(-1, 1)
-        
+
         if len(y_obs) == 0:
             continue
 
@@ -357,6 +445,12 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time=False, 
 
 
 def load_dataset(data_path=None):
+    """
+    Load the dataset. It converts the DATEANDTIME column to years and drops 'idx' and 'water' columns.
+
+    :param data_path: Optional path to the dataset. If None, config.data_path is used.
+    :return: Dataset as pandas.DataFrame
+    """
     if data_path is None:
         data_path = config.data_path
 
