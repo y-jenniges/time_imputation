@@ -132,8 +132,8 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
 
     # Build graph for neighbour search
     n_samples = values.shape[0]
-    neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(coords.cpu().numpy())
-    neighbour_indices = neighbours.kneighbors(coords.cpu().numpy(), return_distance=False)
+    neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(coords_full.cpu().numpy())
+    dists, neighbour_indices = neighbours.kneighbors(coords_full.cpu().numpy(), return_distance=True)
     neighbour_indices = torch.as_tensor(neighbour_indices[:, 1:], dtype=torch.long,
                                         device="cpu")  # Exclude self and convert to tensor
 
