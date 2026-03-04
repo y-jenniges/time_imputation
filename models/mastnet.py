@@ -26,16 +26,10 @@ class MaSTNeT(nn.Module):
         self.encoder = nn.TransformerEncoder(encoder_layer, nlayers)
 
         # Decoder: Mean head (for reconstruction)
-        self.mean_decoder = nn.Sequential(
-            nn.Linear(d_model, value_dim),
-            nn.Sigmoid()
-        )
+        self.mean_decoder = nn.Linear(d_model, value_dim)
 
         # Decoder: Variance head (for heteroscedastic uncertainty)
-        self.var_decoder = nn.Sequential(
-            nn.Linear(d_model, value_dim),
-            nn.Softplus()
-        )
+        self.var_decoder = nn.Linear(d_model, value_dim)
 
     def forward(self, query_features, query_mask, query_coords, neighbour_features, neighbour_mask, rel_positions):
         """
@@ -99,4 +93,4 @@ class MaSTNeT(nn.Module):
                 y_hat.append(pmean.cpu())
                 y_var.append(pvar.cpu())
 
-        return torch.cat(y_hat, dim=0).cpu().numpy(), torch.cat(y_var, dim=0).cpu().numpy()
+        return torch.cat(y_hat, dim=0).cpu().numpy(), torch.exp(torch.cat(y_var, dim=0)).cpu().numpy()
