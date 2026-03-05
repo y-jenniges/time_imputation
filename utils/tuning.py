@@ -95,6 +95,11 @@ class TuningResult:
             torch.save(model.state_dict(), path)
             self.model_framework = "pytorch"
 
+        elif isinstance(model, ReMasker):
+            path = model_dir / "sklearn.joblib"
+            joblib.dump(model, path)
+            self.model_framework = "sklearn"
+
         else:
             raise TypeError("Unsupported model type")
 
