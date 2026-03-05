@@ -19,16 +19,18 @@ class NeighbourDataset(Dataset):
                  ):
         self.coords = coords
         self.values = values
-        self.neighbour_indices = neighbour_indices
 
-        # Initial mask: True = observed (False = NaN)
-        self.feature_mask = ~torch.isnan(values)
+        #self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
+        self.neighbour_indices = torch.as_tensor(neighbour_indices, dtype=torch.long)
 
         # Store original indices of query points
         if query_indices is None:
             self.query_indices = torch.arange(values.shape[0], dtype=torch.long)
         else:
             self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
+
+        # Initial mask: True = observed (False = NaN)
+        self.feature_mask = ~torch.isnan(values)
 
     def __len__(self):
         return self.query_indices.shape[0]
@@ -43,7 +45,7 @@ class NeighbourDataset(Dataset):
         q_coord = self.coords[q_idx]
 
         # Neighbours (global indices)
-        n_idx = self.neighbour_indices[q_idx]
+        n_idx = self.neighbour_indices[idx]
 
         n_feat = self.values[n_idx]
         n_mask = self.feature_mask[n_idx]
@@ -58,6 +60,7 @@ class NeighbourDataset(Dataset):
             "query_coords": q_coord,
             "neighbour_features": n_feat,
             "neighbour_mask": n_mask,
+            "neighbour_coords": n_coord,
             "rel_positions": rel_positions
         }
 
@@ -132,18 +135,25 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
 
     # Build graph for neighbour search
     n_samples = values.shape[0]
-    neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(coords_full.cpu().numpy())
-    dists, neighbour_indices = neighbours.kneighbors(coords_full.cpu().numpy(), return_distance=True)
-    neighbour_indices = torch.as_tensor(neighbour_indices[:, 1:], dtype=torch.long,
-                                        device="cpu")  # Exclude self and convert to tensor
+    neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours+1, n_samples), algorithm="auto").fit(coords_full[train_idx].cpu().numpy())
+    dists_train, neighbour_indices_train = neighbours_train.kneighbors(coords_full[train_idx].cpu().numpy(), return_distance=True)
+    neighbour_indices_train = torch.as_tensor(neighbour_indices_train[:, 1:], dtype=torch.long, device="cpu")  # Exclude self and convert to tensor
+
+    dists_val, neighbour_indices_val = neighbours_train.kneighbors(coords_full[val_idx].cpu().numpy(), return_distance=True)
+    neighbour_indices_val = torch.as_tensor(neighbour_indices_val[:, :n_neighbours], dtype=torch.long, device="cpu")
+
+    dists_test, neighbour_indices_test = neighbours_train.kneighbors(coords_full[test_idx].cpu().numpy(), return_distance=True)
+    neighbour_indices_test = torch.as_tensor(neighbour_indices_test[:, :n_neighbours], dtype=torch.long, device="cpu")
+
+    # Map back to global idx
+    neighbour_indices_train = train_idx[neighbour_indices_train]
+    neighbour_indices_val = train_idx[neighbour_indices_val]
+    neighbour_indices_test = train_idx[neighbour_indices_test]
 
     # Define datasets
-    train_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx,
-                                     neighbour_indices=neighbour_indices)
-    val_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx,
-                                   neighbour_indices=neighbour_indices)
-    test_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx,
-                                    neighbour_indices=neighbour_indices)
+    train_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, neighbour_indices=neighbour_indices_train)
+    val_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, neighbour_indices=neighbour_indices_val)
+    test_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, neighbour_indices=neighbour_indices_test)
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -151,8 +161,10 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Define loader for complete dataset (for complete reconstruction)
-    full_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=None,
-                                    neighbour_indices=neighbour_indices)
+    dists, neighbour_indices = neighbours_train.kneighbors(coords_full.cpu().numpy(), return_distance=True)
+    neighbour_indices = torch.as_tensor(neighbour_indices[:, :n_neighbours], dtype=torch.long, device="cpu")
+    neighbour_indices = train_idx[neighbour_indices]
+    full_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=None, neighbour_indices=neighbour_indices)
     full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
 
     return (full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1),
