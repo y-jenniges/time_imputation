@@ -94,13 +94,14 @@ class NeighbourAdapter(ModelAdapter):
         q_feat = batch["query_features"]
         q_coords = batch["query_coords"]
         n_feat = batch["neighbour_features"]
+        n_coords = batch["neighbour_coords"]
         rel_pos = batch["rel_positions"]
 
         q_input_mask = masks["q_input_mask"]
         n_input_mask = masks["n_input_mask"]
 
         return model(query_features=q_feat, query_mask=q_input_mask, query_coords=q_coords, neighbour_features=n_feat,
-                     neighbour_mask=n_input_mask, rel_positions=rel_pos)
+                     neighbour_coords=n_coords, neighbour_mask=n_input_mask, rel_positions=rel_pos)
 
     def loss_inputs(self, batch, outputs, masks):
         pred_mean, pred_var = outputs
