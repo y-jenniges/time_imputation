@@ -28,6 +28,8 @@ def name_to_loss_spec(loss_name):
     elif loss_name == "physics_hetero":
         loss_spec["class"] = PhysicsLoss
         loss_spec["kwargs"] = {}
+    else:
+        raise ValueError(f"Unknown loss name {loss_name}")
     return loss_spec
 
 
