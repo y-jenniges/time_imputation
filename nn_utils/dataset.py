@@ -88,7 +88,7 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
                                   generator: torch.Generator,
                                   cyclic_time: bool = False,
                                   n_neighbours: int = 24,
-                                  ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, dict, int, int]:
+                                  ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, dict, int, int, np.ndarray]:
     """
     Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
     return query and spatio-temporally neighbouring tokens.
@@ -110,6 +110,7 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
         - train_scaler_dict
         - n_coords
         - n_values
+        - dists
     """
     # Split raw data
     coords_train_raw = coords[train_idx]
@@ -134,8 +135,14 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
     )
 
     # Build graph for neighbour search
+    # Compute neighbours only on non-empty training data points
+    train_valid_mask = ~torch.isnan(values_train_raw).all(dim=1)
+    train_valid_idx = train_idx[train_valid_mask]
+    coords_valid = coords_full[train_valid_idx]
+
     n_samples = values.shape[0]
-    neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours+1, n_samples), algorithm="auto").fit(coords_full[train_idx].cpu().numpy())
+    # neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours+1, n_samples), algorithm="auto").fit(coords_full[train_idx].cpu().numpy())
+    neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours+1, n_samples), algorithm="auto").fit(coords_valid.cpu().numpy())
     dists_train, neighbour_indices_train = neighbours_train.kneighbors(coords_full[train_idx].cpu().numpy(), return_distance=True)
     neighbour_indices_train = torch.as_tensor(neighbour_indices_train[:, 1:], dtype=torch.long, device="cpu")  # Exclude self and convert to tensor
 
@@ -146,9 +153,13 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
     neighbour_indices_test = torch.as_tensor(neighbour_indices_test[:, :n_neighbours], dtype=torch.long, device="cpu")
 
     # Map back to global idx
-    neighbour_indices_train = train_idx[neighbour_indices_train]
-    neighbour_indices_val = train_idx[neighbour_indices_val]
-    neighbour_indices_test = train_idx[neighbour_indices_test]
+    # neighbour_indices_train = train_idx[neighbour_indices_train]
+    # neighbour_indices_val = train_idx[neighbour_indices_val]
+    # neighbour_indices_test = train_idx[neighbour_indices_test]
+
+    neighbour_indices_train = train_valid_idx[neighbour_indices_train]
+    neighbour_indices_val = train_valid_idx[neighbour_indices_val]
+    neighbour_indices_test = train_valid_idx[neighbour_indices_test]
 
     # Define datasets
     train_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, neighbour_indices=neighbour_indices_train)
@@ -161,14 +172,21 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Define loader for complete dataset (for complete reconstruction)
-    dists, neighbour_indices = neighbours_train.kneighbors(coords_full.cpu().numpy(), return_distance=True)
-    neighbour_indices = torch.as_tensor(neighbour_indices[:, :n_neighbours], dtype=torch.long, device="cpu")
-    neighbour_indices = train_idx[neighbour_indices]
+    dists, neighbours_local = neighbours_train.kneighbors(coords_full.cpu().numpy(), return_distance=True)
+
+    neighbour_local = neighbours_local[:, :n_neighbours]
+    neighbour_indices = train_valid_idx[neighbour_local]
+    neighbour_indices = torch.as_tensor(neighbour_indices, dtype=torch.long, device="cpu")
+
+    # neighbour_indices = torch.as_tensor(neighbour_indices[:, :n_neighbours], dtype=torch.long, device="cpu")
+    # neighbour_indices = train_idx[neighbour_indices]
     full_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=None, neighbour_indices=neighbour_indices)
     full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
 
+    print(f"Median distance of training data: {np.median(dists_train)}")
+
     return (full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1),
-            values_train.size(1))
+            values_train.size(1), dists_train)
 
 
 def prepare_pointwise_loaders(coords: torch.Tensor,
@@ -199,6 +217,7 @@ def prepare_pointwise_loaders(coords: torch.Tensor,
         - train_scaler_dict
         - n_coords
         - n_values
+        - None (for compatibility)
     """
     # Split raw data
     coords_train_raw = coords[train_idx]
@@ -237,7 +256,7 @@ def prepare_pointwise_loaders(coords: torch.Tensor,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(
-        1), values_train.size(1)
+        1), values_train.size(1), None
 
 
 def prepare_sklearn_data(df, train_idx, val_idx, test_idx):
