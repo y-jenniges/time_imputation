@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributions as D
 
 
 def build_loss(loss_config):
@@ -27,7 +26,7 @@ def name_to_loss_spec(loss_name):
         loss_spec["kwargs"] = {}
     elif loss_name == "physics_hetero":
         loss_spec["class"] = PhysicsLoss
-        loss_spec["kwargs"] = {}
+        loss_spec["kwargs"] = {"sigma": 1.0, "lambda_smooth": 1e-3}
     else:
         raise ValueError(f"Unknown loss name {loss_name}")
     return loss_spec
@@ -101,15 +100,17 @@ class HeteroscedasticGaussianNLL(BaseLoss):
 class PhysicsLoss(BaseLoss):
     """ Loss combining a base loss with physics-inspired penalties (smoothness and bounds). """
 
-    def __init__(self, base_loss: BaseLoss = MaskedMSELoss(), lambda_smooth: float = 0.1, lambda_bounds: float = 0.0, spacings=None, bounds=None):
+    def __init__(self, base_loss: BaseLoss = MaskedMSELoss(), sigma=1.0, lambda_smooth: float = 0.0, lambda_bounds: float = 0.0, bounds=None):
         super().__init__()
         self.base_loss = base_loss
         self.lambda_smooth = lambda_smooth
         self.lambda_bounds = lambda_bounds
-        self.spacings = spacings
         self.bounds = bounds
+        self.sigma = sigma
 
-    def forward(self, input, target, mask=None, coords=None, pred_var=None, **kwargs):
+    def forward(self, input, target, mask=None, coords=None, pred_var=None,
+                neighbour_features=None, neighbour_coords=None, query_coords=None,
+                **kwargs):
         # Only use not-nan entries (from ground truth)
         if mask is None:
             valid_mask = ~torch.isnan(target)
@@ -123,38 +124,42 @@ class PhysicsLoss(BaseLoss):
         base_loss_kwargs = {"input": input, "target": target, "coords": coords, "pred_var": pred_var, "mask": mask}
         base_loss_val = self.base_loss(**base_loss_kwargs)
 
-        phys_loss_val = 0
         # Spatiotemporal smoothness penalty
-        if coords is not None and self.spacings is not None:
-            phys_loss_val += self._compute_smoothness_loss(input=input, coords=coords)
+        smooth_loss_val = 0.0
+        if neighbour_features is not None and neighbour_coords is not None:
+            smooth_loss_val += self._compute_smoothness_loss(input=input, neighbour_features=neighbour_features,
+                                                           neighbour_coords=neighbour_coords, query_coords=query_coords)
 
         # Enforce physical bounds
+        bounds_loss_val = 0.0
         if self.bounds is not None:
-            phys_loss_val += self._compute_bounds_loss(input=input, mask=valid_mask)
+            bounds_loss_val += self._compute_bounds_loss(input=input, mask=valid_mask)
 
-        return base_loss_val + self.lambda_smooth * phys_loss_val + self.lambda_bounds * self.bounds
+        return base_loss_val + self.lambda_smooth * smooth_loss_val + self.lambda_bounds * bounds_loss_val
 
-    def _compute_smoothness_loss(self, input, coords):
-        # Query vs neighbours only
-        q = input[:, 0, :]  # [batch_size, 1, n_features]
-        n = input[:, 1:, :]  # [batch_size, n_neighbours, n_features]
+    def _compute_smoothness_loss(self, input, neighbour_features, neighbour_coords, query_coords):
+        """ Distance-weighted smoothness penalty. """
+        valid = ~torch.isnan(neighbour_features)
+        n_feat = torch.nan_to_num(neighbour_features)
 
-        q_coord = coords[:, 0, :]
-        n_coord = coords[:, 1:, :]
+        # Squared spatio-temporal distances
+        dist2 = ((query_coords.unsqueeze(1) - neighbour_coords) ** 2).sum(dim=-1)  # [batch_size, n_neighbours]
 
-        # Squared distances
-        dist2 = ((q_coord - n_coord) ** 2).sum(dim=-1)  # [batch_size, n_neighbours]
+        # RBF kernel edge weight
+        w = torch.exp(-dist2 / (2*self.sigma**2) ).unsqueeze(-1)  # [batch_size, n_neighbours, 1]
 
-        # Gaussian edge weights (Belkin & Niyogi)
-        sigma2 = self.sigma ** 2
-        w = torch.exp(-dist2 / sigma2).unsqueeze(-1)  # [batch_size, n_neighbours, 1]
+        # Squared feature difference
+        diff2 = (input.unsqueeze(1) - n_feat) ** 2  # [batch_size, n_neighbours, n_features]
+        weighted = w * diff2 * valid
+        denom = (w * valid).sum()
 
-        diff2 = (q - n) ** 2  # [batch_size, n_neighbours, n_features]
+        if valid.sum() == 0:
+            return torch.tensor(0.0, device=input.device)
 
-        loss = (w * diff2).mean()
-        return loss
+        return weighted.sum() / denom
 
     def _compute_bounds_loss(self, input, mask):
+        """ Feature bound penalty. """
         y_min, y_max = self.bounds
 
         lower = torch.clamp(y_min - input, min=0) ** 2
