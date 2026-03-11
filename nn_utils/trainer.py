@@ -107,9 +107,14 @@ class NeighbourAdapter(ModelAdapter):
         pred_mean, pred_var = outputs
 
         q_feat = batch["query_features"]
+        q_coords = batch["query_coords"]
         q_mask = masks["q_loss_mask"]
 
-        return dict(input=pred_mean, target=q_feat, mask=q_mask, pred_var=pred_var)
+        n_feat = batch["neighbour_features"]
+        n_coords = batch["neighbour_coords"]
+
+        return dict(input=pred_mean, target=q_feat, mask=q_mask, pred_var=pred_var,
+                    neighbour_features=n_feat, neighbour_coords=n_coords, query_coords=q_coords)
 
     def outputs_to_cpu(self, batch, outputs, to_numpy: bool = True):
         pred_mean, _ = outputs
@@ -168,11 +173,18 @@ class PointwiseAdapter(ModelAdapter):
         return model(x)
 
     def loss_inputs(self, batch, outputs, masks):
-        pred_mean, pred_var = outputs
+        if len(outputs) == 2:
+            pred_mean, pred_var = outputs
+        else:
+            pred_mean = outputs
+            pred_var = None
         return dict(input=pred_mean, target=batch["features"], mask=masks["loss_mask"], pred_var=pred_var)
 
     def outputs_to_cpu(self, batch, outputs, to_numpy: bool = True):
-        pred_mean, _ = outputs
+        if len(outputs) == 2:
+            pred_mean, _ = outputs
+        else:
+            pred_mean = outputs
 
         q_feat = batch["features"].detach().cpu()
         pred_mean = pred_mean.detach().cpu()
@@ -341,15 +353,20 @@ class Trainer:
 
             # Predict all nan-values (true in feature mask means observed)
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
-            pred_mean, pred_var = outputs
-            pred_mean = pred_mean.detach().cpu()
-            pred_var = pred_var.detach().cpu()
+
+            if len(outputs) == 2:
+                pred_mean, pred_var = outputs
+                pred_mean = pred_mean.detach().cpu()
+                pred_var = pred_var.detach().cpu()
+
+                all_vars.append(pred_var)
+            else:
+                pred_mean = outputs
 
             # Add predictions to the list
             all_preds.append(pred_mean)
-            all_vars.append(pred_var)
 
-        return torch.cat(all_preds), torch.cat(all_vars)
+        return torch.cat(all_preds), torch.cat(all_vars) if all_vars else None
 
 
     def fit(self,
