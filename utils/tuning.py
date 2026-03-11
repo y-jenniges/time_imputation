@@ -23,6 +23,7 @@ from models.mastnet import MaSTNeT
 from models.unet import OceanUNet
 from models.mlp import MLP
 from remasker.remasker_impute import ReMasker
+from models.ann_att import ann_att
 
 
 @dataclass
@@ -211,6 +212,7 @@ def get_model_class(model_name):
         "unet": OceanUNet,
         "remasker": ReMasker,
         "mlp": MLP,
+        "ann_att": ann_att,
         # "mae": MaSTNeT,
         # "mae_finetune": MaSTNeT,
     }

@@ -59,6 +59,8 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 }
             }
     elif model_name == "mastnet":
+        loss = trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
+        lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
         return {
             "train": {
                 "n_neighbours": trial.suggest_int("n_neighbours", 2, 60),
@@ -67,7 +69,8 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "patience": 5,  # trial.suggest_int("patience", 3, 12),
                 "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
                 "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
-                "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
+                "loss": "physics_hetero", # loss
+                "lambda_smooth": lambda_smooth,
                 "optimizer": torch.optim.Adam
             },
             "model": {
@@ -109,13 +112,17 @@ def suggest_hyperparameters(trial, model_name="mae"):
             }
         }
     elif model_name == "mlp":
+        loss = trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
+        lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
+        
         return {"train": {
                     "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
                     "learning_rate": trial.suggest_float("lr", 1e-5, 1e-2, log=True),
                     "patience": 10,  # trial.suggest_int("patience", 3, 12),
                     "n_epochs": 80,  # trial.suggest_int("epochs", 20, 80),
                     "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
-                    "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
+                    "loss":loss,
+                    "lambda_smooth": lambda_smooth,
                     "optimizer": torch.optim.Adam
                 },
                 "model": {
@@ -136,6 +143,23 @@ def suggest_hyperparameters(trial, model_name="mae"):
                     "dropout": trial.suggest_float("dropout", 0.0, 0.4)
             }
                 }
+    elif model_name == "ann-att":
+        return {
+            "train": {
+                "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
+                "learning_rate": trial.suggest_float("lr", 1e-5, 1e-2, log=True),
+                "patience": 10,  # trial.suggest_int("patience", 3, 12),
+                "n_epochs": 80,  # trial.suggest_int("epochs", 20, 80),
+                "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
+                "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
+                "optimizer": torch.optim.Adam
+            },
+            "model": {
+                "in_dim": 17,
+                "hidden_dim": trial.suggest_categorical("hidden_dim", [16, 32, 64, 128, 256]),
+                "out_dim": 6
+            }
+        }
     else:
         raise NotImplementedError(f"Could not find model {model_name}.")
 
@@ -184,14 +208,15 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     n_epochs = get_hyp(hyps, "train", "n_epochs", default=20)
     mask_ratio = get_hyp(hyps, "train", "mask_ratio", default=0.8)
     model_hyps = get_hyp(hyps, "model", default={})
+    lambda_smooth = get_hyp(hyps, "train", "lambda_smooth", default=None)
     loss_spec = name_to_loss_spec(get_hyp(hyps, "train", "loss", default="mse"))
 
     # Init results object
     results = TuningResult(split=split_fname, seed=seed, model=model_name, hyp_combo_id=trial_id, hyps=hyps)
 
     # Adapter and data loaders
-    model_adapters = {"mastnet": NeighbourAdapter, "mlp": PointwiseAdapter}
-    loader_funcs = {"mastnet": prepare_neighbourhood_loaders, "mlp": prepare_pointwise_loaders}
+    model_adapters = {"mastnet": NeighbourAdapter, "mlp": PointwiseAdapter, "ann_att": PointwiseAdapter}
+    loader_funcs = {"mastnet": prepare_neighbourhood_loaders, "mlp": prepare_pointwise_loaders, "ann_att": prepare_pointwise_loaders}
 
     if model_name not in model_adapters.keys():
         raise ValueError(f"Unknown model_name {model_name}")
@@ -209,8 +234,13 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
     # Adapter and loader
     adapter = model_adapters[model_name]()
-    full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim = (
+    full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim, dists = (
         loader_funcs[model_name](**loader_kwargs))
+
+    if dists is not None and lambda_smooth is not None:
+        sigma = np.median(dists)
+        loss_spec["kwargs"]["sigma"] = sigma
+        loss_spec["kwargs"]["lambda_smooth"] = lambda_smooth
 
     print("RAM after loader init:", ram())
 
@@ -241,6 +271,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     # Full prediction/reconstruction
     aleatoric_uncertainty, epistemic_uncertainty = np.nan, np.nan
     if not tuning_mode:
+        # Loss plot
+        plot_loss(history, close_plot=True, save_as=main_path.with_name(main_path.name + "_lossplot.png"))
 
         # Store predictions for all MC passes
         all_preds = []
@@ -248,6 +280,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         all_times = []
 
         for i in range(n_inferences):
+            print(f"Inference: {i:3}")
+
             # Update seed
             set_seed(seed + i)
 
@@ -257,18 +291,20 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
             pred_time = time() - sval
 
             all_preds.append(full_pred.unsqueeze(0))
-            all_vars.append(full_var.unsqueeze(0))
             all_times.append(pred_time)
+
+            if full_var is not None:
+                all_vars.append(full_var.unsqueeze(0))
 
         # Stack predictions (n_inferences, N, output_dim)
         all_preds = torch.cat(all_preds, dim=0)
-        all_vars = torch.cat(all_vars, dim=0)
+        all_vars = torch.cat(all_vars, dim=0) if all_vars != [] else None
 
         # Compute uncertainties
         y_pred_mean = all_preds.mean(dim=0)  # Mean prediction
         epistemic_uncertainty = all_preds.var(dim=0, unbiased=False)
-        aleatoric_uncertainty = all_vars.mean(dim=0)
-        total_uncertainty = epistemic_uncertainty + aleatoric_uncertainty
+        aleatoric_uncertainty = all_vars.mean(dim=0) if all_vars != [] else None
+        total_uncertainty = epistemic_uncertainty + aleatoric_uncertainty if aleatoric_uncertainty is not None else epistemic_uncertainty
         total_uncertainty = total_uncertainty.detach().cpu().numpy()
 
         # Prediction time
@@ -278,27 +314,28 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         # True values
         if model_name == "mastnet":
             all_values = torch.cat([batch["query_features"] for batch in full_loader], dim=0)
-        elif model_name == "mlp":
+        elif model_name == "mlp" or model_name == "ann_att":
             all_values = torch.cat([batch["features"] for batch in full_loader], dim=0)
         else:
             raise ValueError(f"Unknown model_name {model_name}")
 
         # To CPU and numpy
+        print("cpu to np")
         y_true = all_values.detach().cpu().numpy()
         y_pred = y_pred_mean.detach().cpu().numpy()
         epistemic_uncertainty = epistemic_uncertainty.detach().cpu().numpy()
-        aleatoric_uncertainty = aleatoric_uncertainty.detach().cpu().numpy()
+        aleatoric_uncertainty = aleatoric_uncertainty.detach().cpu().numpy() if aleatoric_uncertainty is not None else None
         all_preds_np = all_preds.cpu().numpy()
-        all_vars_np = all_vars.cpu().numpy()
+        all_vars_np = all_vars.cpu().numpy() if all_vars != [] else None
 
         # Store inferences
         np.save(main_path.with_name(main_path.name + "_all_preds.npy"), all_preds_np)
-        np.save(main_path.with_name(main_path.name + "_all_vars.npy"), all_vars_np)
 
-        # Loss plot
-        plot_loss(history, close_plot=True, save_as=main_path.with_name(main_path.name + "_lossplot.png"))
+        if all_vars_np is not None:
+            np.save(main_path.with_name(main_path.name + "_all_vars.npy"), all_vars_np)
 
         # Reconstruction  RMSE and plot
+        print("plotting")
         reconstruction_rmse = np.sqrt(np.nanmean((y_pred - y_true) ** 2))
         recplot_fname = main_path.with_name(main_path.name + "_reconstruction_error.png")
         plot_simple_reconstruction_error(y_true, y_pred, save_as=recplot_fname, close=True)
@@ -318,8 +355,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
         results.mean_epistemic_uncertainty = float(epistemic_uncertainty.mean())
         results.std_epistemic_uncertainty = float(epistemic_uncertainty.std())
-        results.mean_aleatoric_uncertainty = float(aleatoric_uncertainty.mean())
-        results.std_aleatoric_uncertainty = float(aleatoric_uncertainty.std())
+        results.mean_aleatoric_uncertainty = float(aleatoric_uncertainty.mean()) if aleatoric_uncertainty is not None else None
+        results.std_aleatoric_uncertainty = float(aleatoric_uncertainty.std()) if aleatoric_uncertainty is not None else None
         results.mean_total_uncertainty = float(total_uncertainty.mean())
         results.std_total_uncertainty = float(total_uncertainty.std())
 
@@ -364,7 +401,6 @@ def optuna_objective(trial, model_name, output_dir):
 
     # Priors
     hyp_dict = suggest_hyperparameters(trial, model_name=model_name)
-    n_epochs = hyp_dict["train"]["n_epochs"]
 
     coords_raw = torch.from_numpy(DATA[config.coordinates].astype(float).to_numpy())
     values_raw = torch.from_numpy(DATA[config.parameters].astype(float).to_numpy())
