@@ -1,6 +1,9 @@
 import numpy as np
 from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_error
 from scipy import stats
+from permetrics import RegressionMetric
+
+import config
 
 
 def compute_metrics(y_true, y_pred, var_names=None):
@@ -30,39 +33,34 @@ def compute_metrics(y_true, y_pred, var_names=None):
         # Check number of valid entries
         mask = ~np.isnan(yt) & ~np.isnan(yp)
         if np.sum(mask) == 0:
-            var_metrics[name] = {"RMSE": np.nan, "NSE": np.nan, "Pearson": np.nan, "Pearson_p": np.nan}
+            var_metrics[name] = {m: np.nan for m in config.EVAL_METRICS}
             continue
 
         yt = yt[mask]
         yp = yp[mask]
 
         # Compute metrics
-        mae = mean_absolute_error(yt, yp)
-        rmse = root_mean_squared_error(yt, yp)
-        r, p = stats.pearsonr(yt, yp)
-        r2 = r2_score(yt, yp)
+        evaluator = RegressionMetric(yt, yp)
+        var_metrics[name] = evaluator.get_metrics_by_list_names(config.EVAL_METRICS)
 
         # Store in dict
-        var_metrics[name] = {"MAE": mae, "RMSE": rmse, "Pearson": r, "Pearson_p": p, "R2": r2}
         global_valid_true.append(yt)
         global_valid_pred.append(yp)
 
     # Global metrics
     if len(global_valid_true) == 0:
-        mae_global, rmse_global, nse_global, r_global, p_global, mse_global, r2_global = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+        global_metrics = {m: np.nan for m in config.EVAL_METRICS}
     else:
         # Combine for global metrics
         global_valid_true = np.concatenate(global_valid_true)
         global_valid_pred = np.concatenate(global_valid_pred)
 
         # Compute metrics
-        mae_global = mean_absolute_error(global_valid_true, global_valid_pred)
-        rmse_global = root_mean_squared_error(global_valid_true, global_valid_pred)
-        r_global, p_global = stats.pearsonr(global_valid_true, global_valid_pred)
-        r2_global = r2_score(global_valid_true, global_valid_pred)
+        evaluator = RegressionMetric(global_valid_true, global_valid_pred)
+        global_metrics = evaluator.get_metrics_by_list_names(config.EVAL_METRICS)
 
     metrics = {
-        "Global": {"MAE": mae_global, "RMSE": rmse_global, "Pearson": r_global, "Pearson_p": p_global, "R2": r2_global},
+        "Global": global_metrics,
         "PerVariable": var_metrics
     }
     return metrics
