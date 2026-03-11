@@ -211,6 +211,11 @@ test_fraction = 0.15
 
 # --- Training --------------------------------------------------------------------------------------------- #
 
+# --- Testing --------------------------------------------------------------------------------------------- #
+# Evaluation metrics
+EVAL_METRICS = ["MAE", "RMSE", "NRMSE", "PCC", "R2", "KGE", "OI"]
+
+
 # --- Plotting --------------------------------------------------------------------------------------------- #
 parameter_name_map = {"P_TEMPERATURE": "Potential temperature", "P_SALINITY": "Salinity",
                       "P_OXYGEN": "Oxygen",
@@ -223,3 +228,11 @@ parameter_name_unit_map = {"P_TEMPERATURE": "Potential temperature [°C]", "P_SA
                            "P_NITRATE": "Nitrate [μmol / kg]",
                            "P_SILICATE": "Silicate [μmol / kg]",
                            "P_PHOSPHATE": "Phosphate [μmol / kg]"}
+
+model_name_map = {"mean": "Mean",
+                  "mice": "MICE",
+                  "knn": "KNN",
+                  "missforest": "MissForest",
+                  "remasker": "ReMasker",
+                  "mastnet": "MaSTNeT",
+                  "mlp": "MLP"}
