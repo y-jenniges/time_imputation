@@ -377,14 +377,11 @@ def plot_reconstruction_error(pred_all, values, test_mask, total_unc, parameter_
 
 
 def plot_simple_reconstruction_error(y_true, y_pred, save_as=None, close=False):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
     n_rows, n_cols = 2, 3
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(10, 6))
     axes = axes.flatten()  # flatten to index easily
 
-    for i, feature_name in enumerate(config.parameters[:6]):  # first 6 features
+    for i, feature_name in enumerate(config.parameters):
         a = y_true[:, i]
         b = y_pred[:, i]
 
