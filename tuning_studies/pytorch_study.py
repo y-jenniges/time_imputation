@@ -69,7 +69,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "patience": 5,  # trial.suggest_int("patience", 3, 12),
                 "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
                 "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
-                "loss": "physics_hetero", # loss
+                "loss": loss,
                 "lambda_smooth": lambda_smooth,
                 "optimizer": torch.optim.Adam
             },
