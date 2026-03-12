@@ -112,7 +112,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
             }
         }
     elif model_name == "mlp":
-        loss = trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
+        loss = trial.suggest_categorical("loss", ["mse", "hetero"])
         lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
         
         return {"train": {
