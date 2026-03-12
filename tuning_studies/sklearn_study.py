@@ -6,7 +6,6 @@ from time import time
 import optuna
 import json
 import numpy as np
-import pandas as pd
 import glob
 import os
 import platform
@@ -48,6 +47,16 @@ def suggest_hyperparameters(trial, model_name):
                 "decoder_depth": trial.suggest_int("decoder_depth", 1, 4),
                 "num_heads": num_heads,
                 "encode_func": trial.suggest_categorical("encode_func", ["linear", "active"]),
+                "max_epochs": 20,
+                }
+    elif model_name == "remasker_finetune":
+        return {"batch_size": trial.suggest_categorical("batch_size", [512, 1024, 2048]),
+                "mask_ratio": 0.27,
+                "embed_dim": trial.suggest_categorical("embed_dim", [16, 32, 64]),
+                "depth": 7,
+                "decoder_depth": trial.suggest_int("decoder_depth", 4, 8),
+                "num_heads": 4,
+                "encode_func": "active",
                 "max_epochs": 20,
                 }
     else:
