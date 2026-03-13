@@ -43,6 +43,9 @@ def compute_metrics(y_true, y_pred, var_names=None):
         evaluator = RegressionMetric(yt, yp)
         var_metrics[name] = evaluator.get_metrics_by_list_names(config.EVAL_METRICS)
 
+        wasserstein = stats.wasserstein_distance(yt, yp)
+        var_metrics[name]["wasserstein"] = wasserstein
+
         # Store in dict
         global_valid_true.append(yt)
         global_valid_pred.append(yp)
