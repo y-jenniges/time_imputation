@@ -105,7 +105,7 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     val_rmse = np.sqrt(np.nanmean((y_true[val_idx] - y_pred[:, coord_dim:][val_idx]) ** 2))
 
     # Compute other metrics
-    metrics = compute_metrics(y_true=y_true, y_pred=y_pred)
+    metrics = compute_metrics(y_true=y_true[val_idx], y_pred=y_pred[:, coord_dim:][val_idx], var_names=config.parameters)
 
     # Store results
     results.train_time = train_time
