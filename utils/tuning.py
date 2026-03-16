@@ -38,7 +38,7 @@ class TuningResult:
     # Metrics
     test_metrics: dict = field(default_factory=dict)
     val_metrics: dict = field(default_factory=dict)
-    val_loss: float = np.nan
+    val_rmse: float = np.nan
 
     train_time: float = np.nan
     pred_time: float = np.nan
@@ -212,9 +212,7 @@ def get_model_class(model_name):
         "unet": OceanUNet,
         "remasker": ReMasker,
         "mlp": MLP,
-        "ann_att": ann_att,
-        # "mae": MaSTNeT,
-        # "mae_finetune": MaSTNeT,
+        "ann_att": ann_att
     }
 
     if model_name not in name_class_map.keys():
