@@ -79,6 +79,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "nlayers": trial.suggest_int("nlayers", 2, 8),
                 "dim_feedforward": trial.suggest_categorical("dim_feedforward", [128, 256, 512, 1024]),
                 "dropout": trial.suggest_float("dropout", 0.0, 0.4),
+                # "pos_hidden_dim": trial.suggest_categorical("pos_hidden_dim", [32, 64, 128, 256, 512]),
             }
         }
     elif model_name == "mastnet_finetune":
@@ -364,7 +365,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     else:
         y_true, y_pred, full_var = None, None, None
 
-    results.val_loss = trainer.best_val_loss
+    results.val_rmse = history["metrics"][early_stopper.best_epoch]["Global"]["RMSE"]
     results.train_time = train_time + def_time
     results.stop_epoch = early_stopper.epoch
     results.metrics_all = history["metrics"]
@@ -373,7 +374,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     # Store results on disc
     results.save(json_fname, model=model if save_model else None)
 
-    logging.info(f"Split {split_fname} finished, val_loss={trainer.best_val_loss:.8f}")
+    logging.info(f"Split {split_fname} finished, val_loss={trainer.best_val_loss:.8f}, val_rmse={results.val_rmse:.8f}")
 
     # Clean up
     del full_loader, train_loader, val_loader, test_loader
@@ -406,7 +407,7 @@ def optuna_objective(trial, model_name, output_dir):
     values_raw = torch.from_numpy(DATA[config.parameters].astype(float).to_numpy())
 
     # Training
-    val_losses = []
+    val_rmses = []
     for split_i, split_path in enumerate(split_paths):
         print("RAM before split:", ram())
         logging.info(f"Training trial {trial.number} on split {split_path}")
@@ -434,8 +435,8 @@ def optuna_objective(trial, model_name, output_dir):
             output_dir=output_dir
         )
 
-        logging.info(f"Validation loss: {results.val_loss:.8f}")
-        val_losses.append(results.val_loss)
+        logging.info(f"Validation loss: {results.val_rmse:.8f}")
+        val_rmses.append(results.val_rmse)
 
         # Clean up
         del results
@@ -445,9 +446,9 @@ def optuna_objective(trial, model_name, output_dir):
         print("RAM after split:", ram())
 
     # Validation loss across all splits
-    mean_val_loss = np.mean(val_losses)
-    logging.info(f"Trial {trial.number} finished, mean_val_loss={mean_val_loss:.4f}")
-    return mean_val_loss
+    mean_val_rmse = np.mean(val_rmses)
+    logging.info(f"Trial {trial.number} finished, mean_val_rmse={mean_val_rmse:.4f}")
+    return mean_val_rmse
 
 
 if __name__ == "__main__":

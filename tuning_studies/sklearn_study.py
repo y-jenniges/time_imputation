@@ -110,7 +110,7 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     # Store results
     results.train_time = train_time
     results.pred_time = pred_time
-    results.val_loss = val_rmse
+    results.val_rmse = val_rmse
     results.metrics_all = metrics
 
     if not tuning_mode:
