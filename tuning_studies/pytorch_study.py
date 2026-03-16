@@ -4,26 +4,24 @@ from functools import partial
 from itertools import chain
 from pathlib import Path, PurePath
 import optuna
-import pandas as pd
 import torch
 import numpy as np
 import json
 from time import time
-import os
 import argparse
 import logging
 import gc
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
-from tqdm import tqdm
-import psutil, os
+import psutil
+import os
 
 from nn_utils.losses import build_loss, name_to_loss_spec
 from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter
 from nn_utils.early_stopping import EarlyStopping
 from nn_utils.dataset import prepare_neighbourhood_loaders, load_dataset, prepare_pointwise_loaders
 from utils.metrics import compute_metrics
-from utils.tuning import make_optuna_callback, get_model_class
+from utils.tuning import get_model_class
 
 import config
 from utils.plotting import plot_loss, plot_simple_reconstruction_error
@@ -263,7 +261,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         early_stopping=early_stopper,
         mask_ratio=mask_ratio,
         optuna_callback=optuna_callback,
-        full_metrics=not tuning_mode
+        full_metrics=True, # not tuning_mode   @todo maybe remove arg?
     )
     train_time = time() - strain
 
