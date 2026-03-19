@@ -12,11 +12,13 @@ import json
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from missingpy import MissForest
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.base import BaseEstimator
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from torch import nn
 import math
+from hyperimpute.plugins.imputers import Imputers
 
 import config
 from models.mastnet import MaSTNeT
@@ -203,6 +205,8 @@ def make_optuna_callback(trial, split_i, n_epochs):
 
 def get_model_class(model_name):
     """ Get model class by name. """
+    imputers = Imputers()
+
     name_class_map = {
         "mean": SimpleImputer,
         "knn": KNNImputer,
@@ -212,7 +216,21 @@ def get_model_class(model_name):
         "unet": OceanUNet,
         "remasker": ReMasker,
         "mlp": MLP,
-        "ann_att": ann_att
+        "ann_att": ann_att,
+
+        "hyperimpute": lambda **kwargs: imputers.get("hyperimpute", **kwargs),
+        "gain_hyperimpute": lambda **kwargs:imputers.get("gain", **kwargs),
+        "miracle_hyperimpute": lambda **kwargs:imputers.get("miracle", **kwargs),
+        "miwae_hyperimpute": lambda **kwargs:imputers.get("miwae", **kwargs),
+        "sklearn_ice_hyperimpute": lambda **kwargs:imputers.get("sklearn_ice", **kwargs),
+        "nop_hyperimpute": lambda **kwargs:imputers.get("nop", **kwargs),
+        "em_hyperimpute": lambda **kwargs:imputers.get("EM", **kwargs),
+        "mice_hyperimpute": lambda **kwargs:imputers.get("mice", **kwargs),
+        "softimpute_hyperimpute": lambda **kwargs:imputers.get("softimpute", **kwargs),
+        "ice_hyperimpute": lambda **kwargs:imputers.get("ice", **kwargs),
+        "missforest_hyperimpute": lambda **kwargs:imputers.get("missforest", **kwargs),
+        "sklearn_missforest_hyperimpute": lambda **kwargs:imputers.get("sklearn_missforest", **kwargs),
+        "sinkhorn_hyperimpute": lambda **kwargs:imputers.get("sinkhorn", **kwargs),
     }
 
     if model_name not in name_class_map.keys():
