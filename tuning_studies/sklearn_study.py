@@ -9,6 +9,7 @@ import numpy as np
 import glob
 import os
 import platform
+from hyperimpute.plugins.imputers.plugin_hyperimpute import plugin as base_model
 
 import pandas as pd
 from optuna.storages import JournalStorage
@@ -124,16 +125,15 @@ def suggest_hyperparameters(trial, model_name):
     elif model_name == "ice_hyperimpute":
         return {
             "max_iter": trial.suggest_categorical("max_iter", [100, 300, 1000]),
-            "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median", "most_frequent", "constant"]),
-            "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "roman", "arabic", "random"]),
+            "initial_strategy": trial.suggest_int("initial_strategy", 0, len(base_model.initial_strategy_vals)-1),  # ["mean", "median", "most_frequent", "constant"]),
+            "imputation_order": trial.int("imputation_order", 0, len(base_model.imputation_order_vals)-1),  # ["ascending", "descending", "roman", "arabic", "random"]),
             "random_state": 42,
         }
     elif model_name == "missforest_hyperimpute":
         return {
             "n_estimators": trial.suggest_int("n_estimators", 50, 300),
-            "initial_strategy": trial.suggest_categorical(
-            "initial_strategy", ["mean", "median", "most_frequent"]),
-            "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "random"]),
+            "initial_strategy": trial.suggest_int("initial_strategy", 0, 2),  # ["mean", "median", "most_frequent"]),
+            "imputation_order": trial.suggest_int("imputation_order", 0, 2),  # ["ascending", "descending", "random"]),
             "max_iter": 100,
             "random_state": 42,
         }
