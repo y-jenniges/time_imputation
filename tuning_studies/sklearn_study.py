@@ -9,6 +9,8 @@ import numpy as np
 import glob
 import os
 import platform
+
+import pandas as pd
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from sklearn.linear_model import BayesianRidge
@@ -49,16 +51,111 @@ def suggest_hyperparameters(trial, model_name):
                 "encode_func": trial.suggest_categorical("encode_func", ["linear", "active"]),
                 "max_epochs": 20,
                 }
-    elif model_name == "remasker_finetune":
-        return {"batch_size": trial.suggest_categorical("batch_size", [512, 1024, 2048]),
-                "mask_ratio": 0.27,
-                "embed_dim": trial.suggest_categorical("embed_dim", [16, 32, 64]),
-                "depth": 7,
-                "decoder_depth": trial.suggest_int("decoder_depth", 4, 8),
-                "num_heads": 4,
-                "encode_func": "active",
-                "max_epochs": 20,
-                }
+
+    elif model_name == "hyperimpute":
+        return {
+            "optimizer": trial.suggest_categorical("optimizer", ["simple", "bayesian", "hyperband"]),
+            "n_inner_iter": trial.suggest_categorical("n_inner_iter", [1, 3, 5, 10]),
+            "baseline_imputer": trial.suggest_categorical("baseline_imputer", [0, 1, 2]),
+            "class_threshold": trial.suggest_categorical("class_threshold", [10, 20, 50, 100]),
+            "optimize_thresh": trial.suggest_categorical("optimize_thresh", [1000, 5000]),
+            "select_model_by_column": trial.suggest_categorical("select_model_by_column", [True, False]),
+            "random_state": 42
+        }
+    elif model_name == "gain_hyperimpute":
+        return {
+            "batch_size": trial.suggest_categorical("batch_size", [64, 128, 256, 512]),
+            "n_epochs": 100, # trial.suggest_int("n_epochs", 50, 200),
+            "hint_rate": trial.suggest_float("hint_rate", 0.5, 0.95),
+            "loss_alpha": trial.suggest_float("loss_alpha", 1, 100),
+            "random_state": 42
+        }
+    elif model_name == "miracle_hyperimpute":
+        return {
+            "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
+            "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
+            "n_hidden": trial.suggest_categorical("n_hidden", [32, 64, 128, 256]),
+            "max_steps": 100,
+            "random_state": 42
+        }
+    elif model_name == "miwae_hyperimpute":
+        return {
+            "batch_size": trial.suggest_categorical("batch_size", [64, 128, 256, 512]),
+            "n_hidden": trial.suggest_categorical("n_hidden", [32, 64, 128, 256]),
+            "latent_size": trial.suggest_int("latent_size", 5, 50),
+            "K": trial.suggest_int("K", 1, 5),
+            "n_epochs": 100,
+            "random_state": 42,
+        }
+    elif model_name == "sklearn_ice_hyperimpute":
+        return {
+            "max_iter": trial.suggest_categorical("max_iter", [100, 300, 1000]),
+            "tol": trial.suggest_categorical("tol", [1e-4, 1e-3, 1e-2]),
+            "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median", "most_frequent", "constant"]),
+            "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "roman", "arabic", "random"]),
+            "random_state": 42,
+        }
+    elif model_name == "nop_hyperimpute":
+        return {}
+    elif model_name == "em_hyperimpute":
+        return {
+            "maxit": trial.suggest_categorical("maxit", [50, 100, 200, 500]),
+            "convergence_threshold": trial.suggest_categorical("convergence_threshold", [1e-6, 1e-7, 1e-8]),
+            "random_state": 42,
+        }
+    elif model_name == "mice_hyperimpute":
+        return {
+            "max_iter": trial.suggest_categorical("max_iter", [100, 300, 1000]),
+            "tol": trial.suggest_categorical("tol", [1e-4, 1e-3, 1e-2]),
+            "n_imputations": trial.suggest_categorical("n_imputations", [1, 3, 5]),
+            "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median", "most_frequent", "constant"]),
+            "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "roman", "arabic", "random"]),
+            "random_state": 42,
+        }
+    elif model_name == "softimpute_hyperimpute":
+        return {
+            "max_rank": trial.suggest_categorical("max_rank", [2, 5, 10, 20]),
+            "shrink_lambda": trial.suggest_categorical("shrink_lambda", [0.0, 0.01, 0.1, 1.0]),
+            "maxit": trial.suggest_categorical("maxit", [100, 300, 1000]),
+            "convergence_threshold": trial.suggest_categorical("convergence_threshold", [1e-4, 1e-5, 1e-6]),
+            "cv_len": trial.suggest_categorical("cv_len", [2, 3, 5]),
+            "random_state": 42,
+        }
+    elif model_name == "ice_hyperimpute":
+        return {
+            "max_iter": trial.suggest_categorical("max_iter", [100, 300, 1000]),
+            "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median", "most_frequent", "constant"]),
+            "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "roman", "arabic", "random"]),
+            "random_state": 42,
+        }
+    elif model_name == "missforest_hyperimpute":
+        return {
+            "n_estimators": trial.suggest_int("n_estimators", 50, 300),
+            "initial_strategy": trial.suggest_categorical(
+            "initial_strategy", ["mean", "median", "most_frequent"]),
+            "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "random"]),
+            "max_iter": 100,
+            "random_state": 42,
+        }
+    elif model_name == "sklearn_missforest_hyperimpute":
+        return {
+            "n_estimators": trial.suggest_int("n_estimators", 50, 300),
+            "max_depth": trial.suggest_categorical("max_depth", [None, 3, 5, 10, 20]),
+            "bootstrap": trial.suggest_categorical("bootstrap", [True, False]),
+            "max_iter": 100,
+            "random_state": 42,
+        }
+    elif model_name == "sinkhorn_hyperimpute":
+        return {
+            "eps": trial.suggest_float("eps", 0.001, 0.1, log=True),
+            "lr": trial.suggest_float("lr", 0.1e-4, 1e-2, log=True),
+            "batch_size": trial.suggest_categorical("batch_size", [64, 128, 256, 512, 1024]),
+            "n_pairs": trial.suggest_int("n_pairs", 1, 5),
+            "noise": trial.suggest_float("noise", 0.0, 1e-2),
+            "scaling": trial.suggest_float("scaling", 0.5, 0.99),
+            "n_epochs": 100,
+            "random_state": 42,
+        }
     else:
         raise NotImplementedError(f"Could not find model {model_name}.")
 
@@ -100,6 +197,9 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     st = time()
     y_pred = imputer.transform(x_train)
     pred_time = time() - st
+
+    if isinstance(y_pred, pd.DataFrame):
+        y_pred = y_pred.to_numpy()
 
     # Evaluate on validation set
     val_rmse = np.sqrt(np.nanmean((y_true[val_idx] - y_pred[:, coord_dim:][val_idx]) ** 2))
@@ -161,7 +261,7 @@ def optuna_objective(trial, model_name):
             tuning_mode=True,
             seed=42+trial.number)
 
-        val_rmses.append(results["val_loss"])
+        val_rmses.append(results["val_rmse"])
 
         # # Pruning
         # trial.report(results.val_rmse, step=split_i)
