@@ -91,8 +91,8 @@ def suggest_hyperparameters(trial, model_name):
         return {
             "max_iter": trial.suggest_categorical("max_iter", [100, 300, 1000]),
             "tol": trial.suggest_categorical("tol", [1e-4, 1e-3, 1e-2]),
-            "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median", "most_frequent", "constant"]),
-            "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "roman", "arabic", "random"]),
+            "initial_strategy": trial.suggest_int("initial_strategy", 0, 3), # ["mean", "median", "most_frequent", "constant"]),
+            "imputation_order": trial.suggest_int("imputation_order", 0, 4), #["ascending", "descending", "roman", "arabic", "random"]),
             "random_state": 42,
         }
     elif model_name == "nop_hyperimpute":
@@ -108,8 +108,8 @@ def suggest_hyperparameters(trial, model_name):
             "max_iter": trial.suggest_categorical("max_iter", [100, 300, 1000]),
             "tol": trial.suggest_categorical("tol", [1e-4, 1e-3, 1e-2]),
             "n_imputations": trial.suggest_categorical("n_imputations", [1, 3, 5]),
-            "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median", "most_frequent", "constant"]),
-            "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "roman", "arabic", "random"]),
+            "initial_strategy": trial.suggest_int("initial_strategy", 0, 3), # ["mean", "median", "most_frequent", "constant"]),
+            "imputation_order": trial.suggest_int("imputation_order", 0, 4), #["ascending", "descending", "roman", "arabic", "random"]),
             "random_state": 42,
         }
     elif model_name == "softimpute_hyperimpute":
