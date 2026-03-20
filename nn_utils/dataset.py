@@ -29,24 +29,12 @@ class LearnedNeighbourDataset(Dataset):
         else:
             self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
 
-        print("Dataset --- ")
-        print("coords:", coords.shape[0])
-        print("values:", values.shape[0])
-        print("query_indices:", None if query_indices is None else len(query_indices))
-        print("---")
-
     def __len__(self):
         return self.query_indices.shape[0]
 
     def __getitem__(self, idx):
-        if idx == 0:
-            print("coords size:", self.coords.shape[0])
-            print("graph size:", self.graph_provider.neighbour_indices.shape[0])
-
         # Map local query point idx to global idx
         q_idx = self.query_indices[idx]
-        # q_idx = idx
-        print("q_idx: ", q_idx)
 
         # Query point
         q_feat = self.values[q_idx]
@@ -55,7 +43,6 @@ class LearnedNeighbourDataset(Dataset):
 
         # Neighbours (global indices)
         n_idx = self.graph_provider.neighbour_indices[q_idx]
-        print("n_idx min/max: ", n_idx.min(), n_idx.max())
 
         n_feat = self.values[n_idx]
         n_mask = self.feature_mask[n_idx]

@@ -13,7 +13,6 @@ class GraphProvider:
 
     def update(self, encoder, coords, values, mask):
         """ Recompute graph from latent space. """
-        print("Graph size:", coords.shape)
         values = values.clone()
         mask = mask.clone()
 
@@ -22,9 +21,6 @@ class GraphProvider:
 
         if self.val_idx is not None:
             values[self.val_idx] = torch.nan
-
-        if self.neighbour_indices is not None:
-            print("Neighbour index shape:", self.neighbour_indices.shape)
 
         with torch.no_grad():
             # Encode
@@ -38,8 +34,6 @@ class GraphProvider:
             # Get neighbour indices
             indices = torch.from_numpy(knn.kneighbors(encoded_np, return_distance=False)).long()
             self.neighbour_indices = indices[:, 1:]  # Remove self
-
-            print("Neighbour index shape after update: ", self.neighbour_indices.shape)
 
     def get(self, idx):
         return self.neighbour_indices[idx]

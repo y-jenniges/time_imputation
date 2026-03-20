@@ -257,11 +257,6 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     early_stopper = EarlyStopping(patience=patience)
     def_time = time() - st
 
-    print(full_coords.shape)
-    print(train_idx.min(), train_idx.max())
-    print(val_idx.min(), val_idx.max())
-    print(test_idx.min(), test_idx.max())
-
     # Train model
     strain = time()
     history = trainer.fit(
