@@ -5,11 +5,11 @@ from torch.utils.data import DataLoader
 
 from nn_utils.dataset import NeighbourDataset
 from nn_utils.trainer import NeighbourAdapter
-from nn_utils.embed import PositionalEncoder
+from nn_utils.embed import PositionalEncoder, CoordEncoder
 
 
 class MaSTNeT(nn.Module):
-    def __init__(self, coord_dim=5, value_dim=6, pos_hidden_dim=64, d_model=64, nhead=4, nlayers=2, dropout=0.1, dim_feedforward=128):
+    def __init__(self, coord_dim=5, value_dim=6, pos_hidden_dim=64, coord_encoder_hidden_dim=32, d_model=64, nhead=4, nlayers=2, dropout=0.1, dim_feedforward=128):
         super().__init__()
 
         self.coord_dim = coord_dim
@@ -19,8 +19,10 @@ class MaSTNeT(nn.Module):
         # self.input_dim = self.coord_dim + self.value_dim * 2  # coords and relative coords embedding, features and feature masks
 
         # Positional embeddings
-        self.pos_encoder = PositionalEncoder(input_dim=self.coord_dim, hidden_dim=pos_hidden_dim, output_dim=d_model)
+        # self.pos_encoder = PositionalEncoder(input_dim=self.coord_dim, hidden_dim=pos_hidden_dim, output_dim=d_model)
         # self.pos_bias = nn.Linear(d_model, nhead)
+
+        self.coord_encoder = CoordEncoder(hidden_dim=coord_encoder_hidden_dim, coord_dim=coord_dim-1, value_dim=value_dim, time_dim=1)
 
         # Input encoder
         self.encoder_input = nn.Linear(self.input_dim, d_model)

@@ -17,9 +17,10 @@ import psutil
 import os
 
 from nn_utils.losses import build_loss, name_to_loss_spec
-from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter
+from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter, GraphProvider
 from nn_utils.early_stopping import EarlyStopping
-from nn_utils.dataset import prepare_neighbourhood_loaders, load_dataset, prepare_pointwise_loaders
+from nn_utils.dataset import prepare_neighbourhood_loaders, load_dataset, prepare_pointwise_loaders, \
+    prepare_learned_neighbourhood_loaders, LearnedNeighbourDataset
 from utils.metrics import compute_metrics
 from utils.tuning import get_model_class
 
@@ -65,7 +66,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
                 "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
                 "patience": 5,  # trial.suggest_int("patience", 3, 12),
-                "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
+                "n_epochs": 1,  #20,  # trial.suggest_int("epochs", 20, 80),
                 "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
                 "loss": loss,
                 "lambda_smooth": lambda_smooth,
@@ -215,7 +216,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
     # Adapter and data loaders
     model_adapters = {"mastnet": NeighbourAdapter, "mlp": PointwiseAdapter, "ann_att": PointwiseAdapter}
-    loader_funcs = {"mastnet": prepare_neighbourhood_loaders, "mlp": prepare_pointwise_loaders, "ann_att": prepare_pointwise_loaders}
+    loader_funcs = {"mastnet": prepare_learned_neighbourhood_loaders, "mlp": prepare_pointwise_loaders, "ann_att": prepare_pointwise_loaders}
 
     if model_name not in model_adapters.keys():
         raise ValueError(f"Unknown model_name {model_name}")
@@ -229,11 +230,15 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
             batch_size=batch_size,
             generator=generator)
     if model_name == "mastnet":
+        graph_provider = GraphProvider(n_neighbours=n_neighbours, update_every=5, test_idx=test_idx, val_idx=val_idx)
         loader_kwargs["n_neighbours"] = n_neighbours
+        loader_kwargs["graph_provider"] = graph_provider
+    else:
+        graph_provider = None
 
     # Adapter and loader
     adapter = model_adapters[model_name]()
-    full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim, dists = (
+    full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim, dists, full_coords, full_values, full_mask = (
         loader_funcs[model_name](**loader_kwargs))
 
     if dists is not None and lambda_smooth is not None:
@@ -248,9 +253,14 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     model = model_class(**model_hyps).to(device)
     loss_fn = build_loss(loss_spec)
     optimizer = optimizer_class(chain(model.parameters(), loss_fn.parameters()), lr=learning_rate)
-    trainer = Trainer(model=model, adapter=adapter, optimizer=optimizer, loss_fn=loss_fn, device=device)
+    trainer = Trainer(model=model, adapter=adapter, optimizer=optimizer, loss_fn=loss_fn, device=device, graph_provider=graph_provider, full_coords=full_coords, full_values=full_values, full_mask=full_mask)
     early_stopper = EarlyStopping(patience=patience)
     def_time = time() - st
+
+    print(full_coords.shape)
+    print(train_idx.min(), train_idx.max())
+    print(val_idx.min(), val_idx.max())
+    print(test_idx.min(), test_idx.max())
 
     # Train model
     strain = time()

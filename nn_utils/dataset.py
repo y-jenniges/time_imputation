@@ -1,16 +1,84 @@
-from typing import Tuple
+from typing import Tuple, Any
 import numpy as np
 import torch
 from sklearn.neighbors import NearestNeighbors
+from torch import Tensor
 from torch.utils.data import Dataset, DataLoader, Subset
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
 import config
+from nn_utils.graph import GraphProvider
+
+
+class LearnedNeighbourDataset(Dataset):
+    def __init__(self, coords: torch.Tensor, values: torch.Tensor, graph_provider: GraphProvider, query_indices: np.ndarray | None = None):
+        self.coords = coords
+        self.values = values
+        self.query_indices = query_indices
+
+        # KNN graph
+        self.graph_provider = graph_provider
+
+        # Initial mask: True = observed (False = NaN)
+        self.feature_mask = ~torch.isnan(values)
+
+        # Store original indices of query points
+        if query_indices is None:
+            self.query_indices = torch.arange(values.shape[0], dtype=torch.long)
+        else:
+            self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
+
+        print("Dataset --- ")
+        print("coords:", coords.shape[0])
+        print("values:", values.shape[0])
+        print("query_indices:", None if query_indices is None else len(query_indices))
+        print("---")
+
+    def __len__(self):
+        return self.query_indices.shape[0]
+
+    def __getitem__(self, idx):
+        if idx == 0:
+            print("coords size:", self.coords.shape[0])
+            print("graph size:", self.graph_provider.neighbour_indices.shape[0])
+
+        # Map local query point idx to global idx
+        q_idx = self.query_indices[idx]
+        # q_idx = idx
+        print("q_idx: ", q_idx)
+
+        # Query point
+        q_feat = self.values[q_idx]
+        q_mask = self.feature_mask[q_idx]
+        q_coord = self.coords[q_idx]
+
+        # Neighbours (global indices)
+        n_idx = self.graph_provider.neighbour_indices[q_idx]
+        print("n_idx min/max: ", n_idx.min(), n_idx.max())
+
+        n_feat = self.values[n_idx]
+        n_mask = self.feature_mask[n_idx]
+        n_coord = self.coords[n_idx]
+
+        # Relative positions
+        rel_positions = n_coord - q_coord
+
+        return {
+            "query_features": q_feat,
+            "query_mask": q_mask,
+            "query_coords": q_coord,
+            "neighbour_features": n_feat,
+            "neighbour_mask": n_mask,
+            "neighbour_coords": n_coord,
+            "rel_positions": rel_positions
+        }
+
 
 
 class NeighbourDataset(Dataset):
     """ Dataset returning query point data and neighbourhood data. """
+
     def __init__(self,
                  coords: torch.Tensor,
                  values: torch.Tensor,
@@ -20,7 +88,7 @@ class NeighbourDataset(Dataset):
         self.coords = coords
         self.values = values
 
-        #self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
+        # self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
         self.neighbour_indices = torch.as_tensor(neighbour_indices, dtype=torch.long)
 
         # Store original indices of query points
@@ -67,6 +135,7 @@ class NeighbourDataset(Dataset):
 
 class PointwiseDataset(Dataset):
     """ Dataset returning pointwise data. """
+
     def __init__(self, coords: torch.Tensor, values: torch.Tensor):
         self.coords = coords
         self.values = values
@@ -79,6 +148,94 @@ class PointwiseDataset(Dataset):
         return {"features": self.values[idx], "coords": self.coords[idx], "mask": self.feature_mask[idx]}
 
 
+def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
+                                          values: torch.Tensor,
+                                          train_idx: np.ndarray,
+                                          val_idx: np.ndarray,
+                                          test_idx: np.ndarray,
+                                          batch_size: int,
+                                          generator: torch.Generator,
+                                          graph_provider: GraphProvider,
+                                          cyclic_time: bool = False,
+                                          n_neighbours: int = 24,
+                                          ) -> tuple[
+    DataLoader[Any], DataLoader[Any], DataLoader[Any], DataLoader[Any], dict | dict[
+        Any, Any], int, int, None, Tensor, Tensor, Tensor]:
+    """
+    Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
+    return query and spatio-temporally neighbouring tokens.
+
+    :param coords: Latitude, longitude, depth and time data
+    :param values: Variable data (torch.tensor)
+    :param train_idx: Rows meant for training
+    :param val_idx: Rows meant for validation
+    :param test_idx: Rows meant for testing
+    :param batch_size: Batch size
+    :param generator: Random number generator
+    :param graph_provider: GraphProvider object
+    :param cyclic_time: Whether to encode time cyclically (e.g. for monthly data) or not (e.g. for yearly data)
+    :param n_neighbours: Number of neighbours to use
+    :return:
+        - full_loader
+        - train_loader
+        - val_loader
+        - test_loader
+        - train_scaler_dict
+        - n_coords
+        - n_values
+        - dists
+    """
+    # Split raw data
+    coords_train_raw = coords[train_idx]
+    values_train_raw = values[train_idx]
+
+    # Preprocess training data
+    coords_train, values_train, train_scaler_dict = preprocess(coords=coords_train_raw,
+                                                               values=values_train_raw,
+                                                               coord_names=config.coordinates,
+                                                               parameter_names=config.parameters,
+                                                               cyclic_time=cyclic_time,
+                                                               scaler_dict=None)
+
+    # Preprocess full dataset using training scalers
+    coords_full, values_full, _ = preprocess(
+        coords=coords,
+        values=values,
+        coord_names=config.coordinates,
+        parameter_names=config.parameters,
+        cyclic_time=cyclic_time,
+        scaler_dict=train_scaler_dict
+    )
+    mask_full = ~torch.isnan(values_full)
+
+    print("coords_raw:", coords.shape[0])
+    print("coords_full:", coords_full.shape[0])
+    print("max train_idx:", train_idx.max())
+
+    # Build initial graph for neighbour search
+    init_encoder = lambda coords, values, mask, t_fourier=None: coords_full
+    graph_provider.update(encoder=init_encoder, coords=coords_full, values=values_full, mask=mask_full)
+
+    # Define datasets
+    train_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, graph_provider=graph_provider)
+    val_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, graph_provider=graph_provider)
+    test_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, graph_provider=graph_provider)
+    full_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=None, graph_provider=graph_provider)
+
+    print(len(train_dataset), len(val_dataset), len(test_dataset))
+
+    # Define data loaders
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
+
+    dists_train = None
+    # print(f"Median distance of training data: {np.nanmedian(dists_train)}")
+
+    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1), dists_train, coords_full, values_full, mask_full
+
+
 def prepare_neighbourhood_loaders(coords: torch.Tensor,
                                   values: torch.Tensor,
                                   train_idx: np.ndarray,
@@ -88,7 +245,8 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
                                   generator: torch.Generator,
                                   cyclic_time: bool = False,
                                   n_neighbours: int = 24,
-                                  ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader, dict, int, int, np.ndarray]:
+                                  ) -> Tuple[
+    DataLoader, DataLoader, DataLoader, DataLoader, dict, int, int, np.ndarray]:
     """
     Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
     return query and spatio-temporally neighbouring tokens.
@@ -142,29 +300,32 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
 
     n_samples = values.shape[0]
     # neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours+1, n_samples), algorithm="auto").fit(coords_full[train_idx].cpu().numpy())
-    neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours+1, n_samples), algorithm="auto").fit(coords_valid.cpu().numpy())
-    dists_train, neighbour_indices_train = neighbours_train.kneighbors(coords_full[train_idx].cpu().numpy(), return_distance=True)
-    neighbour_indices_train = torch.as_tensor(neighbour_indices_train[:, 1:], dtype=torch.long, device="cpu")  # Exclude self and convert to tensor
+    neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours + 1, n_samples), algorithm="auto").fit(
+        coords_valid.cpu().numpy())
+    dists_train, neighbour_indices_train = neighbours_train.kneighbors(coords_full[train_idx].cpu().numpy(),
+                                                                       return_distance=True)
+    neighbour_indices_train = torch.as_tensor(neighbour_indices_train[:, 1:], dtype=torch.long,
+                                              device="cpu")  # Exclude self and convert to tensor
 
-    dists_val, neighbour_indices_val = neighbours_train.kneighbors(coords_full[val_idx].cpu().numpy(), return_distance=True)
+    dists_val, neighbour_indices_val = neighbours_train.kneighbors(coords_full[val_idx].cpu().numpy(),
+                                                                   return_distance=True)
     neighbour_indices_val = torch.as_tensor(neighbour_indices_val[:, :n_neighbours], dtype=torch.long, device="cpu")
 
-    dists_test, neighbour_indices_test = neighbours_train.kneighbors(coords_full[test_idx].cpu().numpy(), return_distance=True)
+    dists_test, neighbour_indices_test = neighbours_train.kneighbors(coords_full[test_idx].cpu().numpy(),
+                                                                     return_distance=True)
     neighbour_indices_test = torch.as_tensor(neighbour_indices_test[:, :n_neighbours], dtype=torch.long, device="cpu")
-
-    # Map back to global idx
-    # neighbour_indices_train = train_idx[neighbour_indices_train]
-    # neighbour_indices_val = train_idx[neighbour_indices_val]
-    # neighbour_indices_test = train_idx[neighbour_indices_test]
 
     neighbour_indices_train = train_valid_idx[neighbour_indices_train]
     neighbour_indices_val = train_valid_idx[neighbour_indices_val]
     neighbour_indices_test = train_valid_idx[neighbour_indices_test]
 
     # Define datasets
-    train_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, neighbour_indices=neighbour_indices_train)
-    val_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, neighbour_indices=neighbour_indices_val)
-    test_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, neighbour_indices=neighbour_indices_test)
+    train_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx,
+                                     neighbour_indices=neighbour_indices_train)
+    val_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx,
+                                   neighbour_indices=neighbour_indices_val)
+    test_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx,
+                                    neighbour_indices=neighbour_indices_test)
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -180,7 +341,8 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
 
     # neighbour_indices = torch.as_tensor(neighbour_indices[:, :n_neighbours], dtype=torch.long, device="cpu")
     # neighbour_indices = train_idx[neighbour_indices]
-    full_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=None, neighbour_indices=neighbour_indices)
+    full_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=None,
+                                    neighbour_indices=neighbour_indices)
     full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
 
     print(f"Median distance of training data: {np.median(dists_train)}")
@@ -256,7 +418,7 @@ def prepare_pointwise_loaders(coords: torch.Tensor,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(
-        1), values_train.size(1), None
+        1), values_train.size(1), None, None, None, None
 
 
 def prepare_sklearn_data(df, train_idx, val_idx, test_idx):

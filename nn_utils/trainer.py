@@ -6,10 +6,13 @@ import numpy as np
 import copy
 from time import time
 
+from sklearn.neighbors import NearestNeighbors
 from torch import nn
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+
+from nn_utils.graph import GraphProvider
 from nn_utils.losses import MaskedMSELoss, BaseLoss
 from nn_utils.dataset import random_feature_mask
 from utils.metrics import compute_metrics
@@ -198,6 +201,8 @@ class PointwiseAdapter(ModelAdapter):
 class Trainer:
     """ Trainer class for OceanMAE, which handles training and evaluation loops."""
     def __init__(self, model: torch.nn.Module, adapter: ModelAdapter, optimizer: torch.optim.Optimizer,
+                 full_coords: torch.Tensor, full_values: torch.Tensor, full_mask: torch.Tensor,
+                 graph_provider: GraphProvider = None,
                  device: torch.cuda.device = "cpu", loss_fn: BaseLoss = MaskedMSELoss()):
         """
         Args:
@@ -212,9 +217,16 @@ class Trainer:
         self.device = device
         self.loss_fn = loss_fn
 
+        self.graph_provider = graph_provider
+
         # Early stopping
         self.best_model_state = None
         self.best_val_loss = np.inf
+
+        # Full data
+        self.full_coords = full_coords.to(device)
+        self.full_values = full_values.to(device)
+        self.full_mask = full_mask.to(device)
 
         # Init summary writer
         self.writer = SummaryWriter(log_dir=f"/tmp/{self.model.__class__.__name__}_{int(time())}")
@@ -312,6 +324,16 @@ class Trainer:
 
         return total_loss / max(1, n_samples), metrics
 
+    def update_graph(self):
+        if self.graph_provider is None:
+            return
+        print("Updating graph...")
+        st = time()
+        self.model.eval()
+
+        self.graph_provider.update(encoder=self.model.coord_encoder, coords=self.full_coords, values=self.full_values, mask=self.full_mask)
+        print("Updated graph in %.0f minutes." % ((time() - st) / 60 ))
+
     def log_metrics(self, prefix, d):
         # Recursively log all scalar metrics
         for k, v in d.items():
@@ -386,6 +408,10 @@ class Trainer:
                 current_mask_ratio = mask_ratio(epoch)
             else:
                 current_mask_ratio = mask_ratio
+
+            # Update graph if specified
+            if self.graph_provider is not None and epoch % self.graph_provider.update_every == 0:
+                self.update_graph()
 
             # Train and compute losses
             train_loss = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)
