@@ -246,7 +246,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         loss_spec["kwargs"]["sigma"] = sigma
         loss_spec["kwargs"]["lambda_smooth"] = lambda_smooth
 
-    print("RAM after loader init:", ram())
+    logging.info("RAM after loader init:", ram())
 
     # Initialize model optimizer, loss and trainer
     st = time()
@@ -270,7 +270,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     )
     train_time = time() - strain
 
-    print("RAM after fit: ", ram())
+    logging.info("RAM after fit: ", ram())
 
     # Full prediction/reconstruction
     aleatoric_uncertainty, epistemic_uncertainty = np.nan, np.nan
@@ -284,7 +284,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         all_times = []
 
         for i in range(n_inferences):
-            print(f"Inference: {i:3}")
+            logging.info(f"Inference: {i:3}")
 
             # Update seed
             set_seed(seed + i)
@@ -324,7 +324,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
             raise ValueError(f"Unknown model_name {model_name}")
 
         # To CPU and numpy
-        print("cpu to np")
+        logging.info("cpu to np")
         y_true = all_values.detach().cpu().numpy()
         y_pred = y_pred_mean.detach().cpu().numpy()
         epistemic_uncertainty = epistemic_uncertainty.detach().cpu().numpy()
@@ -339,7 +339,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
             np.save(main_path.with_name(main_path.name + "_all_vars.npy"), all_vars_np)
 
         # Reconstruction  RMSE and plot
-        print("plotting")
+        logging.info("plotting")
         reconstruction_rmse = np.sqrt(np.nanmean((y_pred - y_true) ** 2))
         recplot_fname = main_path.with_name(main_path.name + "_reconstruction_error.png")
         plot_simple_reconstruction_error(y_true, y_pred, save_as=recplot_fname, close=True)
@@ -383,7 +383,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     del full_loader, train_loader, val_loader, test_loader
     del model, trainer, optimizer, loss_fn
 
-    print("RAM after cleanup:", ram())
+    logging.info("RAM after cleanup:", ram())
 
     if tuning_mode:
         return results, y_true, y_pred, scaler_dict
@@ -412,7 +412,7 @@ def optuna_objective(trial, model_name, output_dir):
     # Training
     val_rmses = []
     for split_i, split_path in enumerate(split_paths):
-        print("RAM before split:", ram())
+        logging.info("RAM before split:", ram())
         logging.info(f"Training trial {trial.number} on split {split_path}")
 
         # Load split
@@ -446,7 +446,7 @@ def optuna_objective(trial, model_name, output_dir):
         torch.cuda.empty_cache()
         gc.collect()
 
-        print("RAM after split:", ram())
+        logging.info("RAM after split:", ram())
 
     # Validation loss across all splits
     mean_val_rmse = np.mean(val_rmses)
