@@ -246,7 +246,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         loss_spec["kwargs"]["sigma"] = sigma
         loss_spec["kwargs"]["lambda_smooth"] = lambda_smooth
 
-    logging.info("RAM after loader init:", ram())
+    logging.info(f"RAM after loader init: {ram()}")
 
     # Initialize model optimizer, loss and trainer
     st = time()
@@ -270,7 +270,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     )
     train_time = time() - strain
 
-    logging.info("RAM after fit: ", ram())
+    logging.info(f"RAM after fit: {ram()}")
 
     # Save model and history
     path = model_outdir / f"{model_name}_pytorch.pt"
@@ -388,7 +388,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     del full_loader, train_loader, val_loader, test_loader
     del model, trainer, optimizer, loss_fn
 
-    logging.info("RAM after cleanup:", ram())
+    logging.info(f"RAM after cleanup: {ram()}")
 
     if tuning_mode:
         return results, y_true, y_pred, scaler_dict
@@ -417,7 +417,7 @@ def optuna_objective(trial, model_name, output_dir):
     # Training
     val_rmses = []
     for split_i, split_path in enumerate(split_paths):
-        logging.info("RAM before split:", ram())
+        logging.info(f"RAM before split: {ram()}")
         logging.info(f"Training trial {trial.number} on split {split_path}")
 
         # Load split
@@ -451,7 +451,7 @@ def optuna_objective(trial, model_name, output_dir):
         torch.cuda.empty_cache()
         gc.collect()
 
-        logging.info("RAM after split:", ram())
+        logging.info(f"RAM after split: {ram()}")
 
     # Validation loss across all splits
     mean_val_rmse = np.mean(val_rmses)
