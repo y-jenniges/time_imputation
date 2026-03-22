@@ -273,9 +273,9 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     logging.info("RAM after fit: ", ram())
 
     # Save model and history
-    path = json_fname / f"{model_name}_pytorch.pt"
+    path = model_outdir / f"{model_name}_pytorch.pt"
     torch.save(model.state_dict(), path)
-    json.dump(history, open(json_fname / f"{model_name}_history.json", "w"))
+    json.dump(history, open(model_outdir / f"{model_name}_history.json", "w"))
 
     # Full prediction/reconstruction
     aleatoric_uncertainty, epistemic_uncertainty = np.nan, np.nan
