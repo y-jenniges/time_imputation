@@ -196,7 +196,7 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     mask_full = ~torch.isnan(values_full)
 
     # Build initial graph for neighbour search
-    init_encoder = lambda coords, values, mask, t_fourier=None: coords_full
+    init_encoder = lambda coords, values, mask, times=None: coords_full
     graph_provider.update(encoder=init_encoder, coords=coords_full, values=values_full, mask=mask_full)
 
     # Define datasets
