@@ -195,10 +195,6 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     )
     mask_full = ~torch.isnan(values_full)
 
-    print("coords_raw:", coords.shape[0])
-    print("coords_full:", coords_full.shape[0])
-    print("max train_idx:", train_idx.max())
-
     # Build initial graph for neighbour search
     init_encoder = lambda coords, values, mask, t_fourier=None: coords_full
     graph_provider.update(encoder=init_encoder, coords=coords_full, values=values_full, mask=mask_full)
