@@ -19,7 +19,7 @@ class CoordEncoder(nn.Module):
         )
 
         self.time = nn.Sequential(
-            nn.Linear(time_dim, hidden_dim),  # Fourier time
+            nn.Linear(time_dim, hidden_dim),  # Time
             nn.GELU()
         )
 
@@ -29,10 +29,10 @@ class CoordEncoder(nn.Module):
             nn.Linear(64, hidden_dim)
         )
 
-    def forward(self, coords, values, mask, t_fourier):
+    def forward(self, coords, values, mask, times):
         h_s = self.spatial(coords)
         h_v = self.state(torch.cat([values, mask], dim=-1))
-        h_t = self.time(t_fourier)
+        h_t = self.time(times)
         return self.fuse(torch.cat([h_s, h_v, h_t], dim=-1))
 
 
