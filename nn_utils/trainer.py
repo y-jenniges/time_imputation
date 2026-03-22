@@ -217,7 +217,9 @@ class Trainer:
         self.device = device
         self.loss_fn = loss_fn
 
+        # Graph logic
         self.graph_provider = graph_provider
+        self.freeze_graph = False
 
         # Early stopping
         self.best_model_state = None
@@ -327,6 +329,10 @@ class Trainer:
     def update_graph(self):
         if self.graph_provider is None:
             return
+
+        if self.freeze_graph:
+            return
+
         print("Updating graph...")
         st = time()
         self.model.eval()
@@ -410,8 +416,18 @@ class Trainer:
                 current_mask_ratio = mask_ratio
 
             # Update graph if specified
-            if self.graph_provider is not None and epoch % self.graph_provider.update_every == 0:
-                self.update_graph()
+            if self.graph_provider is not None:
+                # Freezing
+                if epoch == 20:
+                    self.freeze_graph = True  # Freeze graph
+
+                    # Freeze coord_encoder
+                    for p in self.model.coord_encoder.parameters():
+                        p.requires_grad = False
+
+                    logging.info("Graph frozen at epoch 20")
+                if(not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
+                    self.update_graph()
 
             # Train and compute losses
             train_loss = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)
