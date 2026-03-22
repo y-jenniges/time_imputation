@@ -24,7 +24,7 @@ class GraphProvider:
 
         with torch.no_grad():
             # Encode
-            encoded = encoder(coords=coords[:, :4], values=torch.nan_to_num(values, nan=0.0), mask=mask.float(), t_fourier=coords[:, -1:].float())
+            encoded = encoder(coords=coords[:, :4], values=torch.nan_to_num(values, nan=0.0), mask=mask.float(), times=coords[:, -1:].float())
             encoded_np = encoded.detach().cpu().numpy()
 
             # Construct KNN graph
