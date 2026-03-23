@@ -12,28 +12,33 @@ class CoordEncoder(nn.Module):
             nn.Linear(64, hidden_dim)
         )
 
-        self.state = nn.Sequential(
-            nn.Linear(value_dim * 2, 64),  # feature + mask
-            nn.GELU(),
-            nn.Linear(64, hidden_dim)
-        )
-
         self.time = nn.Sequential(
             nn.Linear(time_dim, hidden_dim),  # Time
             nn.GELU()
         )
 
+        # self.state = nn.Sequential(
+        #     nn.Linear(value_dim * 2, 64),  # feature + mask
+        #     nn.GELU(),
+        #     nn.Linear(64, hidden_dim)
+        # )
+
+        # self.fuse = nn.Sequential(
+        #     nn.Linear(hidden_dim * 3, 64),
+        #     nn.GELU(),
+        #     nn.Linear(64, hidden_dim)
+        # )
+
         self.fuse = nn.Sequential(
-            nn.Linear(96, 64),
+            nn.Linear(hidden_dim * 2, hidden_dim),
             nn.GELU(),
-            nn.Linear(64, hidden_dim)
         )
 
-    def forward(self, coords, values, mask, times):
+    def forward(self, coords, times, values, mask):
         h_s = self.spatial(coords)
-        h_v = self.state(torch.cat([values, mask], dim=-1))
+        # h_v = self.state(torch.cat([values, mask], dim=-1))
         h_t = self.time(times)
-        return self.fuse(torch.cat([h_s, h_v, h_t], dim=-1))
+        return self.fuse(torch.cat([h_s, h_t], dim=-1))
 
 
 """

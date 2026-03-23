@@ -196,7 +196,8 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     mask_full = ~torch.isnan(values_full)
 
     # Build initial graph for neighbour search
-    init_encoder = lambda coords, values, mask, times=None: coords_full
+    init_encoder = lambda coords, times, values, mask: coords_full
+    #init_encoder = lambda coords, times: coords_full
     graph_provider.update(encoder=init_encoder, coords=coords_full, values=values_full, mask=mask_full)
 
     # Define datasets
@@ -283,12 +284,9 @@ def prepare_neighbourhood_loaders(coords: torch.Tensor,
 
     n_samples = values.shape[0]
     # neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours+1, n_samples), algorithm="auto").fit(coords_full[train_idx].cpu().numpy())
-    neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours + 1, n_samples), algorithm="auto").fit(
-        coords_valid.cpu().numpy())
-    dists_train, neighbour_indices_train = neighbours_train.kneighbors(coords_full[train_idx].cpu().numpy(),
-                                                                       return_distance=True)
-    neighbour_indices_train = torch.as_tensor(neighbour_indices_train[:, 1:], dtype=torch.long,
-                                              device="cpu")  # Exclude self and convert to tensor
+    neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours + 1, n_samples), algorithm="auto").fit(coords_valid.cpu().numpy())
+    dists_train, neighbour_indices_train = neighbours_train.kneighbors(coords_full[train_idx].cpu().numpy(), return_distance=True)
+    neighbour_indices_train = torch.as_tensor(neighbour_indices_train[:, 1:], dtype=torch.long, device="cpu")  # Exclude self and convert to tensor
 
     dists_val, neighbour_indices_val = neighbours_train.kneighbors(coords_full[val_idx].cpu().numpy(),
                                                                    return_distance=True)
