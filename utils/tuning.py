@@ -133,10 +133,14 @@ class TuningResult:
             return obj.item()
         elif isinstance(obj, torch.dtype):  # Torch dtypes
             return str(obj)
-        elif isinstance(obj, BaseEstimator):
+        elif isinstance(obj, BaseEstimator):  # BaseEstimators (sklearn)
             return obj.__class__.__name__
-        elif isinstance(obj, float) and math.isnan(obj):
+        elif isinstance(obj, float) and math.isnan(obj):  # NaNs
             return None
+        elif isinstance(obj, torch.Tensor):  # Torch tensors
+            return obj.detach().cpu().tolist()
+        elif isinstance(obj, np.ndarray):  # Numpy arrays
+            return obj.tolist()
         else:
             return obj
 
