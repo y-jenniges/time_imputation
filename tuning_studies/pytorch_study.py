@@ -241,6 +241,18 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim, dists, full_coords, full_values, full_mask = (
         loader_funcs[model_name](**loader_kwargs))
 
+    # Adding global mean data to mastnet
+    if model_name == "mastnet":
+        total_sum, total_count = 0.0, 0.0
+        for batch in train_loader:
+            feats = batch["query_features"]
+            mask = batch["query_mask"]
+
+            total_sum += (feats * mask).sum(dim=0)
+            total_count += mask.sum(dim=0)
+
+        model_hyps["global_means"] = total_sum / total_count
+
     if dists is not None and lambda_smooth is not None:
         sigma = np.median(dists)
         loss_spec["kwargs"]["sigma"] = sigma
