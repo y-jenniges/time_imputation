@@ -13,7 +13,11 @@ class MaSTNeT(nn.Module):
                  nlayers=2, dropout=0.1, dim_feedforward=128, global_means=None):
         super().__init__()
 
-        self.global_means = global_means
+        # Define global means (and automatically make it move to correct device)
+        if global_means is None:
+            self.global_means = None
+        else:
+            self.register_buffer("global_means", torch.tensor(global_means, dtype=torch.float32))
 
         self.coord_dim = coord_dim
         self.value_dim = value_dim
