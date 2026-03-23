@@ -251,7 +251,9 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
             total_sum += (feats * mask).sum(dim=0)
             total_count += mask.sum(dim=0)
 
-        model_hyps["global_means"] = total_sum / total_count
+        global_means = total_sum / total_count
+        model_hyps["global_means"] = global_means
+        logging.info(f"Global means: {global_means}")
 
     if dists is not None and lambda_smooth is not None:
         sigma = np.median(dists)
