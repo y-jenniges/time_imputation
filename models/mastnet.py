@@ -9,8 +9,11 @@ from nn_utils.embed import PositionalEncoder, CoordEncoder
 
 
 class MaSTNeT(nn.Module):
-    def __init__(self, coord_dim=5, value_dim=6, pos_hidden_dim=64, coord_encoder_hidden_dim=32, d_model=64, nhead=4, nlayers=2, dropout=0.1, dim_feedforward=128):
+    def __init__(self, coord_dim=5, value_dim=6, pos_hidden_dim=64, coord_encoder_hidden_dim=32, d_model=64, nhead=4,
+                 nlayers=2, dropout=0.1, dim_feedforward=128, global_means=None):
         super().__init__()
+
+        self.global_means = global_means
 
         self.coord_dim = coord_dim
         self.value_dim = value_dim
@@ -73,7 +76,7 @@ class MaSTNeT(nn.Module):
         # Prepare query token
         query_mask_float = query_mask.float().unsqueeze(1)  # [batch_size, 1, n_features]
         query_coords_float = query_coords.float().unsqueeze(1)
-        query_feat_filled = torch.where(query_mask, query_features, torch.zeros_like(query_features)).unsqueeze(1)  # Fill missing features with 0
+        query_feat_filled = torch.where(query_mask, query_features, torch.zeros_like(query_features) if self.global_means is None else self.global_means.unsqueeze(0)).unsqueeze(1)  # Fill missing features with 0
         query_feat_filled = self.feature_mixer(torch.cat([query_feat_filled, query_mask_float], dim=-1))
         #query_feat_filled = self.feature_mixer(query_feat_filled)
 
@@ -89,7 +92,7 @@ class MaSTNeT(nn.Module):
         query_token = torch.cat([rel_positions_dummy, query_coords_float, query_feat_filled, query_mask_float], dim=-1)  # [batch_size, 1, input_dim]
 
         neighbour_mask_float = neighbour_mask.float()
-        neighbour_feat_filled = torch.where(neighbour_mask, neighbour_features, torch.zeros_like(neighbour_features))  # Fill missing features with 0
+        neighbour_feat_filled = torch.where(neighbour_mask, neighbour_features, torch.zeros_like(neighbour_features) if self.global_means is None else self.global_means.unsqueeze(0))  # Fill missing features with 0
         neighbour_feat_filled = self.feature_mixer(torch.cat([neighbour_feat_filled, neighbour_mask_float], dim=-1))
         #neighbour_feat_filled = self.feature_mixer(neighbour_feat_filled)
         neighbour_tokens = torch.cat([rel_positions, neighbour_coords, neighbour_feat_filled, neighbour_mask_float], dim=-1)  # [batch_size, neighbours, input_dim]
