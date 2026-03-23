@@ -246,9 +246,9 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         total_sum, total_count = 0.0, 0.0
         for batch in train_loader:
             feats = batch["query_features"]
-            mask = batch["query_mask"]
+            mask = batch["query_mask"].float()
 
-            total_sum += (feats * mask).sum(dim=0)
+            total_sum += feats.nansum(dim=0)
             total_count += mask.sum(dim=0)
 
         global_means = total_sum / total_count
