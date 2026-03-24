@@ -415,19 +415,19 @@ class Trainer:
             else:
                 current_mask_ratio = mask_ratio
 
-            # Update graph if specified
-            if self.graph_provider is not None:
-                # Freezing
-                if epoch == 20:
-                    self.freeze_graph = True  # Freeze graph
-
-                    # Freeze coord_encoder
-                    for p in self.model.coord_encoder.parameters():
-                        p.requires_grad = False
-
-                    logging.info("Graph frozen at epoch 20")
-                if(not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
-                    self.update_graph()
+            # # Update graph if specified
+            # if self.graph_provider is not None:
+            #     # Freezing
+            #     if epoch == 20:
+            #         self.freeze_graph = True  # Freeze graph
+            #
+            #         # Freeze coord_encoder
+            #         for p in self.model.coord_encoder.parameters():
+            #             p.requires_grad = False
+            #
+            #         logging.info("Graph frozen at epoch 20")
+            #     if(not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
+            #         self.update_graph()
 
             # Train and compute losses
             train_loss = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)

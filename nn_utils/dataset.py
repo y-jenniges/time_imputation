@@ -200,6 +200,8 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     #init_encoder = lambda coords, times: coords_full
     graph_provider.update(encoder=init_encoder, coords=coords_full, values=values_full, mask=mask_full)
 
+    print("dataset graph provider updated")
+
     # Define datasets
     train_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, graph_provider=graph_provider)
     val_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, graph_provider=graph_provider)

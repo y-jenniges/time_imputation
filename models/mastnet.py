@@ -21,7 +21,8 @@ class MaSTNeT(nn.Module):
 
         self.coord_dim = coord_dim
         self.value_dim = value_dim
-        self.input_dim = self.coord_dim * 2 + self.value_dim * 2  # coords and relative coords, features and feature masks
+        self.input_dim = self.coord_dim * 2 + self.value_dim  # coords and relative coords, features
+        # self.input_dim = self.coord_dim * 2 + self.value_dim * 2  # coords and relative coords, features and feature masks
         # self.input_dim = self.coord_dim + d_model + self.value_dim * 2  # coords and relative coords embedding, features and feature masks
         # self.input_dim = self.coord_dim + self.value_dim * 2  # coords and relative coords embedding, features and feature masks
 
@@ -93,13 +94,15 @@ class MaSTNeT(nn.Module):
         # query_token = torch.cat([query_coords_float, query_feat_filled, query_mask_float], dim=-1)  # [batch_size, 1, input_dim]
 
         rel_positions_dummy = torch.zeros_like(query_coords_float)
-        query_token = torch.cat([rel_positions_dummy, query_coords_float, query_feat_filled, query_mask_float], dim=-1)  # [batch_size, 1, input_dim]
+        # query_token = torch.cat([rel_positions_dummy, query_coords_float, query_feat_filled, query_mask_float], dim=-1)  # [batch_size, 1, input_dim]
+        query_token = torch.cat([rel_positions_dummy, query_coords_float, query_feat_filled], dim=-1)  # [batch_size, 1, input_dim]
 
         neighbour_mask_float = neighbour_mask.float()
         neighbour_feat_filled = torch.where(neighbour_mask, neighbour_features, torch.zeros_like(neighbour_features) if self.global_means is None else self.global_means.unsqueeze(0))  # Fill missing features with 0
         neighbour_feat_filled = self.feature_mixer(torch.cat([neighbour_feat_filled, neighbour_mask_float], dim=-1))
         #neighbour_feat_filled = self.feature_mixer(neighbour_feat_filled)
-        neighbour_tokens = torch.cat([rel_positions, neighbour_coords, neighbour_feat_filled, neighbour_mask_float], dim=-1)  # [batch_size, neighbours, input_dim]
+        # neighbour_tokens = torch.cat([rel_positions, neighbour_coords, neighbour_feat_filled, neighbour_mask_float], dim=-1)  # [batch_size, neighbours, input_dim]
+        neighbour_tokens = torch.cat([rel_positions, neighbour_coords, neighbour_feat_filled], dim=-1)  # [batch_size, neighbours, input_dim]
         # neighbour_tokens = torch.cat([rel_pos_embed, neighbour_coords, neighbour_feat_filled, neighbour_mask_float], dim=-1)  # [batch_size, neighbours, input_dim]
         # neighbour_tokens = torch.cat([neighbour_coords, neighbour_feat_filled, neighbour_mask_float], dim=-1)  # [batch_size, neighbours, input_dim]
 
