@@ -248,7 +248,7 @@ ablation_study = {
             use_masks=False,
             attention_type="transformer_encoder_layer"
         )},
-    "exp12": {
+    "exp11": {
         "description": "Raw KNN, encoder-decoder",
         "config": ModelConfig(
             graph_mode="static",
@@ -267,6 +267,106 @@ ablation_study = {
             use_rel_pos=False,
             use_masks=False,
             attention_type="encoder_decoder"
+        )},
+    "exp12": {
+        "description": "Dynamic, encoded KNN (coords), coordinate encoder (graph), MHA",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="graph",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
+        )},
+    "exp13": {
+        "description": "Dynamic, encoded KNN (coord+feat), coordinate encoder (graph), MHA",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="graph",
+            encoder_input="coords_feat",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
+        )},
+    "exp14": {
+        "description": "Dynamic, encoded KNN (coord+feat+mask), coordinate encoder (graph), MHA",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="graph",
+            encoder_input="coords_feat_mask",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
+        )},
+    "exp15": {
+        "description": "Dynamic, encoded KNN (coord+feat+mask), coordinate encoder (model), MHA",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="model",
+            encoder_input="coords_feat_mask",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
+        )},
+    "exp16": {
+        "description": "Dynamic, encoded KNN (coord+feat+mask), coordinate encoder (both), MHA",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords_feat_mask",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
         )},
     # "exp10": {
     #     "description": "Raw anisotropic KNN, MHA",
