@@ -196,10 +196,10 @@ class MaSTNeT(nn.Module):
 
         # Optional coordinate encoding
         if self.coord_encoder is not None and self.cfg.encoder_scope in ["model", "both"]:
-            encoded_query_coords = self.coord_encoder(coords=query_coords[:, :self.coord_dim - 2],
+            encoded_query_coords = self.coord_encoder(coords=query_coords[:, :self.coord_dim - 1],
                                                       times=query_coords[:, -1:], values=query_features_filled,
                                                       mask=query_mask.float())
-            encoded_neighbour_coords = self.coord_encoder(coords=neighbour_coords[:, :, :self.coord_dim - 2],
+            encoded_neighbour_coords = self.coord_encoder(coords=neighbour_coords[:, :, :self.coord_dim - 1],
                                                           times=neighbour_coords[:, :, -1:], values=neighbour_features_filled,
                                                           mask=neighbour_mask.float())
         else:
