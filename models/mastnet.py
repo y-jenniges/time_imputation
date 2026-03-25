@@ -127,7 +127,7 @@ class MaSTNeT(nn.Module):
         dim = 0
 
         # Coordinate encoding
-        if self.cfg.encoder_scope != "none":
+        if self.cfg.encoder_scope not in ["none", "graph"]:
             dim += self.cfg.encoder_output_dim
         else:
             dim += self.coord_dim
