@@ -31,7 +31,7 @@ class CoordEncoder(nn.Module):
             )
 
             self.fuse = nn.Sequential(
-                nn.Linear(hidden_dim * 2, 64),
+                nn.Linear(hidden_dim * 3, 64),
                 nn.GELU(),
                 nn.Linear(64, output_dim)
             )
