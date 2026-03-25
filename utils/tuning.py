@@ -69,6 +69,9 @@ class TuningResult:
     scalers_path: str | None = None
     scalers: dict = field(default_factory=dict)
 
+    # Graph metrics
+    graph_history = None
+
     def save(self, fname: Path, model=None):
         # Store model if given
         if model is not None:

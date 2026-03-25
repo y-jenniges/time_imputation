@@ -404,6 +404,9 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     results.metrics_all = history["metrics"]
     results.metrics_last = history["metrics"][max(history["metrics"].keys())] if "metrics" in history and history["metrics"] else {}
 
+    if graph_provider is not None:
+        results.graph_history = graph_provider.history
+
     # Store results on disc
     results.save(json_fname, model=model if save_model else None)
 
