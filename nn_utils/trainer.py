@@ -203,7 +203,10 @@ class Trainer:
     def __init__(self, model: torch.nn.Module, adapter: ModelAdapter, optimizer: torch.optim.Optimizer,
                  full_coords: torch.Tensor, full_values: torch.Tensor, full_mask: torch.Tensor,
                  graph_provider: GraphProvider = None,
-                 device: torch.cuda.device = "cpu", loss_fn: BaseLoss = MaskedMSELoss()):
+                 device: torch.cuda.device = "cpu",
+                 loss_fn: BaseLoss = MaskedMSELoss(),
+                 global_means: torch.Tensor = None,
+                 cfg=None):
         """
         Args:
             model: MAE model
@@ -229,6 +232,9 @@ class Trainer:
         self.full_coords = full_coords.to(device)
         self.full_values = full_values.to(device)
         self.full_mask = full_mask.to(device)
+
+        self.cfg = cfg
+        self.global_means = global_means
 
         # Init summary writer
         self.writer = SummaryWriter(log_dir=f"/tmp/{self.model.__class__.__name__}_{int(time())}")
@@ -333,12 +339,12 @@ class Trainer:
         if self.freeze_graph:
             return
 
-        print("Updating graph...")
+        logging.info("Updating graph...")
         st = time()
         self.model.eval()
 
-        self.graph_provider.update(encoder=self.model.coord_encoder, coords=self.full_coords, values=self.full_values, mask=self.full_mask)
-        print("Updated graph in %.0f minutes." % ((time() - st) / 60 ))
+        self.graph_provider.update(encoder=self.model.coord_encoder, coords=self.full_coords, values=self.full_values, mask=self.full_mask, mean_values=self.global_means)
+        logging.info("Updated graph in %.0f minutes." % ((time() - st) / 60 ))
 
     def log_metrics(self, prefix, d):
         # Recursively log all scalar metrics
@@ -415,19 +421,21 @@ class Trainer:
             else:
                 current_mask_ratio = mask_ratio
 
-            # # Update graph if specified
-            # if self.graph_provider is not None:
-            #     # Freezing
-            #     if epoch == 20:
-            #         self.freeze_graph = True  # Freeze graph
-            #
-            #         # Freeze coord_encoder
-            #         for p in self.model.coord_encoder.parameters():
-            #             p.requires_grad = False
-            #
-            #         logging.info("Graph frozen at epoch 20")
-            #     if(not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
-            #         self.update_graph()
+            # Update graph if specified
+            if self.graph_provider is not None and self.cfg.graph_mode == "dynamic":
+                # Freezing
+                if epoch == 20:
+                    self.freeze_graph = True  # Freeze graph
+
+                    # Freeze coord_encoder (if scope is limited to graph)
+                    if self.cfg.encoder_scope == "graph":
+                        for p in self.model.coord_encoder.parameters():
+                            p.requires_grad = False
+                        logging.info("Coord encoder frozen at epoch 20")
+
+                    logging.info("Graph frozen at epoch 20")
+                if(not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
+                    self.update_graph()
 
             # Train and compute losses
             train_loss = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)

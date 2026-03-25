@@ -176,7 +176,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
                                split_path, trial_id,
                                tuning_mode=True, optuna_callback=None, seed=42, device=torch.device("cpu"),
                                save_model=False, output_dir=None,
-                               do_dropout=False, n_inferences=1):
+                               do_dropout=False, n_inferences=1,
+                               cfg=None):
     """ Run model on one split and store results. """
     # Output dir and file
     model_outdir = Path(output_dir) if output_dir else Path(config.output_dir_tuning) / model_name
@@ -230,7 +231,12 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
             batch_size=batch_size,
             generator=generator)
     if model_name == "mastnet":
-        graph_provider = GraphProvider(n_neighbours=n_neighbours, update_every=5, test_idx=test_idx, val_idx=val_idx)
+        graph_provider = GraphProvider(n_neighbours=n_neighbours, update_every=5,
+                                       graph_mode= cfg.graph_mode,
+                                       graph_space=cfg.graph_space,
+                                       graph_metric=cfg.graph_metric,
+                                       fill_strategy=cfg.fill_strategy,
+                                       test_idx=test_idx, val_idx=val_idx)
         loader_kwargs["n_neighbours"] = n_neighbours
         loader_kwargs["graph_provider"] = graph_provider
     else:
@@ -241,7 +247,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim, dists, full_coords, full_values, full_mask = (
         loader_funcs[model_name](**loader_kwargs))
 
-    # Adding global mean data to mastnet
+    # Adding global mean data and cfg to mastnet
     if model_name == "mastnet":
         total_sum, total_count = 0.0, 0.0
         for batch in train_loader:
@@ -253,7 +259,10 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
         global_means = total_sum / total_count
         model_hyps["global_means"] = global_means
+        model_hyps["cfg"] = cfg
         logging.info(f"Global means: {global_means}")
+    else:
+        global_means = torch.ones(value_dim)
 
     if dists is not None and lambda_smooth is not None:
         sigma = np.median(dists)
@@ -267,7 +276,9 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     model = model_class(**model_hyps).to(device)
     loss_fn = build_loss(loss_spec)
     optimizer = optimizer_class(chain(model.parameters(), loss_fn.parameters()), lr=learning_rate)
-    trainer = Trainer(model=model, adapter=adapter, optimizer=optimizer, loss_fn=loss_fn, device=device, graph_provider=graph_provider, full_coords=full_coords, full_values=full_values, full_mask=full_mask)
+    trainer = Trainer(model=model, adapter=adapter, optimizer=optimizer, loss_fn=loss_fn, device=device,
+                      graph_provider=graph_provider, full_coords=full_coords, full_values=full_values,
+                      full_mask=full_mask, global_means=global_means, cfg=cfg)
     early_stopper = EarlyStopping(patience=patience)
     def_time = time() - st
 
