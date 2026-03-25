@@ -101,7 +101,7 @@ ablation_study = {
 
             fill_strategy="zero",
             feature_mixer=True,
-            feature_mixer_input="feat",  # Unused
+            feature_mixer_input="feat",
 
             use_rel_pos=False,
             use_masks=False,
@@ -109,16 +109,16 @@ ablation_study = {
         )},
 
     "exp4": {
-        "description": "Raw KNN, coordinate encoder (model) feature mixer, MHA",
+        "description": "Raw KNN, coordinate encoder (model), MHA",
         "config": ModelConfig(
             graph_mode="static",
             graph_space="raw",
             graph_metric="isotropic",
 
             encoder_scope="model",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
 
             fill_strategy="zero",
             feature_mixer=False,
@@ -129,16 +129,16 @@ ablation_study = {
             attention_type="mha"
         )},
     "exp5": {
-        "description": "Raw KNN, coordinate encoder (graph) feature mixer, MHA",
+        "description": "Raw KNN, coordinate encoder (graph), MHA",
         "config": ModelConfig(
             graph_mode="static",
             graph_space="encoded",
             graph_metric="isotropic",
 
             encoder_scope="graph",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
 
             fill_strategy="zero",
             feature_mixer=False,
@@ -149,11 +149,71 @@ ablation_study = {
             attention_type="mha"
         )},
     "exp6": {
+        "description": "Raw KNN, coordinate encoder (both), MHA",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
+        )},
+    "exp7": {
+        "description": "Raw KNN, coordinate encoder (both, coords+feat), MHA",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords_feat",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
+        )},
+    "exp8": {
+        "description": "Raw KNN, coordinate encoder (both, coords+feat+mask), MHA",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords_feat_mask",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
+        )},
+    "exp9": {
         "description": "Raw anisotropic KNN, MHA",
         "config": ModelConfig(
             graph_mode="static",
             graph_space="raw",
-            graph_metric="anisotropic",  # Unused
+            graph_metric="anisotropic",
 
             encoder_scope="none",
             encoder_input="coords_feat_mask",
@@ -168,12 +228,72 @@ ablation_study = {
             use_masks=False,
             attention_type="mha"
         )},
+    "exp10": {
+        "description": "Raw KNN, transformer encoder",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="transformer_encoder_layer"
+        )},
+    "exp12": {
+        "description": "Raw KNN, encoder-decoder",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="encoder_decoder"
+        )},
+    # "exp10": {
+    #     "description": "Raw anisotropic KNN, MHA",
+    #     "config": ModelConfig(
+    #         graph_mode="static",
+    #         graph_space="encoded",
+    #         graph_metric="isotropic",
+    #
+    #         encoder_scope="graph",  # @todo coord encoder setting what was previously good?
+    #         encoder_input="coords",
+    #         encoder_output_dim=3,
+    #         encoder_hidden_dim=64,
+    #
+    #         fill_strategy="zero",
+    #         feature_mixer=False,
+    #         feature_mixer_input="feat_mask",
+    #
+    #         use_rel_pos=False,
+    #         use_masks=False,
+    #         attention_type="mha"
+    #     )},
     # "exp6": {
     #     "description": "Full model",
     #     "config": ModelConfig(
     #         graph_mode="dynamic",
     #         graph_space="encoded",
-    #         graph_metric="isotropic",  # Unused
+    #         graph_metric="isotropic",
     #
     #         encoder_scope="both",
     #         encoder_input="coords_feat_mask",
@@ -185,7 +305,7 @@ ablation_study = {
     #         feature_mixer_input="feat_mask",
     #
     #         use_rel_pos=True,
-    #         use_masks=True,
+    #         use_masks=False,
     #         attention_type="mha"
     #     )},
 }
