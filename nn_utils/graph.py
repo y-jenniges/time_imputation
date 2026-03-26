@@ -8,12 +8,24 @@ def knn_feature_variance(values, mask, knn_idx):
     v_i = values.unsqueeze(1)  # [N, 1, F]
     v_j = values[knn_idx]  # [N, K, F]
 
-    m_i = mask.unsqueeze(1).float()
-    m_j = mask[knn_idx].float()
-    joint_mask = m_i * m_j
+    # Prepare passed mask
+    m_i = mask.unsqueeze(1)            # [N, 1, F]
+    m_j = mask[knn_idx]                # [N, K, F]
 
-    diff2 = (v_i - v_j) ** 2
-    var = (diff2 * joint_mask).sum() / joint_mask.sum().clamp(min=1)
+    # NaN mask
+    nan_mask = ~torch.isnan(values)    # [N, F]
+    n_i = nan_mask.unsqueeze(1)        # [N, 1, F]
+    n_j = nan_mask[knn_idx]            # [N, K, F]
+
+    # Combine masks
+    joint_mask = m_i & m_j & n_i & n_j   # [N, K, F]
+
+    # Compute squared differences (avoid NaN propagation)
+    diff2 = (torch.nan_to_num(v_i) - torch.nan_to_num(v_j)) ** 2
+
+    # Apply mask and compute variance
+    diff2 = torch.where(joint_mask, diff2, 0.0)
+    var = diff2.sum() / joint_mask.sum().clamp(min=1)
 
     return var.item()
 
