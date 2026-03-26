@@ -137,6 +137,18 @@ class GraphProvider:
             print("Time graph: ")
             print(f"feat_variance: {feat_variance_time:.6f}, time_difference: {time_difference_time:.6f}, overlap: {overlap_time}")
 
+            self.history["feat_variance"].append(feat_variance)
+            self.history["time_difference"].append(time_difference)
+            self.history["overlap"].append(overlap)
+
+            self.history["feat_variance_time"].append(feat_variance_time)
+            self.history["time_difference_time"].append(time_difference_time)
+            self.history["overlap_time"].append(overlap_time)
+
+            self.prev_neighbour_indices = {
+                k: v.clone() for k, v in self.neighbour_indices.items()
+            }
+
         else:
             overlap = None
             if self.prev_neighbour_indices is not None:
@@ -144,10 +156,11 @@ class GraphProvider:
 
             print(f"feat_variance: {feat_variance:.6f}, time_difference: {time_difference:.6f}, overlap: {overlap}")
 
-        self.history["feat_variance"].append(feat_variance)
-        self.history["time_difference"].append(time_difference)
+            self.history["feat_variance"].append(feat_variance)
+            self.history["time_difference"].append(time_difference)
+            self.history["overlap"].append(overlap)
 
-        self.prev_neighbour_indices = self.neighbour_indices.clone()
+            self.prev_neighbour_indices = self.neighbour_indices.clone()
 
     def update(self, encoder, coords, values, mask, mean_values=None):
         """ Recompute graph from latent space. """
