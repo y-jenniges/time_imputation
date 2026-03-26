@@ -86,7 +86,9 @@ class GraphProvider:
 
     def encode_input(self, encoder, coords, values, mask, mean_values=None):
         if self.graph_space == "encoded":
+            # Fill masked values and nan values (test/val idxs)
             values_filled = fill_feature_tensor(features=values, mask=mask, fill_strategy=self.fill_strategy, mean_values=mean_values)
+            values_filled = fill_feature_tensor(features=values_filled, mask=None, fill_strategy=self.fill_strategy, mean_values=mean_values)
             encoded = encoder(coords=coords[:, :4], values=values_filled, mask=mask.float(), times=coords[:, -1:].float())
             return encoded.detach().cpu().numpy()
 
@@ -125,7 +127,7 @@ class GraphProvider:
             values[self.val_idx] = torch.nan
 
         # Encoding
-        encoded = self.encode_input(encoder=encoder, coords=coords, values=values, mask=mask, mean_values=mean_values)
+        encoded = self.encode_input(encoder=encoder, coords=coords, values=values, mask=mask, mean_values=mean_values)  # second visit here somehow leaves nan
 
         # Graph building
         self.build_graph(encoded=encoded, coords=coords, values=values, mask=mask)
