@@ -5,7 +5,10 @@ from sklearn.neighbors import NearestNeighbors
 from utils.preprocessing import fill_feature_tensor
 
 
-def knn_feature_variance(values, mask, knn_idx):
+def knn_feature_variance(values, mask, knn_idx, scope="space"):
+    if isinstance(knn_idx, dict):
+        knn_idx = knn_idx[scope]
+
     # How similar are feature values in neighbourhood? Low variance --> Similar neighbours
     v_i = values.unsqueeze(1)  # [N, 1, F]
     v_j = values[knn_idx]  # [N, K, F]
@@ -32,8 +35,11 @@ def knn_feature_variance(values, mask, knn_idx):
     return var.item()
 
 
-def knn_time_difference(coords, knn_idx):
+def knn_time_difference(coords, knn_idx, scope="space"):
     # How far apart are neighbours in time? (Lower is better)
+    if isinstance(knn_idx, dict):
+        knn_idx = knn_idx[scope]
+
     t = coords[:, -1]
     t_i = t.unsqueeze(1)
     t_j = t[knn_idx]
@@ -113,14 +119,31 @@ class GraphProvider:
             raise ValueError(f"Unknown graph space: {self.cfg.graph_space}")
 
     def update_eval_metrics(self, values, coords, mask):
-        feat_variance = knn_feature_variance(values, mask, self.neighbour_indices)
-        time_difference = knn_time_difference(coords, self.neighbour_indices)
+        feat_variance = knn_feature_variance(values, mask, self.neighbour_indices, scope="space")
+        time_difference = knn_time_difference(coords, self.neighbour_indices, scope="space")
 
-        overlap = None
-        if self.prev_neighbour_indices is not None:
-            overlap = knn_overlap(prev_idx=self.prev_neighbour_indices, new_idx=self.neighbour_indices)
+        if self.cfg.attention_type == "space_time_attention":
+            feat_variance_time = knn_feature_variance(values, mask, self.neighbour_indices, scope="time")
+            time_difference_time = knn_time_difference(coords, self.neighbour_indices, scope="time")
 
-        print(f"feat_variance: {feat_variance:.6f}, time_difference: {time_difference:.6f}, overlap: {overlap}")
+            overlap, overlap_time = None, None
+            if self.prev_neighbour_indices is not None:
+                overlap = knn_overlap(prev_idx=self.prev_neighbour_indices["space"], new_idx=self.neighbour_indices["space"])
+                overlap_time = knn_overlap(prev_idx=self.prev_neighbour_indices["time"], new_idx=self.neighbour_indices["time"])
+
+            print(f"Space graph: ")
+            print(f"feat_variance: {feat_variance:.6f}, time_difference: {time_difference:.6f}, overlap: {overlap}")
+
+            print("Time graph: ")
+            print(f"feat_variance: {feat_variance_time:.6f}, time_difference: {time_difference_time:.6f}, overlap: {overlap_time}")
+
+        else:
+            overlap = None
+            if self.prev_neighbour_indices is not None:
+                overlap = knn_overlap(prev_idx=self.prev_neighbour_indices, new_idx=self.neighbour_indices)
+
+            print(f"feat_variance: {feat_variance:.6f}, time_difference: {time_difference:.6f}, overlap: {overlap}")
+
         self.history["feat_variance"].append(feat_variance)
         self.history["time_difference"].append(time_difference)
 
