@@ -9,14 +9,42 @@ from nn_utils.embed import PositionalEncoder, CoordEncoder
 from tuning_studies.modelconfig import ModelConfig
 from utils.preprocessing import fill_feature_tensor
 
+class CrossAttentionBlock(nn.Module):
+    def __init__(self, d_model, nhead, dim_feedforward, dropout):
+        super().__init__()
+
+        # Multi-head attention (only query attends to neighbours)
+        self.attn = nn.MultiheadAttention(
+            embed_dim=d_model,
+            num_heads=nhead,
+            batch_first=True,
+            dropout=dropout
+        )
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+
+        self.mlp = nn.Sequential(
+            nn.Linear(d_model, dim_feedforward),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(dim_feedforward, d_model),
+        )
+
+    def forward(self, q, n):
+        attn_out, _ = self.attn(q, n, n)
+        q = self.norm1(q + attn_out)
+
+        mlp_out = self.mlp(q)
+        q = self.norm2(q + mlp_out)
+
+        return q
 
 class MaSTNeT(nn.Module):
     def __init__(self,
                  cfg: ModelConfig,
                  coord_dim=5, value_dim=6, pos_hidden_dim=64,
                  d_model=64, nhead=4,
-                 n_neighbours=30,
-                 nlayers=2, dropout=0.1, dim_feedforward=128, global_means=None):
+                 nlayers=3, dropout=0.1, dim_feedforward=128, global_means=None):
         super().__init__()
         self.cfg = cfg
         self.coord_dim = coord_dim
@@ -65,23 +93,10 @@ class MaSTNeT(nn.Module):
         self.input_projector = nn.Linear(self.input_dim, d_model)
 
         if self.cfg.attention_type == "mha":
-            # Multi-head attention (only query attends to neighbours)
-            self.attn = nn.MultiheadAttention(
-                embed_dim=d_model,
-                num_heads=nhead,
-                batch_first=True,
-                dropout=dropout
-            )
-            self.norm1 = nn.LayerNorm(d_model)
-            self.norm2 = nn.LayerNorm(d_model)
-
-            # @todo should i add nlayers here too?
-            self.mlp = nn.Sequential(
-                nn.Linear(d_model, dim_feedforward),
-                nn.GELU(),
-                nn.Dropout(dropout),
-                nn.Linear(dim_feedforward, d_model),
-            )
+            self.mha_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(nlayers)
+            ])
 
         elif self.cfg.attention_type == "transformer_encoder_layer":
             # Transformer encoder
@@ -92,32 +107,19 @@ class MaSTNeT(nn.Module):
             self.encoder_transformer = nn.TransformerEncoder(encoder_layer, nlayers)
 
         elif self.cfg.attention_type == "encoder_decoder":
-            # Cross attention
-            self.cross_attn = nn.MultiheadAttention(
-                embed_dim=d_model,
-                num_heads=nhead,
-                batch_first=True,
+            # Transformer encoder
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, activation="gelu", batch_first=True,
                 dropout=dropout
             )
+            self.encoder_transformer = nn.TransformerEncoder(encoder_layer, nlayers)
 
-            # Self attention
-            self.self_attn = nn.MultiheadAttention(
-                embed_dim=d_model,
-                num_heads=nhead,
-                batch_first=True,
+            # Transformer decoder
+            decoder_layer = nn.TransformerDecoderLayer(
+                d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, activation="gelu", batch_first=True,
                 dropout=dropout
             )
-
-            self.norm1 = nn.LayerNorm(d_model)
-            self.norm2 = nn.LayerNorm(d_model)
-            self.norm3 = nn.LayerNorm(d_model)
-
-            self.mlp = nn.Sequential(
-                nn.Linear(d_model, dim_feedforward),
-                nn.GELU(),
-                nn.Dropout(dropout),
-                nn.Linear(dim_feedforward, d_model),
-            )
+            self.decoder_transformer = nn.TransformerDecoder(decoder_layer, nlayers)
 
         # Decoding
         self.mean_decoder = nn.Linear(d_model, value_dim)  # Mean head (for reconstruction)
@@ -218,10 +220,9 @@ class MaSTNeT(nn.Module):
             q = self.input_projector(query_token)
             n = self.input_projector(neighbour_tokens)  # + rel_pos_embed
 
-            attn_out, _ = self.attn(q, n, n, attn_mask=None, key_padding_mask=None)  # Query attends to neighbours
-            q = self.norm1(q + attn_out)
-            mlp_out = self.mlp(q)
-            encoded = self.norm2(q + mlp_out)
+            for layer in self.layers:
+                q = layer(q, n)
+            encoded = q
 
         elif self.cfg.attention_type == "transformer_encoder_layer":
             sequence = torch.cat([query_token, neighbour_tokens], dim=1)
@@ -229,19 +230,15 @@ class MaSTNeT(nn.Module):
             encoded = self.encoder_transformer(x)
 
         elif self.cfg.attention_type == "encoder_decoder":
-            q = self.input_projector(query_token)  # [B, 1, d_model]
+            # Encode neighbours
             n = self.input_projector(neighbour_tokens)  # [B, K, d_model]
+            n = self.encoder_transformer(n)
 
-            # Cross attention
-            attn_out, _ = self.cross_attn(q, n, n)
-            q = self.norm1(q + attn_out)
+            # Encode query
+            q = self.input_projector(query_token)  # [B, 1, d_model]
 
-            # Decoder (refinement)
-            self_out, _ = self.self_attn(q, q, q)
-            q = self.norm2(q + self_out)
-
-            # MLP
-            encoded = self.norm3(q + self.mlp(q))
+            # Decode query conditioned on memory (neighbours)
+            encoded = self.decoder_transformer(tgt=q, memory=n)
 
         else:
             raise ValueError(f"MaSTNeT: Unknown attention type: {self.cfg.attention_type}")
