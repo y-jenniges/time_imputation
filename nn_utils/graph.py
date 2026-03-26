@@ -1,13 +1,12 @@
 import torch
-from typing import Union, Dict
+from typing import Union, Dict, Any
 from sklearn.neighbors import NearestNeighbors
 
 from utils.preprocessing import fill_feature_tensor
 
 
-def knn_feature_variance(values, mask, knn_idx, scope="space"):
-    if isinstance(knn_idx, dict):
-        knn_idx = knn_idx[scope]
+def knn_feature_variance(values, mask, knn_idx, scope="default"):
+    knn_idx = knn_idx[scope]
 
     # How similar are feature values in neighbourhood? Low variance --> Similar neighbours
     v_i = values.unsqueeze(1)  # [N, 1, F]
@@ -35,10 +34,9 @@ def knn_feature_variance(values, mask, knn_idx, scope="space"):
     return var.item()
 
 
-def knn_time_difference(coords, knn_idx, scope="space"):
+def knn_time_difference(coords, knn_idx, scope="default"):
     # How far apart are neighbours in time? (Lower is better)
-    if isinstance(knn_idx, dict):
-        knn_idx = knn_idx[scope]
+    knn_idx = knn_idx[scope]
 
     t = coords[:, -1]
     t_i = t.unsqueeze(1)
@@ -46,10 +44,10 @@ def knn_time_difference(coords, knn_idx, scope="space"):
     return torch.mean(torch.abs(t_i - t_j)).item()
 
 
-def knn_overlap(prev_idx, new_idx):
+def knn_overlap(prev_idx, new_idx, scope="default"):
     # How many neighbours stayed the same after graph update? (1 = identical neighbours)
-    prev = prev_idx.unsqueeze(2)  # [N, K, 1]
-    new  = new_idx.unsqueeze(1)  # [N, 1, K]
+    prev = prev_idx[scope].unsqueeze(2)  # [N, K, 1]
+    new  = new_idx[scope].unsqueeze(1)  # [N, 1, K]
 
     matches = (prev.eq(new)).any(dim=-1).float()  # [N, K]
     return matches.mean().item()
@@ -76,7 +74,11 @@ class GraphProvider:
         # Graph properties and analytics
         self.neighbour_indices = None
         self.prev_neighbour_indices = None
-        self.history = {"feat_variance": [], "time_difference": [], "overlap": [], "feat_variance_time": [], "time_difference_time": [], "overlap_time": []}
+        self.history = {
+            "default": {"feat_variance": [], "time_difference": [], "overlap": []},
+            "space": {"feat_variance": [], "time_difference": [], "overlap": []},
+            "time": {"feat_variance": [], "time_difference": [], "overlap": []},
+        }
 
     @torch.no_grad()
     def build_graph(self, encoded, coords, values, mask):
@@ -93,14 +95,15 @@ class GraphProvider:
 
         elif self.cfg.graph_metric == "isotropic":
             indices = compute_candidates(encoded, k=self.n_neighbours+1)
-            self.neighbour_indices = indices[:, 1:]  # Remove self
+            self.neighbour_indices = {"default": indices[:, 1:]}  # Remove self
 
         elif self.cfg.graph_metric == "anisotropic":
             candidates = compute_candidates(coords, k=200)
-            self.neighbour_indices = compute_anisotropic_knn(coords, values, mask, k=self.n_neighbours,
+            indices = compute_anisotropic_knn(coords, values, mask, k=self.n_neighbours,
                                                              candidate_idx=candidates,
                                                              lambda_=1.0, weights=None, batch_size=2048,
                                                              device=self.device)
+            self.neighbour_indices = {"default": indices}
 
         else:
             raise ValueError(f"Unknown graph metric: {self.cfg.graph_metric}")
@@ -111,65 +114,52 @@ class GraphProvider:
             values_filled = fill_feature_tensor(features=values, mask=mask, fill_strategy=self.cfg.fill_strategy, mean_values=mean_values)
             values_filled = fill_feature_tensor(features=values_filled, mask=None, fill_strategy=self.cfg.fill_strategy, mean_values=mean_values)
             encoded = encoder(coords=coords[:, :4], values=values_filled, mask=mask.float(), times=coords[:, -1:].float())
-            return encoded.detach().cpu().numpy()
+            return encoded.detach()
 
         elif self.cfg.graph_space == "raw":
             return coords
         else:
             raise ValueError(f"Unknown graph space: {self.cfg.graph_space}")
 
+    def get_metrics(self, coords, values, mask, scope="default"):
+        feat_variance = knn_feature_variance(values, mask, self.neighbour_indices, scope=scope)
+        time_difference = knn_time_difference(coords, self.neighbour_indices, scope=scope)
+
+        overlap = None
+        if self.prev_neighbour_indices is not None:
+            overlap = knn_overlap(prev_idx=self.prev_neighbour_indices, new_idx=self.neighbour_indices, scope=scope)
+        return {"feat_variance": feat_variance, "time_difference": time_difference, "overlap": overlap}
+
+    def append_metrics(self, metrics, scope="default"):
+        self.history[scope]["feat_variance"].append(metrics["feat_variance"])
+        self.history[scope]["time_difference"].append(metrics["time_difference"])
+        self.history[scope]["overlap"].append(metrics["overlap"])
+
     def update_eval_metrics(self, values, coords, mask):
-        feat_variance = knn_feature_variance(values, mask, self.neighbour_indices, scope="space")
-        time_difference = knn_time_difference(coords, self.neighbour_indices, scope="space")
-
         if self.cfg.attention_type == "space_time_attention":
-            feat_variance_time = knn_feature_variance(values, mask, self.neighbour_indices, scope="time")
-            time_difference_time = knn_time_difference(coords, self.neighbour_indices, scope="time")
+            metrics_space = self.get_metrics(coords=coords, values=values, mask=mask, scope="space")
+            metrics_time = self.get_metrics(coords=coords, values=values, mask=mask, scope="time")
 
-            overlap, overlap_time = None, None
-            if self.prev_neighbour_indices is not None:
-                overlap = knn_overlap(prev_idx=self.prev_neighbour_indices["space"], new_idx=self.neighbour_indices["space"])
-                overlap_time = knn_overlap(prev_idx=self.prev_neighbour_indices["time"], new_idx=self.neighbour_indices["time"])
+            print(f"Space graph: \nfeat_variance: {metrics_space['feat_variance']:.6f}, time_difference: {metrics_space['time_difference']:.6f}, overlap: {metrics_space['overlap']}")
+            print(f"Time graph: \nfeat_variance: {metrics_time['feat_variance']:.6f}, time_difference: {metrics_time['time_difference']:.6f}, overlap: {metrics_time['overlap']}")
 
-            print(f"Space graph: ")
-            print(f"feat_variance: {feat_variance:.6f}, time_difference: {time_difference:.6f}, overlap: {overlap}")
-
-            print("Time graph: ")
-            print(f"feat_variance: {feat_variance_time:.6f}, time_difference: {time_difference_time:.6f}, overlap: {overlap_time}")
-
-            self.history["feat_variance"].append(feat_variance)
-            self.history["time_difference"].append(time_difference)
-            self.history["overlap"].append(overlap)
-
-            self.history["feat_variance_time"].append(feat_variance_time)
-            self.history["time_difference_time"].append(time_difference_time)
-            self.history["overlap_time"].append(overlap_time)
-
-            self.prev_neighbour_indices = {
-                k: v.clone() for k, v in self.neighbour_indices.items()
-            }
+            self.append_metrics(metrics_space, scope="space")
+            self.append_metrics(metrics_time, scope="time")
 
         else:
-            overlap = None
-            if self.prev_neighbour_indices is not None:
-                overlap = knn_overlap(prev_idx=self.prev_neighbour_indices, new_idx=self.neighbour_indices)
+            metrics = self.get_metrics(coords=coords, values=values, mask=mask, scope="default")
+            print(f"feat_variance: {metrics['feat_variance']:.6f}, time_difference: {metrics['time_difference']:.6f}, overlap: {metrics['overlap']}")
 
-            print(f"feat_variance: {feat_variance:.6f}, time_difference: {time_difference:.6f}, overlap: {overlap}")
+            self.append_metrics(metrics, scope="default")
 
-            self.history["feat_variance"].append(feat_variance)
-            self.history["time_difference"].append(time_difference)
-            self.history["overlap"].append(overlap)
-
-            self.prev_neighbour_indices = self.neighbour_indices.clone()
+        self.prev_neighbour_indices = {
+            k: v.clone() for k, v in self.neighbour_indices.items()
+        }
 
     def update(self, encoder, coords, values, mask, mean_values=None):
         """ Recompute graph from latent space. """
         values = values.clone()
         mask = mask.clone()
-
-        #coords = coords.to(self.device)
-        #values = values.to(self.device)
-        #mask = mask.to(self.device)
 
         if self.test_idx is not None:
             values[self.test_idx] = torch.nan
@@ -186,16 +176,18 @@ class GraphProvider:
         # KNN eval metrics
         self.update_eval_metrics(values=values, coords=coords, mask=mask)
 
-    def set(self, indices):
-        self.neighbour_indices = indices
+    def get_neighbours(self, idx, scope="default"):
+        return self.neighbour_indices[scope][idx]
 
-    def get(self, idx):
-        if isinstance(self.neighbour_indices, dict):
-            return {
-                "space": self.neighbour_indices["space"][idx],
-                "time": self.neighbour_indices["time"][idx]
-            }
-        return self.neighbour_indices[idx]
+    def get_neighbour_batch(self, idx, coords, values, feature_mask, scope="default") -> Dict[str, Any]:
+        n_idx = self.neighbour_indices[scope][idx]
+
+        return {
+            "idx": n_idx,
+            "values": values[n_idx],
+            "mask": feature_mask[n_idx],
+            "coords": coords[n_idx]
+        }
 
 
 def compute_candidates(coords, k=200):

@@ -51,73 +51,95 @@ class NeighbourAdapter(ModelAdapter):
         return batch["query_features"].shape[0]
 
     def prepare_batch(self, batch, device):
-        return {k: v.to(device) for k, v in batch.items()}
+        return self.to_device(batch, device)
+
+    def to_device(self, x, device):
+        if isinstance(x, dict):
+            return {k: self.to_device(v, device) for k, v in x.items()}
+        return x.to(device)
 
     def make_masks(self, batch, mask_ratio=0.0, mode="train", device=torch.device("cpu")):
-        q_feat = batch["query_features"]
-        n_feat = batch["neighbour_features"]
-
         q_mask = batch["query_mask"]
-        n_mask = batch["neighbour_mask"]
 
-        batch_size, n_features = q_feat.shape
-        n_neighbours = n_feat.shape[1]
+        scopes = [scope for scope in batch.keys() if scope not in ["query_features", "query_mask", "query_coords"]]
+        masks = {}
 
+        # Query masking
         if mode in ["train", "eval"] and mask_ratio > 0:
-            # random_feature_mask: True means "mask this feature"
-            q_random_mask, n_random_mask = (
-                random_feature_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio,
-                                    n_neighbours=n_neighbours, device=device, mask_query=True, mask_neighbours=True))
+            q_random_mask, _ = random_feature_mask(
+                batch_size=q_mask.shape[0],
+                feature_dim=q_mask.shape[1],
+                mask_ratio=mask_ratio,
+                device=device,
+                mask_query=True,
+                mask_neighbours=False
+            )
 
-            # Observed inputs after random masking
-            q_input_mask = q_mask & ~q_random_mask
-            n_input_mask = n_mask & ~n_random_mask
-
-            # Positions to reconstruct: originally observed but randomly hidden
-            q_loss_mask = q_mask & q_random_mask
-            n_loss_mask = n_mask & n_random_mask
-
+            masks["q_input_mask"] = q_mask & ~q_random_mask  # Observed inputs after random masking
+            masks["q_loss_mask"] = q_mask & q_random_mask  # Positions to reconstruct: Originally observed but randomly hidden
         elif mode == "reconstruct":
             # Reconstruct all missing features, feed all observed
-            q_input_mask = q_mask
-            n_input_mask = n_mask
-            q_loss_mask = torch.zeros_like(q_mask, dtype=torch.bool)
-            n_loss_mask = torch.zeros_like(n_mask, dtype=torch.bool)
-
+            masks["q_input_mask"] = q_mask
+            masks["q_loss_mask"] = torch.zeros_like(q_mask, dtype=torch.bool)
         else:
-            q_input_mask = q_mask
-            n_input_mask = n_mask
-            q_loss_mask = q_mask
-            n_loss_mask = n_mask
+            masks["q_input_mask"] = q_mask
+            masks["q_loss_mask"] = q_mask
 
-        return dict(q_input_mask=q_input_mask, n_input_mask=n_input_mask,
-                    q_loss_mask=q_loss_mask, n_loss_mask=n_loss_mask)
+        # Neighbour masking (per scope)
+        masks["neighbour_input"] = {}
+        masks["neighbour_loss"] = {}
+        for scope in scopes:
+            n_mask = batch[scope]["mask"]
+
+            if mode in ["train", "eval"] and mask_ratio > 0:
+                _, n_random_mask = random_feature_mask(
+                    batch_size=q_mask.shape[0],
+                    feature_dim=q_mask.shape[1],
+                    mask_ratio=mask_ratio,
+                    n_neighbours=n_mask.shape[1],
+                    device=device,
+                    mask_query=False,
+                    mask_neighbours=True
+                )
+                masks["neighbour_input"][scope] = n_mask & ~n_random_mask
+                masks["neighbour_loss"][scope] = n_mask & n_random_mask
+
+            elif mode == "reconstruct":
+                masks["neighbour_input"][scope] = n_mask
+                masks["neighbour_loss"][scope] = torch.zeros_like(n_mask, dtype=torch.bool)
+            else:
+                masks["neighbour_input"][scope] = n_mask
+                masks["neighbour_loss"][scope] = n_mask
+
+        return masks
 
     def forward(self, model, batch, masks):
-        q_feat = batch["query_features"]
-        q_coords = batch["query_coords"]
-        n_feat = batch["neighbour_features"]
-        n_coords = batch["neighbour_coords"]
-        rel_pos = batch["rel_positions"]
+        batch["query_mask"] = masks["q_input_mask"]
 
-        q_input_mask = masks["q_input_mask"]
-        n_input_mask = masks["n_input_mask"]
+        for scope, m in masks["neighbour_input"].items():
+            batch[scope]["mask"] = m
 
-        return model(query_features=q_feat, query_mask=q_input_mask, query_coords=q_coords, neighbour_features=n_feat,
-                     neighbour_coords=n_coords, neighbour_mask=n_input_mask, rel_positions=rel_pos)
+        return model(batch)
 
     def loss_inputs(self, batch, outputs, masks):
         pred_mean, pred_var = outputs
 
-        q_feat = batch["query_features"]
-        q_coords = batch["query_coords"]
-        q_mask = masks["q_loss_mask"]
+        return dict(
+            input=pred_mean,
+            target=batch["query_features"],
+            mask=masks["q_loss_mask"],
+            pred_var=pred_var,
 
-        n_feat = batch["neighbour_features"]
-        n_coords = batch["neighbour_coords"]
-
-        return dict(input=pred_mean, target=q_feat, mask=q_mask, pred_var=pred_var,
-                    neighbour_features=n_feat, neighbour_coords=n_coords, query_coords=q_coords)
+            # Structured neighbour info
+            neighbours={
+                scope: {
+                    "features": batch[scope]["features"],
+                    "coords": batch[scope]["coords"],
+                    "mask": masks["neighbour_loss"][scope]
+                }
+                for scope in batch.keys() if scope not in ["query_features", "query_mask", "query_coords"]
+            }
+        )
 
     def outputs_to_cpu(self, batch, outputs, to_numpy: bool = True):
         pred_mean, _ = outputs

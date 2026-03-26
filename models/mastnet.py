@@ -98,7 +98,7 @@ class MaSTNeT(nn.Module):
                 for _ in range(nlayers)
             ])
 
-        elif self.cfg.attention_type == "transformer_encoder_layer":
+        elif self.cfg.attention_type == "transformer_encoder":
             # Transformer encoder
             encoder_layer = nn.TransformerEncoderLayer(
                 d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, activation="gelu", batch_first=True,
@@ -106,7 +106,7 @@ class MaSTNeT(nn.Module):
             )
             self.encoder_transformer = nn.TransformerEncoder(encoder_layer, nlayers)
 
-        elif self.cfg.attention_type == "encoder_decoder":
+        elif self.cfg.attention_type == "autoencoder":
             # Transformer encoder
             encoder_layer = nn.TransformerEncoderLayer(
                 d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, activation="gelu", batch_first=True,
@@ -161,188 +161,132 @@ class MaSTNeT(nn.Module):
 
         return dim
 
-    def construct_tokens(self, query_coords, encoded_query_coords, encoded_query_features, query_mask,
-                         rel_positions, encoded_neighbour_coords, encoded_neighbour_features, neighbour_mask):
-        query_token_input = []
-        neighbour_token_input = []
+    def construct_token(self, encoded_coords, encoded_features, mask, rel_positions):
+        token_input = []
 
         if self.cfg.use_rel_pos:
-            rel_positions_dummy = torch.zeros_like(query_coords)
-            query_token_input.append(rel_positions_dummy)
-            neighbour_token_input.append(rel_positions)
+            token_input.append(rel_positions)
 
-        query_token_input.append(encoded_query_coords)
-        query_token_input.append(encoded_query_features)
-        neighbour_token_input.append(encoded_neighbour_coords)
-        neighbour_token_input.append(encoded_neighbour_features)
+        token_input.append(encoded_coords)
+        token_input.append(encoded_features)
 
         if self.cfg.use_masks:
-            query_token_input.append(query_mask.float())
-            neighbour_token_input.append(neighbour_mask.float())
+            token_input.append(mask.float())
 
-        query_token = torch.cat(query_token_input, dim=-1).unsqueeze(1)  # [B, 1, input_dim]
-        neighbour_tokens = torch.cat(neighbour_token_input, dim=-1)  # [B, K, input_dim]
+        return torch.cat(token_input, dim=-1)
 
-        return query_token, neighbour_tokens
-
-    def forward_space_time(self, query_features, query_mask, query_coords, neighbour_features, neighbour_coords,
-                           neighbour_mask, rel_positions):
-        # Get space/time info
-        nf_space = neighbour_features["space"]
-        nf_time = neighbour_features["time"]
-
-        nc_space = neighbour_coords["space"]
-        nc_time = neighbour_coords["time"]
-
-        nm_space = neighbour_mask["space"]
-        nm_time = neighbour_mask["time"]
-
-        rp_space = rel_positions["space"]
-        rp_time = rel_positions["time"]
-
-        # Fill features
-        query_features_filled = fill_feature_tensor(features=query_features, mask=query_mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
-        n_space_features_filled = fill_feature_tensor(features=nf_space, mask=nm_space, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
-        n_time_features_filled = fill_feature_tensor(features=nf_time, mask=nm_time, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
-
-        # Optional feature encoding
+    def encode_features(self, features, mask):
         if self.feature_mixer is not None and self.cfg.feature_mixer_input in ["feat", "feat_mask"]:
             if self.cfg.feature_mixer_input == "feat":
-                encoded_query_features = self.feature_mixer(query_features_filled)
-                encoded_n_space_features = self.feature_mixer(n_space_features_filled)
-                encoded_n_time_features = self.feature_mixer(n_time_features_filled)
+                return self.feature_mixer(features)
             elif self.cfg.feature_mixer_input == "feat_mask":
-                encoded_query_features = self.feature_mixer(torch.cat([query_features_filled, query_mask], dim=-1))
-                encoded_n_space_features = self.feature_mixer(torch.cat([n_space_features_filled, nm_space], dim=-1))
-                encoded_n_time_features = self.feature_mixer(torch.cat([n_time_features_filled, nm_time], dim=-1))
-        else:
-            encoded_query_features = query_features_filled
-            encoded_n_space_features = n_space_features_filled
-            encoded_n_time_features = n_time_features_filled
+                return self.feature_mixer(torch.cat([features, mask], dim=-1))
 
-        # Optional coordinate encoding
+        return features
+
+    def encode_coordinates(self, coords, features, mask):
         if self.coord_encoder is not None and self.cfg.encoder_scope in ["model", "both"]:
-            encoded_query_coords = self.coord_encoder(coords=query_coords[:, :self.coord_dim - 1],
-                                                      times=query_coords[:, -1:], values=query_features_filled,
-                                                      mask=query_mask.float())
-            encoded_n_space_coords = self.coord_encoder(coords=nc_space[:, :, :self.coord_dim - 1],
-                                                          times=nc_space[:, :, -1:], values=n_space_features_filled,
-                                                          mask=nm_space.float())
-            encoded_n_time_coords = self.coord_encoder(coords=nc_time[:, :, :self.coord_dim - 1],
-                                                          times=nc_time[:, :, -1:], values=n_time_features_filled,
-                                                          mask=nm_time.float())
-        else:
-            encoded_query_coords = query_coords
-            encoded_n_space_coords = nc_space
-            encoded_n_time_coords = nc_time
+            if coords.dim() == 2:
+                # Query coords
+                return self.coord_encoder(coords=coords[:, :self.coord_dim - 1], times=coords[:, -1:], values=features, mask=mask)
+            else:
+                # Neighbour coords
+                return self.coord_encoder(coords=coords[:, :, :self.coord_dim - 1], times=coords[:, :, -1:], values=features, mask=mask)
 
-        # Construct tokens
-        query_token, n_space_tokens = self.construct_tokens(
-            query_coords=query_coords, encoded_query_coords=encoded_query_coords,
-            encoded_query_features=encoded_query_features, query_mask=query_mask,
-            rel_positions=rp_space, encoded_neighbour_coords=encoded_n_space_coords,
-            encoded_neighbour_features=encoded_n_space_features, neighbour_mask=nm_space)
-        _, n_time_tokens = self.construct_tokens(
-            query_coords=query_coords, encoded_query_coords=encoded_query_coords,
-            encoded_query_features=encoded_query_features, query_mask=query_mask,
-            rel_positions=rp_time, encoded_neighbour_coords=encoded_n_time_coords,
-            encoded_neighbour_features=encoded_n_time_features, neighbour_mask=nm_time)
+        return coords
 
-        # Attention (time, then space)
-        q = self.input_projector(query_token)
-        ns = self.input_projector(n_space_tokens)
-        nt = self.input_projector(n_time_tokens)
+    def forward(self, batch):
+        # Unpack
+        query_features = batch["query_features"]
+        query_mask = batch["query_mask"]
+        query_coords = batch["query_coords"]
 
-        for layer in self.time_layers:
-            q = layer(q, nt)
-
-        for layer in self.space_layers:
-            q = layer(q, ns)
-
-        # Take the query token output only for reconstruction (not neighbours)
-        query_encoded = q[:, 0, :]  # [B, d_model]
-
-        # Decode
-        pmean = self.mean_decoder(query_encoded)
-        pvar = self.var_decoder(query_encoded)  # [B, F]
-
-        return pmean, pvar
-
-    def forward(self, query_features, query_mask, query_coords, neighbour_features, neighbour_coords, neighbour_mask,
-                rel_positions):
-        """
-            query_features: [batch_size, n_features]
-            query_mask: [batch_size, n_features]
-            neighbour_features: [batch_size, n_neighbours, n_features]
-            neighbour_mask: [batch_size, n_neighbours, n_features]
-            rel_positions: [batch_size, n_neighbours, coord_dim]
-        """
-        if self.cfg.attention_type == "space_time_attention":
-            return self.forward_space_time(query_features, query_mask, query_coords, neighbour_features,
-                                           neighbour_coords, neighbour_mask, rel_positions)
+        scopes = [k for k in batch.keys() if k not in ["query_features", "query_mask", "query_coords"]]
 
         # Feature filling
         query_features_filled = fill_feature_tensor(features=query_features, mask=query_mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
-        neighbour_features_filled = fill_feature_tensor(features=neighbour_features, mask=neighbour_mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
 
         # Optional feature encoding
-        if self.feature_mixer is not None and self.cfg.feature_mixer_input in ["feat", "feat_mask"]:
-            if self.cfg.feature_mixer_input == "feat":
-                encoded_query_features = self.feature_mixer(query_features_filled)
-                encoded_neighbour_features = self.feature_mixer(neighbour_features_filled)
-            elif self.cfg.feature_mixer_input == "feat_mask":
-                encoded_query_features = self.feature_mixer(torch.cat([query_features_filled, query_mask], dim=-1))
-                encoded_neighbour_features = self.feature_mixer(torch.cat([neighbour_features_filled, neighbour_mask], dim=-1))
-        else:
-            encoded_query_features = query_features_filled
-            encoded_neighbour_features = neighbour_features_filled
+        encoded_query_features = self.encode_features(features=query_features_filled, mask=query_mask)
 
         # Optional coordinate encoding
-        if self.coord_encoder is not None and self.cfg.encoder_scope in ["model", "both"]:
-            encoded_query_coords = self.coord_encoder(coords=query_coords[:, :self.coord_dim - 1],
-                                                      times=query_coords[:, -1:], values=query_features_filled,
-                                                      mask=query_mask.float())
-            encoded_neighbour_coords = self.coord_encoder(coords=neighbour_coords[:, :, :self.coord_dim - 1],
-                                                          times=neighbour_coords[:, :, -1:], values=neighbour_features_filled,
-                                                          mask=neighbour_mask.float())
-        else:
-            encoded_query_coords = query_coords
-            encoded_neighbour_coords = neighbour_coords
+        encoded_query_coords = self.encode_coordinates(coords=query_coords, features=query_features_filled, mask=query_mask)
 
-        # Construct tokens
-        query_token, neighbour_tokens = self.construct_tokens(
-            query_coords=query_coords, encoded_query_coords=encoded_query_coords,
-            encoded_query_features=encoded_query_features, query_mask=query_mask,
-            rel_positions=rel_positions, encoded_neighbour_coords=encoded_neighbour_coords,
-            encoded_neighbour_features=encoded_neighbour_features, neighbour_mask=neighbour_mask)
+        # Build query token
+        query_token = self.construct_token(
+            encoded_coords=encoded_query_coords,
+            encoded_features=encoded_query_features,
+            mask=query_mask,
+            rel_positions=torch.zeros_like(query_coords),
+        ).unsqueeze(1)  # [B, 1, input_dim]
 
-        # Attention
-        if self.cfg.attention_type == "mha":
-            q = self.input_projector(query_token)
-            n = self.input_projector(neighbour_tokens)  # + rel_pos_embed
+        # Project query token
+        q = self.input_projector(query_token)  # [B, 1, d_model]
 
-            for layer in self.mha_layers:
-                q = layer(q, n)
-            encoded = q
+        # Iterate over scopes
+        for scope in scopes:
+            data = batch[scope]
+            n_feat = data["features"]
+            n_mask = data["mask"]
+            n_coords = data["coords"]
+            rel_pos = data["rel_positions"]
 
-        elif self.cfg.attention_type == "transformer_encoder_layer":
-            sequence = torch.cat([query_token, neighbour_tokens], dim=1)
-            x = self.input_projector(sequence)  # [B, K, d_model]
-            encoded = self.encoder_transformer(x)
+            # Filling features
+            n_features_filled = fill_feature_tensor(features=n_feat, mask=n_mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
 
-        elif self.cfg.attention_type == "encoder_decoder":
-            # Encode neighbours
-            n = self.input_projector(neighbour_tokens)  # [B, K, d_model]
-            n = self.encoder_transformer(n)
+            # Optional feature encoding
+            encoded_n_features = self.encode_features(features=n_features_filled, mask=n_mask)
 
-            # Encode query
-            q = self.input_projector(query_token)  # [B, 1, d_model]
+            # Optional coordinate encoding
+            encoded_n_coords = self.encode_coordinates(coords=n_coords, features=n_features_filled, mask=n_mask)
 
-            # Decode query conditioned on memory (neighbours)
-            encoded = self.decoder_transformer(tgt=q, memory=n)
+            # Construct token
+            n_tokens = self.construct_token(
+                encoded_coords=encoded_n_coords,
+                encoded_features=encoded_n_features,
+                mask=n_mask,
+                rel_positions=rel_pos,
+            )  # [B, K, input_dim]
 
-        else:
-            raise ValueError(f"MaSTNeT: Unknown attention type: {self.cfg.attention_type}")
+            # Attention
+            if self.cfg.attention_type == "mha":
+                n = self.input_projector(n_tokens)
+
+                for layer in self.mha_layers:
+                    q = layer(q, n)
+                encoded = q
+
+            elif self.cfg.attention_type == "transformer_encoder":
+                sequence = torch.cat([query_token, n_tokens], dim=1)
+                sequence = self.input_projector(sequence)  # [B, K, d_model]
+
+                encoded = self.encoder_transformer(sequence)
+
+            elif self.cfg.attention_type == "autoencoder":
+                n = self.input_projector(n_tokens)  # [B, K, d_model]
+
+                # Encode query
+                n = self.encoder_transformer(n)
+
+                # Decode query conditioned on memory (neighbours)
+                encoded = self.decoder_transformer(tgt=q, memory=n)
+
+            elif self.cfg.attention_type == "space_time_attention":
+                n = self.input_projector(n_tokens)  # [B, K, d_model]
+
+                if scope == "time":
+                    layers = self.time_layers
+                elif scope == "space":
+                    layers = self.space_layers
+                else:
+                    raise ValueError(f"Unknown attention scope {scope}")
+
+                for layer in layers:
+                    q = layer(q, n)
+                encoded = q
+
+            else:
+                raise ValueError(f"MaSTNeT: Unknown attention type: {self.cfg.attention_type}")
 
         # Take the query token output only for reconstruction (not neighbours)
         query_encoded = encoded[:, 0, :]  # [B, d_model]

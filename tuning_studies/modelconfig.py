@@ -22,7 +22,7 @@ class ModelConfig:
     # Attention
     use_rel_pos: bool
     use_masks: bool
-    attention_type: str  # "mha" | "transformer_encoder_layer" | "encoder_decoder" | "space_time_attention" # @todo rename to transformer_encoder and autoencoder
+    attention_type: str  # "mha" | "transformer_encoder" | "autoencoder" | "space_time_attention"
 
 
 ablation_study = {
@@ -246,10 +246,10 @@ ablation_study = {
 
             use_rel_pos=False,
             use_masks=False,
-            attention_type="transformer_encoder_layer"
+            attention_type="transformer_encoder"
         )},
     "exp11": {
-        "description": "Raw KNN, encoder-decoder",
+        "description": "Raw KNN, autoencoder",
         "config": ModelConfig(
             graph_mode="static",
             graph_space="raw",
@@ -266,7 +266,7 @@ ablation_study = {
 
             use_rel_pos=False,
             use_masks=False,
-            attention_type="encoder_decoder"
+            attention_type="autoencoder"
         )},
     "exp12": {
         "description": "Dynamic, encoded KNN (coords), coordinate encoder (both), MHA",

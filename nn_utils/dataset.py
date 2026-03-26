@@ -1,4 +1,4 @@
-from typing import Tuple, Any
+from typing import Tuple, Any, Dict
 import numpy as np
 import torch
 from sklearn.neighbors import NearestNeighbors
@@ -12,7 +12,10 @@ from nn_utils.graph import GraphProvider
 
 
 class LearnedNeighbourDataset(Dataset):
-    def __init__(self, coords: torch.Tensor, values: torch.Tensor, graph_provider: GraphProvider, query_indices: np.ndarray | None = None):
+    def __init__(self, coords: torch.Tensor, values: torch.Tensor, graph_provider: GraphProvider, query_indices: np.ndarray | None = None,
+                 scopes=None):
+        self.scopes = scopes if scopes is not None else ["default"]
+
         self.coords = coords
         self.values = values
         self.query_indices = query_indices
@@ -32,7 +35,7 @@ class LearnedNeighbourDataset(Dataset):
     def __len__(self):
         return self.query_indices.shape[0]
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Dict[str, Any]:
         # Map local query point idx to global idx
         q_idx = self.query_indices[idx]
 
@@ -41,26 +44,27 @@ class LearnedNeighbourDataset(Dataset):
         q_mask = self.feature_mask[q_idx]
         q_coord = self.coords[q_idx]
 
-        # Neighbours (global indices)
-        n_idx = self.graph_provider.neighbour_indices[q_idx]
-
-        n_feat = self.values[n_idx]
-        n_mask = self.feature_mask[n_idx]
-        n_coord = self.coords[n_idx]
-
-        # Relative positions
-        rel_positions = n_coord - q_coord
-
-        return {
+        out_dict: Dict[str, Any] = {
             "query_features": q_feat,
             "query_mask": q_mask,
-            "query_coords": q_coord,
-            "neighbour_features": n_feat,
-            "neighbour_mask": n_mask,
-            "neighbour_coords": n_coord,
-            "rel_positions": rel_positions
+            "query_coords": q_coord
         }
 
+        # Neighbours (global indices)
+        for scope in self.scopes:
+            n_batch = self.graph_provider.get_neighbour_batch(idx=q_idx, coords=self.coords, values=self.values, feature_mask=self.feature_mask, scope=scope)
+
+            # Relative positions
+            rel_positions = n_batch["coords"] - q_coord
+
+            out_dict[scope] = {
+                "features": n_batch["values"],
+                "mask": n_batch["mask"],
+                "coords": n_batch["coords"],
+                "rel_positions": rel_positions
+            }
+
+        return out_dict
 
 
 class NeighbourDataset(Dataset):
@@ -144,7 +148,7 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
                                           generator: torch.Generator,
                                           graph_provider: GraphProvider,
                                           cyclic_time: bool = False,
-                                          n_neighbours: int = 24,
+                                          cfg=None
                                           ) -> tuple[
     DataLoader[Any], DataLoader[Any], DataLoader[Any], DataLoader[Any], dict | dict[
         Any, Any], int, int, None, Tensor, Tensor, Tensor]:
@@ -161,7 +165,7 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     :param generator: Random number generator
     :param graph_provider: GraphProvider object
     :param cyclic_time: Whether to encode time cyclically (e.g. for monthly data) or not (e.g. for yearly data)
-    :param n_neighbours: Number of neighbours to use
+    :param cfg: Configuration object
     :return:
         - full_loader
         - train_loader
@@ -203,10 +207,11 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     print("dataset graph provider updated")
 
     # Define datasets
-    train_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, graph_provider=graph_provider)
-    val_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, graph_provider=graph_provider)
-    test_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, graph_provider=graph_provider)
-    full_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=None, graph_provider=graph_provider)
+    scopes = ["space", "time"] if cfg.attention_type == "space_time_attention" else ["default"]
+    train_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, graph_provider=graph_provider, scopes=scopes)
+    val_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, graph_provider=graph_provider, scopes=scopes)
+    test_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, graph_provider=graph_provider, scopes=scopes)
+    full_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=None, graph_provider=graph_provider, scopes=scopes)
 
     print(len(train_dataset), len(val_dataset), len(test_dataset))
 
