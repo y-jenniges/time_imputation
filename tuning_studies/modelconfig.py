@@ -328,6 +328,46 @@ ablation_study = {
             use_masks=False,
             attention_type="mha"
         )},
+    "exp15": {
+        "description": "Raw KNN, feature mixer (feat+mask), MHA",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
+        )},
+    "exp16": {
+        "description": "Baseline, raw KNN, MHA, mean filling",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="mean",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha"
+        )},
     # "exp10": {
     #     "description": "Raw anisotropic KNN, MHA",
     #     "config": ModelConfig(
