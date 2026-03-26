@@ -5,6 +5,7 @@ from utils.preprocessing import fill_feature_tensor
 
 
 def knn_feature_variance(values, mask, knn_idx):
+    # How similar are feature values in neighbourhood? Low variance --> Similar neighbours
     v_i = values.unsqueeze(1)  # [N, 1, F]
     v_j = values[knn_idx]  # [N, K, F]
 
@@ -31,6 +32,7 @@ def knn_feature_variance(values, mask, knn_idx):
 
 
 def knn_time_difference(coords, knn_idx):
+    # How far apart are neighbours in time? (Lower is better)
     t = coords[:, -1]
     t_i = t.unsqueeze(1)
     t_j = t[knn_idx]
@@ -38,7 +40,7 @@ def knn_time_difference(coords, knn_idx):
 
 
 def knn_overlap(prev_idx, new_idx):
-    # How many neighbours stayed the same (regardless of order)
+    # How many neighbours stayed the same after graph update? (1 = identical neighbours)
     prev = prev_idx.unsqueeze(2)  # [N, K, 1]
     new  = new_idx.unsqueeze(1)  # [N, 1, K]
 
