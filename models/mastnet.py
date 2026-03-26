@@ -220,7 +220,7 @@ class MaSTNeT(nn.Module):
             q = self.input_projector(query_token)
             n = self.input_projector(neighbour_tokens)  # + rel_pos_embed
 
-            for layer in self.layers:
+            for layer in self.mha_layers:
                 q = layer(q, n)
             encoded = q
 
