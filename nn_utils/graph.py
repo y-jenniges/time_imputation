@@ -76,7 +76,7 @@ class GraphProvider:
         # Graph properties and analytics
         self.neighbour_indices = None
         self.prev_neighbour_indices = None
-        self.history = {"feat_variance": [], "time_difference": [], "overlap": []}
+        self.history = {"feat_variance": [], "time_difference": [], "overlap": [], "feat_variance_time": [], "time_difference_time": [], "overlap_time": []}
 
     @torch.no_grad()
     def build_graph(self, encoded, coords, values, mask):
