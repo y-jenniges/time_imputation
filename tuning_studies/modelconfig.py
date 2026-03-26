@@ -22,7 +22,7 @@ class ModelConfig:
     # Attention
     use_rel_pos: bool
     use_masks: bool
-    attention_type: str  # "mha" | "transformer_encoder_layer" | "encoder_decoder"
+    attention_type: str  # "mha" | "transformer_encoder_layer" | "encoder_decoder" | "space_time_attention" # @todo rename to transformer_encoder and autoencoder
 
 
 ablation_study = {
@@ -367,6 +367,26 @@ ablation_study = {
             use_rel_pos=False,
             use_masks=False,
             attention_type="mha"
+        )},
+    "exp17": {
+        "description": "Baseline, raw KNN, space_time_attention",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="space_time_attention"
         )},
     # "exp10": {
     #     "description": "Raw anisotropic KNN, MHA",

@@ -1,4 +1,5 @@
 import torch
+from typing import Union, Dict
 from sklearn.neighbors import NearestNeighbors
 
 from utils.preprocessing import fill_feature_tensor
@@ -52,20 +53,14 @@ class GraphProvider:
     def __init__(self,
                  n_neighbours=20,
                  update_every: int = 5,
-                 graph_mode: str = "static",
-                 graph_space: str = "raw",
-                 graph_metric: str = "isotropic",
-                 fill_strategy: str = "zero",
+                 cfg = None,
                  test_idx: torch.Tensor = None,
                  val_idx: torch.Tensor = None,
                  device: torch.device = torch.device("cpu")
                  ):
         self.n_neighbours = n_neighbours
         self.update_every = update_every
-        self.graph_mode = graph_mode
-        self.graph_space = graph_space
-        self.graph_metric = graph_metric
-        self.fill_strategy = fill_strategy
+        self.cfg = cfg
 
         self.test_idx = test_idx
         self.val_idx = val_idx
@@ -79,37 +74,43 @@ class GraphProvider:
 
     @torch.no_grad()
     def build_graph(self, encoded, coords, values, mask):
-        if self.graph_metric == "isotropic":
-            # Construct KNN graph
-            knn = NearestNeighbors(n_neighbors=self.n_neighbours + 1)
-            knn.fit(encoded)
+        if self.cfg.attention_type == "space_time_attention":
+            # Time neighbours
+            time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours+1)
+            time_indices = time_indices[:, 1:]  # Remove self
 
-            # Get neighbour indices
-            indices = torch.from_numpy(knn.kneighbors(encoded, return_distance=False)).long()
+            # Space neighbours
+            space_indices = compute_candidates(coords[:, :4], k=self.n_neighbours+1)
+            space_indices = space_indices[:, 1:]  # Remove self
+
+            self.neighbour_indices = {"space": space_indices, "time": time_indices}
+
+        elif self.cfg.graph_metric == "isotropic":
+            indices = compute_candidates(encoded, k=self.n_neighbours+1)
             self.neighbour_indices = indices[:, 1:]  # Remove self
 
-        elif self.graph_metric == "anisotropic":
-            candidates = compute_geo_candidates(coords, k=200)
+        elif self.cfg.graph_metric == "anisotropic":
+            candidates = compute_candidates(coords, k=200)
             self.neighbour_indices = compute_anisotropic_knn(coords, values, mask, k=self.n_neighbours,
                                                              candidate_idx=candidates,
                                                              lambda_=1.0, weights=None, batch_size=2048,
                                                              device=self.device)
 
         else:
-            raise ValueError(f"Unknown graph metric: {self.graph_metric}")
+            raise ValueError(f"Unknown graph metric: {self.cfg.graph_metric}")
 
     def encode_input(self, encoder, coords, values, mask, mean_values=None):
-        if self.graph_space == "encoded":
+        if self.cfg.graph_space == "encoded":
             # Fill masked values and nan values (test/val idxs)
-            values_filled = fill_feature_tensor(features=values, mask=mask, fill_strategy=self.fill_strategy, mean_values=mean_values)
-            values_filled = fill_feature_tensor(features=values_filled, mask=None, fill_strategy=self.fill_strategy, mean_values=mean_values)
+            values_filled = fill_feature_tensor(features=values, mask=mask, fill_strategy=self.cfg.fill_strategy, mean_values=mean_values)
+            values_filled = fill_feature_tensor(features=values_filled, mask=None, fill_strategy=self.cfg.fill_strategy, mean_values=mean_values)
             encoded = encoder(coords=coords[:, :4], values=values_filled, mask=mask.float(), times=coords[:, -1:].float())
             return encoded.detach().cpu().numpy()
 
-        elif self.graph_space == "raw":
+        elif self.cfg.graph_space == "raw":
             return coords
         else:
-            raise ValueError(f"Unknown graph space: {self.graph_space}")
+            raise ValueError(f"Unknown graph space: {self.cfg.graph_space}")
 
     def update_eval_metrics(self, values, coords, mask):
         feat_variance = knn_feature_variance(values, mask, self.neighbour_indices)
@@ -153,10 +154,15 @@ class GraphProvider:
         self.neighbour_indices = indices
 
     def get(self, idx):
+        if isinstance(self.neighbour_indices, dict):
+            return {
+                "space": self.neighbour_indices["space"][idx],
+                "time": self.neighbour_indices["time"][idx]
+            }
         return self.neighbour_indices[idx]
 
 
-def compute_geo_candidates(coords, k=200):
+def compute_candidates(coords, k=200):
     """
     coords: [N, D] (CPU tensor or numpy)
     returns: [N, k] candidate indices

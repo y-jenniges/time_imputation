@@ -121,6 +121,20 @@ class MaSTNeT(nn.Module):
             )
             self.decoder_transformer = nn.TransformerDecoder(decoder_layer, nlayers)
 
+        elif self.cfg.attention_type == "space_time_attention":
+            self.time_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(nlayers)
+            ])
+
+            self.space_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(nlayers)
+            ])
+
+        else:
+            raise ValueError(f"MaSTNeT: Unknown attention_type {self.cfg.attention_type}")
+
         # Decoding
         self.mean_decoder = nn.Linear(d_model, value_dim)  # Mean head (for reconstruction)
         self.var_decoder = nn.Linear(d_model, value_dim)  # Variance head (for heteroscedastic uncertainty)
@@ -171,6 +185,89 @@ class MaSTNeT(nn.Module):
 
         return query_token, neighbour_tokens
 
+    def forward_space_time(self, query_features, query_mask, query_coords, neighbour_features, neighbour_coords,
+                           neighbour_mask, rel_positions):
+        # Get space/time info
+        nf_space = neighbour_features["space"]
+        nf_time = neighbour_features["time"]
+
+        nc_space = neighbour_coords["space"]
+        nc_time = neighbour_coords["time"]
+
+        nm_space = neighbour_mask["space"]
+        nm_time = neighbour_mask["time"]
+
+        rp_space = rel_positions["space"]
+        rp_time = rel_positions["time"]
+
+        # Fill features
+        query_features_filled = fill_feature_tensor(features=query_features, mask=query_mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
+        n_space_features_filled = fill_feature_tensor(features=nf_space, mask=nm_space, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
+        n_time_features_filled = fill_feature_tensor(features=nf_time, mask=nm_time, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
+
+        # Optional feature encoding
+        if self.feature_mixer is not None and self.cfg.feature_mixer_input in ["feat", "feat_mask"]:
+            if self.cfg.feature_mixer_input == "feat":
+                encoded_query_features = self.feature_mixer(query_features_filled)
+                encoded_n_space_features = self.feature_mixer(n_space_features_filled)
+                encoded_n_time_features = self.feature_mixer(n_time_features_filled)
+            elif self.cfg.feature_mixer_input == "feat_mask":
+                encoded_query_features = self.feature_mixer(torch.cat([query_features_filled, query_mask], dim=-1))
+                encoded_n_space_features = self.feature_mixer(torch.cat([n_space_features_filled, nm_space], dim=-1))
+                encoded_n_time_features = self.feature_mixer(torch.cat([n_time_features_filled, nm_time], dim=-1))
+        else:
+            encoded_query_features = query_features_filled
+            encoded_n_space_features = n_space_features_filled
+            encoded_n_time_features = n_time_features_filled
+
+        # Optional coordinate encoding
+        if self.coord_encoder is not None and self.cfg.encoder_scope in ["model", "both"]:
+            encoded_query_coords = self.coord_encoder(coords=query_coords[:, :self.coord_dim - 1],
+                                                      times=query_coords[:, -1:], values=query_features_filled,
+                                                      mask=query_mask.float())
+            encoded_n_space_coords = self.coord_encoder(coords=nc_space[:, :, :self.coord_dim - 1],
+                                                          times=nc_space[:, :, -1:], values=n_space_features_filled,
+                                                          mask=nm_space.float())
+            encoded_n_time_coords = self.coord_encoder(coords=nc_time[:, :, :self.coord_dim - 1],
+                                                          times=nc_time[:, :, -1:], values=n_time_features_filled,
+                                                          mask=nm_time.float())
+        else:
+            encoded_query_coords = query_coords
+            encoded_n_space_coords = nc_space
+            encoded_n_time_coords = nc_time
+
+        # Construct tokens
+        query_token, n_space_tokens = self.construct_tokens(
+            query_coords=query_coords, encoded_query_coords=encoded_query_coords,
+            encoded_query_features=encoded_query_features, query_mask=query_mask,
+            rel_positions=rp_space, encoded_neighbour_coords=encoded_n_space_coords,
+            encoded_neighbour_features=encoded_n_space_features, neighbour_mask=nm_space)
+        _, n_time_tokens = self.construct_tokens(
+            query_coords=query_coords, encoded_query_coords=encoded_query_coords,
+            encoded_query_features=encoded_query_features, query_mask=query_mask,
+            rel_positions=rp_time, encoded_neighbour_coords=encoded_n_time_coords,
+            encoded_neighbour_features=encoded_n_time_features, neighbour_mask=nm_time)
+
+        # Attention (time, then space)
+        q = self.input_projector(query_token)
+        ns = self.input_projector(n_space_tokens)
+        nt = self.input_projector(n_time_tokens)
+
+        for layer in self.time_layers:
+            q = layer(q, nt)
+
+        for layer in self.space_layers:
+            q = layer(q, ns)
+
+        # Take the query token output only for reconstruction (not neighbours)
+        query_encoded = q[:, 0, :]  # [B, d_model]
+
+        # Decode
+        pmean = self.mean_decoder(query_encoded)
+        pvar = self.var_decoder(query_encoded)  # [B, F]
+
+        return pmean, pvar
+
     def forward(self, query_features, query_mask, query_coords, neighbour_features, neighbour_coords, neighbour_mask,
                 rel_positions):
         """
@@ -180,6 +277,10 @@ class MaSTNeT(nn.Module):
             neighbour_mask: [batch_size, n_neighbours, n_features]
             rel_positions: [batch_size, n_neighbours, coord_dim]
         """
+        if self.cfg.attention_type == "space_time_attention":
+            return self.forward_space_time(query_features, query_mask, query_coords, neighbour_features,
+                                           neighbour_coords, neighbour_mask, rel_positions)
+
         # Feature filling
         query_features_filled = fill_feature_tensor(features=query_features, mask=query_mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
         neighbour_features_filled = fill_feature_tensor(features=neighbour_features, mask=neighbour_mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
