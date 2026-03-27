@@ -1,4 +1,10 @@
-""" Classes and functions to grid parameter values. ADAPTED FROM PREVIOUS PAPER. """
+"""
+Classes and functions to grid parameter values.
+
+Following code (adapted) from:
+Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1).
+Zenodo. https://doi.org/10.5281/zenodo.15827777
+"""
 import logging
 import os
 import time

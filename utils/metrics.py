@@ -1,5 +1,4 @@
 import numpy as np
-from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_error
 from scipy import stats
 from permetrics import RegressionMetric
 

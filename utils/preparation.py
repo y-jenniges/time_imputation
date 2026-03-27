@@ -1,4 +1,9 @@
-# TAKEN FROM PREVIOUS PAPER
+"""
+Following code (adapted) from:
+Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1).
+Zenodo. https://doi.org/10.5281/zenodo.15827777
+"""
+
 import sqlite3
 import logging
 import gsw
@@ -6,8 +11,6 @@ import pandas as pd
 from utils.database import get_table_as_df, get_num_samples, does_table_exist, get_columns
 from utils.units import UnitsConverter
 from utils.gridding import grid_data
-
-# from utils.imputation import impute_data
 
 
 def __copy_and_filter_tables(conn, tables, quality_flags, source_db_path):

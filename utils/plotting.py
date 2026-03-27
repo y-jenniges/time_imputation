@@ -1,12 +1,16 @@
 import logging
+import gsw
 import glasbey
+import pandas as pd
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from scipy.stats import pearsonr
 from shapely.geometry import box
 from cartopy.io import shapereader
 import matplotlib.animation as animation
+import seaborn as sns
 from scipy.interpolate import griddata
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -261,21 +265,6 @@ def animate_depth_feature(df, feature, interval=500, grid_res=100, cmap="inferno
     return ani
 
 
-def plot_histograms(df, parameter_names):
-    fig, axes = plt.subplots(2, 3, figsize=(12, 6))
-    axes = axes.flatten()
-
-    for i, ax in enumerate(axes):
-        ax.hist(df[parameter_names[i]].dropna(), bins=100, color='steelblue', alpha=0.7)
-        ax.set_title(parameter_names[i])
-        ax.set_xlabel('Value')
-        ax.set_ylabel('Frequency')
-        ax.grid(True, linestyle='--', alpha=0.4)
-
-    plt.tight_layout()
-    plt.show()
-
-
 def plot_loss(loss_dict, close_plot=False, save_as=None):
     plt.figure(figsize=(6, 4), dpi=150)
 
@@ -426,6 +415,7 @@ def plot_simple_reconstruction_error(y_true, y_pred, save_as=None, close=False):
     else:
         plt.show()
 
+
 def animate_depth_panels(
     data,
     depth_dim="depth",
@@ -556,13 +546,273 @@ def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", 
     animate_depth_panels(data=ds, save_as=save_as)
 
 
-# Function from previous paper
+def plot_profile(df, param, figsize=(6, 8), save_as=None, dpi=300):
+    # Depth profile
+    df_temp = df[["LEV_M", param]].dropna().copy()
+
+    # Compute mean and std per depth level
+    mean_profile = df_temp.groupby("LEV_M")[param].mean()
+    std_profile = df_temp.groupby("LEV_M")[param].std()
+    depths = mean_profile.index.values
+
+    # Plot mean ± SD
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.set_facecolor("none")
+    ax.plot(mean_profile, depths, color="steelblue", label="Mean profile")
+
+    # Scatter points for individual measurements
+    ax.scatter(df_temp[param], df_temp["LEV_M"], color="gray", alpha=0.3, s=1, label="Measurements")
+
+    # Profile plot
+    ax.fill_betweenx(depths,
+                     mean_profile - std_profile,
+                     mean_profile + std_profile,
+                     color="steelblue", alpha=0.3, label="±1 SD")
+    ax.invert_yaxis()
+    ax.set_xlabel(config.parameter_name_unit_map[param])
+    ax.set_ylabel("Depth [m]")
+    ax.set_title(f"{config.parameter_name_map[param]} profile (mean ± std)")
+    ax.grid(True, linestyle="--", alpha=0.2)
+    ax.legend()
+
+    plt.tight_layout()
+
+    if save_as:
+        plt.savefig(save_as, dpi=dpi, transparent=True)
+
+
+def plot_boxplots(df, config, figsize=(2 * 6, 10), save_as=None, dpi=300):
+    # Box plots of parameters
+    fig, axs = plt.subplots(nrows=len(config.parameters), ncols=1, figsize=figsize)
+
+    for i, param in enumerate(config.parameters):
+        sns.boxplot(ax=axs[i], x=df[param])
+        axs[i].set_title(config.parameter_name_unit_map[param])
+        axs[i].set_xlabel("")
+
+    plt.tight_layout()
+
+    if save_as:
+        plt.savefig(save_as, dpi=dpi, transparent=True)
+
+
+"""
+Following function (adapted) from:
+Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1). 
+Zenodo. https://doi.org/10.5281/zenodo.15827777
+"""
+
+
+def plot_histograms(df, config, figsize=(12, 6), save_as=None, dpi=300):
+    temp = df.rename(columns={col: config.parameter_name_unit_map[col] for col in config.parameters})
+    param_names = list(config.parameter_name_unit_map.values())
+
+    fig, axes = plt.subplots(2, 3, figsize=(12, 6))
+    axes = axes.flatten()
+
+    for i, ax in enumerate(axes):
+        sns.histplot(data=temp, x=param_names[i], ax=ax, kde=True)
+        ax.set_title(param_names[i])
+        ax.set_xlabel('Value')
+        ax.set_ylabel('Frequency')
+        ax.grid(True, linestyle='--', alpha=0.4)
+
+    plt.tight_layout()
+
+    if save_as:
+        plt.savefig(save_as, dpi=dpi)
+
+
+def plot_correlations(df, config, save_as=None, dpi=300):
+    # Compute correlations
+    temp = df[config.parameters].rename(columns=config.parameter_name_map)
+    corr = temp.corr().reset_index()
+    corr = pd.melt(corr, id_vars='index')  # Unpivot the dataframe, so we can get pair of arrays for x and y
+    corr.columns = ['x', 'y', 'value']
+
+    # Indexes for display
+    idxs = [0, 6, 12, 18, 24, 30,
+            10, 16, 22, 28, 34,
+            7, 13, 19, 31,
+            17, 23, 35,
+            14, 20,
+            21]
+
+    # Adapted from https://towardsdatascience.com/better-heatmaps-and-correlation-matrix-plots-in-python-41445d0f2bec
+    def heatmap(x, y, size, color_values, figsize=(5, 4), idxs_to_show=None):
+        fig, axs = plt.subplots(1, 2, figsize=figsize, gridspec_kw={'width_ratios': [15, 1]})
+        ax = axs[0]
+        # Mapping from column names to integer coordinates
+        x_labels = [v for v in sorted(x.unique())]
+        y_labels = [v for v in sorted(y.unique())]
+        x_to_num = {p[1]: p[0] for p in enumerate(x_labels)}
+        y_to_num = {p[1]: p[0] for p in enumerate(y_labels)}
+
+        def value_to_color(val):
+            val_position = float((val - color_min)) / (
+                        color_max - color_min)  # Position of value in the input range, relative to the length of the input range
+            ind = int(val_position * (n_colors - 1))  # Target index in the color palette
+            return palette[ind]
+
+        size_scale = 500
+        n_colors = 256  # Use 256 colors for the diverging color palette
+        palette = sns.diverging_palette(20, 220, n=n_colors)  # Create the palette
+        color_min, color_max = [-1,
+                                1]  # Range of values that will be mapped to the palette, i.e. min and max possible correlation
+        color = color_values.apply(value_to_color)
+
+        if idxs_to_show:
+            size = np.array(size)
+            for i in range(len(size)):
+                if i not in idxs_to_show:
+                    size[i] = np.nan
+
+        sc = ax.scatter(
+            x=x.map(x_to_num),  # Use mapping for x
+            y=y.map(y_to_num),  # Use mapping for y
+            s=size * size_scale,  # Vector of square sizes, proportional to size parameter
+            c=color,  # Vector of square color values, mapped to color palette
+            marker='s',  # Use square as scatterplot marker
+            label=color_values
+        )
+
+        # adding annotations to each entry
+        for i in range(len(color)):
+            if idxs_to_show:
+                if i in idxs_to_show:
+                    ax.annotate(str(round(color_values[i], 2)), (x_to_num[x[i]], y_to_num[y[i]]), ha='center',
+                                va='center', fontsize=8)
+            else:
+                ax.annotate(str(round(color_values[i], 2)), (x_to_num[x[i]], y_to_num[y[i]]), ha='center', va='center',
+                            fontsize=8)
+
+        # Show column labels on the axes
+        ax.set_xticks([x_to_num[v] for v in x_labels])
+        ax.set_xticklabels(x_labels, rotation=90, horizontalalignment='center')
+        ax.set_yticks([y_to_num[v] for v in y_labels])
+        ax.set_yticklabels(y_labels)
+
+        # center points in grid cells
+        ax.grid(False, 'major')
+        ax.grid(True, 'minor')
+        ax.set_xticks([t + 0.5 for t in ax.get_xticks()], minor=True)
+        ax.set_yticks([t + 0.5 for t in ax.get_yticks()], minor=True)
+        ax.set_xlim([-0.5, max([v for v in x_to_num.values()]) + 0.5])
+        ax.set_ylim([-0.5, max([v for v in y_to_num.values()]) + 0.5])
+
+        # Add color legend on the right side of the plot
+        ax = axs[1]
+
+        col_x = [0] * len(palette)  # Fixed x coordinate for the bars
+        bar_y = np.linspace(color_min, color_max, n_colors)  # y coordinates for each of the n_colors bars
+
+        bar_height = bar_y[1] - bar_y[0]
+        ax.barh(
+            y=bar_y,
+            width=[5] * len(palette),  # Make bars 5 units wide
+            left=col_x,  # Make bars start at 0
+            height=bar_height,
+            color=palette,
+            linewidth=0
+        )
+        ax.set_xlim(1, 2)  # Bars are going from 0 to 5, so lets crop the plot somewhere in the middle
+        ax.grid(False)  # Hide grid
+        ax.set_facecolor('white')  # Make background white
+        ax.set_xticks([])  # Remove horizontal ticks
+        ax.set_yticks(np.linspace(min(bar_y), max(bar_y), 3))  # Show vertical ticks for min, middle and max
+        ax.yaxis.tick_right()  # Show vertical ticks on the right
+        plt.box(False)
+
+    heatmap(
+        x=corr['x'],
+        y=corr['y'],
+        size=corr['value'].abs(),
+        color_values=corr['value'],
+        idxs_to_show=idxs,
+        figsize=(5, 4)
+    )
+
+    plt.tight_layout()
+
+    if save_as:
+     plt.savefig(save_as, dpi=dpi)
+
+
+def plot_ts(df, figsize=(4, 4), dpi=None, ncols=5, xlim=None, ylim=None,
+            save_as=None, fontsize=None,
+            adjust_left=0, adjust_right=1, adjust_top=1, adjust_bottom=0, legend_loc="center right",
+            anchor=(0.0, -0.15)):
+    """ Plot TS diagram. """
+    temp = df.copy()
+
+    # Compute necessary parameters
+    temp["pressure"] = gsw.p_from_z(-1 * temp["LEV_M"], temp["LATITUDE"])
+    temp["abs_salinity"] = gsw.SA_from_SP(temp["P_SALINITY"], temp["pressure"], temp["LONGITUDE"], temp["LATITUDE"])
+    temp["cons_temperature"] = gsw.CT_from_pt(temp["abs_salinity"], temp["P_TEMPERATURE"])
+    temp["rho"] = gsw.rho(temp["abs_salinity"], temp["cons_temperature"], temp["pressure"])
+
+    # Plot limits
+    smin = temp["abs_salinity"].min() - (0.01 * temp["abs_salinity"].min())
+    smax = temp["abs_salinity"].max() + (0.01 * temp["abs_salinity"].max())
+    tmin = temp["cons_temperature"].min() - (0.1 * temp["cons_temperature"].max())
+    tmax = temp["cons_temperature"].max() + (0.1 * temp["cons_temperature"].max())
+
+    if xlim:
+        smin = xlim[0] - (0.01 * xlim[0])
+        smax = xlim[1] + (0.01 * xlim[1])
+
+    if ylim:
+        tmin = ylim[0] - (0.01 * ylim[0])
+        tmax = ylim[1] + (0.01 * ylim[1])
+
+    # Number of gridcells in the x and y dimensions
+    xdim = int(round((smax - smin) / 0.1 + 1, 0))
+    ydim = int(round((tmax - tmin) / 0.1 + 1, 0))
+
+    # Empty grid
+    dens = np.zeros((ydim, xdim))
+
+    # Temperature and salinity vectors
+    si = np.linspace(1, xdim - 1, xdim) * 0.1 + smin
+    ti = np.linspace(1, ydim - 1, ydim) * 0.1 + tmin
+
+    # Fill grid with densities
+    for j in range(0, int(ydim)):
+        for i in range(0, int(xdim)):
+            dens[j, i] = gsw.rho(si[i], ti[j], 0)
+
+    # Convert to sigma-t
+    dens = dens - 1000
+
+    # Plot
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    contours = plt.contour(si, ti, dens, linestyles='dashed', colors='k')
+    plt.clabel(contours, fontsize=fontsize, inline=1, fmt='%1.1f')  # label every second level
+
+    hb = plt.hexbin(
+        temp["abs_salinity"],
+        temp["cons_temperature"],
+        cmap="viridis",
+        gridsize=100,
+        norm=colors.LogNorm(),
+        mincnt=1,
+    )
+    plt.colorbar(hb, label="Log count")
+
+    ax.set_xlabel('Absolute salinity [g/kg]', fontsize=fontsize)
+    ax.set_ylabel('Conservative temperature [°C]', fontsize=fontsize)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+    plt.tight_layout()
+    if save_as:
+        plt.savefig(save_as, dpi=dpi, transparent=True)
+    plt.show()
 
 
 def plot_interactive_geo(df, column="label", color_label="color", color_scale="Inferno", scatter_size=3, margin=5, save_as=None):
-    """ Interactive 3d geographic scatter plot.
-    Taken from: Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions
-    - Code Base (v1.0.1). Zenodo. https://doi.org/10.5281/zenodo.15827777"""
+    """ Interactive 3d geographic scatter plot. """
     df_display = df.copy()
 
     longitude_min = df["LONGITUDE"].min()

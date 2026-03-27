@@ -1,5 +1,10 @@
-# TAKEN FROM PREVIOUS PAPER
-""" Module to deal with the units of the measured values. """
+"""
+Module to deal with the units of the measured values.
+
+Following code from:
+Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1).
+Zenodo. https://doi.org/10.5281/zenodo.15827777
+"""
 import logging
 import numpy as np
 import pandas as pd
