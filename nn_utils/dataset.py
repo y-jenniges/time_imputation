@@ -9,6 +9,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 import config
 from nn_utils.graph import GraphProvider
+from utils.preprocessing import get_scopes
 
 
 class LearnedNeighbourDataset(Dataset):
@@ -65,63 +66,6 @@ class LearnedNeighbourDataset(Dataset):
             }
 
         return out_dict
-
-
-class NeighbourDataset(Dataset):
-    """ Dataset returning query point data and neighbourhood data. """
-
-    def __init__(self,
-                 coords: torch.Tensor,
-                 values: torch.Tensor,
-                 neighbour_indices: torch.Tensor,
-                 query_indices: np.ndarray | None = None
-                 ):
-        self.coords = coords
-        self.values = values
-
-        # self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
-        self.neighbour_indices = torch.as_tensor(neighbour_indices, dtype=torch.long)
-
-        # Store original indices of query points
-        if query_indices is None:
-            self.query_indices = torch.arange(values.shape[0], dtype=torch.long)
-        else:
-            self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
-
-        # Initial mask: True = observed (False = NaN)
-        self.feature_mask = ~torch.isnan(values)
-
-    def __len__(self):
-        return self.query_indices.shape[0]
-
-    def __getitem__(self, idx):
-        # Map local query point idx to global idx
-        q_idx = self.query_indices[idx]
-
-        # Query point
-        q_feat = self.values[q_idx]
-        q_mask = self.feature_mask[q_idx]
-        q_coord = self.coords[q_idx]
-
-        # Neighbours (global indices)
-        n_idx = self.neighbour_indices[idx]
-
-        n_feat = self.values[n_idx]
-        n_mask = self.feature_mask[n_idx]
-        n_coord = self.coords[n_idx]
-
-        # Relative positions
-        rel_positions = n_coord - q_coord
-
-        return {
-            "query_features": q_feat,
-            "query_mask": q_mask,
-            "query_coords": q_coord,
-            "neighbour_features": n_feat,
-            "neighbour_mask": n_mask,
-            "neighbour_coords": n_coord,
-            "rel_positions": rel_positions
-        }
 
 
 class PointwiseDataset(Dataset):
@@ -207,7 +151,7 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     print("dataset graph provider updated")
 
     # Define datasets
-    scopes = ["space", "time"] if cfg.attention_type == "space_time_attention" else ["default"]
+    scopes = get_scopes(cfg=cfg)
     train_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, graph_provider=graph_provider, scopes=scopes)
     val_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, graph_provider=graph_provider, scopes=scopes)
     test_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, graph_provider=graph_provider, scopes=scopes)

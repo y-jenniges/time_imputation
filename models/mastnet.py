@@ -7,7 +7,8 @@ from torch.utils.data import DataLoader
 #from nn_utils.trainer import NeighbourAdapter
 from nn_utils.embed import PositionalEncoder, CoordEncoder
 from tuning_studies.modelconfig import ModelConfig
-from utils.preprocessing import fill_feature_tensor
+from utils.preprocessing import fill_feature_tensor, get_scopes
+
 
 class CrossAttentionBlock(nn.Module):
     def __init__(self, d_model, nhead, dim_feedforward, dropout):
@@ -132,6 +133,21 @@ class MaSTNeT(nn.Module):
                 for _ in range(nlayers)
             ])
 
+        elif self.cfg.attention_type == "space_time_depth_attention":
+            self.time_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(nlayers)
+            ])
+
+            self.space_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(nlayers)
+            ])
+
+            self.depth_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(nlayers)
+            ])
         else:
             raise ValueError(f"MaSTNeT: Unknown attention_type {self.cfg.attention_type}")
 
@@ -201,8 +217,6 @@ class MaSTNeT(nn.Module):
         query_mask = batch["query_mask"]
         query_coords = batch["query_coords"]
 
-        scopes = [k for k in batch.keys() if k not in ["query_features", "query_mask", "query_coords"]]
-
         # Feature filling
         query_features_filled = fill_feature_tensor(features=query_features, mask=query_mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
 
@@ -224,6 +238,7 @@ class MaSTNeT(nn.Module):
         q = self.input_projector(query_token)  # [B, 1, d_model]
 
         # Iterate over scopes
+        scopes = get_scopes(cfg=self.cfg)
         for scope in scopes:
             data = batch[scope]
             n_feat = data["features"]
@@ -278,6 +293,22 @@ class MaSTNeT(nn.Module):
                     layers = self.time_layers
                 elif scope == "space":
                     layers = self.space_layers
+                else:
+                    raise ValueError(f"Unknown attention scope {scope}")
+
+                for layer in layers:
+                    q = layer(q, n)
+                encoded = q
+
+            elif self.cfg.attention_type == "space_time_depth_attention":
+                n = self.input_projector(n_tokens)  # [B, K, d_model]
+
+                if scope == "time":
+                    layers = self.time_layers
+                elif scope == "space":
+                    layers = self.space_layers
+                elif scope == "depth":
+                    layers = self.depth_layers
                 else:
                     raise ValueError(f"Unknown attention scope {scope}")
 

@@ -2,7 +2,7 @@ import torch
 from typing import Union, Dict, Any
 from sklearn.neighbors import NearestNeighbors
 
-from utils.preprocessing import fill_feature_tensor
+from utils.preprocessing import fill_feature_tensor, get_scopes
 
 
 def knn_feature_variance(values, mask, knn_idx, scope="default"):
@@ -74,11 +74,11 @@ class GraphProvider:
         # Graph properties and analytics
         self.neighbour_indices = None
         self.prev_neighbour_indices = None
-        self.history = {
-            "default": {"feat_variance": [], "time_difference": [], "overlap": []},
-            "space": {"feat_variance": [], "time_difference": [], "overlap": []},
-            "time": {"feat_variance": [], "time_difference": [], "overlap": []},
-        }
+
+        base_history = {"feat_variance": [], "time_difference": [], "overlap": []}
+        self.history = {}
+        for scope in get_scopes(cfg=self.cfg):
+            self.history[scope] = base_history
 
     @torch.no_grad()
     def build_graph(self, encoded, coords, values, mask):
@@ -92,6 +92,21 @@ class GraphProvider:
             space_indices = space_indices[:, 1:]  # Remove self
 
             self.neighbour_indices = {"space": space_indices, "time": time_indices}
+
+        elif self.cfg.attention_type == "space_time_depth_attention":
+            # Time neighbours
+            time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours+1)
+            time_indices = time_indices[:, 1:]  # Remove self
+
+            # Space neighbours
+            space_indices = compute_candidates(coords[:, :3], k=self.n_neighbours+1)
+            space_indices = space_indices[:, 1:]  # Remove self
+
+            # Depth neighbours
+            depth_indices = compute_candidates(coords[:, 3:4], k=self.n_neighbours+1)
+            depth_indices = depth_indices[:, 1:]  # Remove self
+
+            self.neighbour_indices = {"space": space_indices, "time": time_indices, "depth": depth_indices}
 
         elif self.cfg.graph_metric == "isotropic":
             indices = compute_candidates(encoded, k=self.n_neighbours+1)
@@ -136,25 +151,13 @@ class GraphProvider:
         self.history[scope]["overlap"].append(metrics["overlap"])
 
     def update_eval_metrics(self, values, coords, mask):
-        if self.cfg.attention_type == "space_time_attention":
-            metrics_space = self.get_metrics(coords=coords, values=values, mask=mask, scope="space")
-            metrics_time = self.get_metrics(coords=coords, values=values, mask=mask, scope="time")
+        scopes = get_scopes(cfg=self.cfg)
+        for scope in scopes:
+            metrics = self.get_metrics(coords=coords, values=values, mask=mask, scope=scope)
+            print(f"{scope} graph: \nfeat_variance: {metrics['feat_variance']:.6f}, time_difference: {metrics['time_difference']:.6f}, overlap: {metrics['overlap']}")
+            self.append_metrics(metrics=metrics, scope=scope)
 
-            print(f"Space graph: \nfeat_variance: {metrics_space['feat_variance']:.6f}, time_difference: {metrics_space['time_difference']:.6f}, overlap: {metrics_space['overlap']}")
-            print(f"Time graph: \nfeat_variance: {metrics_time['feat_variance']:.6f}, time_difference: {metrics_time['time_difference']:.6f}, overlap: {metrics_time['overlap']}")
-
-            self.append_metrics(metrics_space, scope="space")
-            self.append_metrics(metrics_time, scope="time")
-
-        else:
-            metrics = self.get_metrics(coords=coords, values=values, mask=mask, scope="default")
-            print(f"feat_variance: {metrics['feat_variance']:.6f}, time_difference: {metrics['time_difference']:.6f}, overlap: {metrics['overlap']}")
-
-            self.append_metrics(metrics, scope="default")
-
-        self.prev_neighbour_indices = {
-            k: v.clone() for k, v in self.neighbour_indices.items()
-        }
+        self.prev_neighbour_indices = {k: v.clone() for k, v in self.neighbour_indices.items()}
 
     def update(self, encoder, coords, values, mask, mean_values=None):
         """ Recompute graph from latent space. """

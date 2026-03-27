@@ -388,6 +388,48 @@ ablation_study = {
             use_masks=False,
             attention_type="space_time_attention"
         )},
+    "exp18": {
+        "description": "Baseline, raw KNN, space_time_depth_attention",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="space_time_depth_attention"
+        )},
+    # "exp19": {
+    #     "description": "Baseline, raw KNN, space_time_attention (only 1 time layer, not 3)",
+    #     "config": ModelConfig(
+    #         graph_mode="static",
+    #         graph_space="raw",
+    #         graph_metric="isotropic",
+    #
+    #         encoder_scope="none",
+    #         encoder_input="coords",  # Unused
+    #         encoder_output_dim=3,  # Unused
+    #         encoder_hidden_dim=64,  # Unused
+    #
+    #         fill_strategy="zero",
+    #         feature_mixer=False,
+    #         feature_mixer_input="feat",  # Unused
+    #
+    #         use_rel_pos=False,
+    #         use_masks=False,
+    #         attention_type="space_time_attention"
+    #     )},
+
+
     # "exp10": {
     #     "description": "Raw anisotropic KNN, MHA",
     #     "config": ModelConfig(
