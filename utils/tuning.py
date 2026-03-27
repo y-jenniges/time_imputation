@@ -12,6 +12,7 @@ from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from missingpy import MissForest
 from sklearn.base import BaseEstimator
+from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from torch import nn
 import math
