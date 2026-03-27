@@ -108,32 +108,3 @@ if __name__ == "__main__":
     plt.savefig(config.output_dir_high_res_plots + "temporal_autocorrelation.png", dpi=1000)
     plt.show()
     plt.close()
-
-    # Some profile fun
-    for param in config.parameters:
-        df_temp = df[["LEV_M", param]].dropna().copy()
-
-        # Compute mean and std per depth level
-        mean_profile = df_temp.groupby("LEV_M")[param].mean()
-        std_profile = df_temp.groupby("LEV_M")[param].std()
-        depths = mean_profile.index.values
-
-        # Plot mean ± SD
-        fig, ax = plt.subplots(figsize=(6, 8))
-        ax.plot(mean_profile, depths, color="steelblue", label="Mean profile")
-        # Scatter points for individual measurements
-        ax.scatter(df_temp[param], df_temp["LEV_M"], color="gray", alpha=0.3, s=1, label="Measurements")
-        # Profile plot
-        ax.fill_betweenx(depths,
-                         mean_profile - std_profile,
-                         mean_profile + std_profile,
-                         color="steelblue", alpha=0.3, label="±1 SD")
-        ax.invert_yaxis()
-        ax.set_xlabel(config.parameter_name_unit_map[param])
-        ax.set_ylabel("Depth [m]")
-        ax.set_title(f"{config.parameter_name_map[param]} profile (mean ± std)")
-        ax.grid(True, linestyle="--", alpha=0.5)
-        ax.legend()
-        plt.tight_layout()
-        plt.savefig(config.output_dir_plots +  "/profile_" + param + ".png")
-        plt.show()
