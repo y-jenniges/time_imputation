@@ -24,6 +24,8 @@ class ModelConfig:
     use_masks: bool
     attention_type: str  # "mha" | "transformer_encoder" | "autoencoder" | "space_time_attention"
 
+    n_neighbours: int = 30
+
 
 ablation_study = {
     "exp0": {
@@ -407,6 +409,118 @@ ablation_study = {
             use_rel_pos=False,
             use_masks=False,
             attention_type="space_time_depth_attention"
+        )},
+    "exp19": {
+        "description": "Baseline, raw KNN, MHA, k=5",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            n_neighbours = 5
+        )},
+    "exp20": {
+        "description": "Baseline, raw KNN, MHA, k=10",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            n_neighbours=10
+        )},
+    "exp21": {
+        "description": "Baseline, raw KNN, MHA, k=20",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            n_neighbours=20
+        )},
+
+    "exp22": {
+        "description": "Baseline, raw KNN, MHA, k=50",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            n_neighbours=50
+        )},
+
+    "exp23": {
+        "description": "Baseline, raw KNN, MHA, k=100",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            n_neighbours=100
         )},
     # "exp19": {
     #     "description": "Baseline, raw KNN, space_time_attention (only 1 time layer, not 3)",

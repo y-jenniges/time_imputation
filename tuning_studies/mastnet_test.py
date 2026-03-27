@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
 
     hyps = {"train": {
-                "n_neighbours": 30,
+                "n_neighbours": cfg.n_neighbours,
                 "batch_size": 128,
                 "learning_rate": 1e-4,
                 "patience": 10,
