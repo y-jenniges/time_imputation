@@ -131,7 +131,7 @@ class MaSTNeT(nn.Module):
         elif self.cfg.attention_type == "space_time_attention":
             self.time_layers = nn.ModuleList([
                 CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
-                for _ in range(nlayers)
+                for _ in range(self.cfg.n_time_layers)
             ])
 
             self.space_layers = nn.ModuleList([
@@ -142,7 +142,7 @@ class MaSTNeT(nn.Module):
         elif self.cfg.attention_type == "space_time_depth_attention":
             self.time_layers = nn.ModuleList([
                 CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
-                for _ in range(nlayers)
+                for _ in range(self.cfg.n_time_layers)
             ])
 
             self.space_layers = nn.ModuleList([
