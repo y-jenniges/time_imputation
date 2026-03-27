@@ -445,19 +445,24 @@ class Trainer:
 
             # Update graph if specified
             if self.graph_provider is not None and self.cfg.graph_mode == "dynamic":
-                # Freezing
-                if epoch == 20:
-                    self.freeze_graph = True  # Freeze graph
+                # Warmup phase (no graph update yet)
+                if epoch >= self.cfg.graph_warmup:
 
-                    # Freeze coord_encoder (if scope is limited to graph)
-                    if self.cfg.encoder_scope == "graph":
-                        for p in self.model.coord_encoder.parameters():
-                            p.requires_grad = False
-                        logging.info("Coord encoder frozen at epoch 20")
+                    # Freezing (stop updating the graph)
+                    if epoch == self.cfg.graph_freeze_epoch:
+                        self.freeze_graph = True  # Freeze graph
 
-                    logging.info("Graph frozen at epoch 20")
-                if(not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
-                    self.update_graph()
+                        # Freeze coord_encoder (if scope is limited to graph)
+                        if self.cfg.encoder_scope == "graph":
+                            for p in self.model.coord_encoder.parameters():
+                                p.requires_grad = False
+                            logging.info(f"Coord encoder frozen at epoch {self.cfg.graph_freeze_epoch}")
+
+                        logging.info(f"Graph frozen at epoch {self.cfg.graph_freeze_epoch}")
+
+                    # Update the graph
+                    if(not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
+                        self.update_graph()
 
             # Train and compute losses
             train_loss = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)

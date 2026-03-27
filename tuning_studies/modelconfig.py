@@ -25,6 +25,9 @@ class ModelConfig:
     attention_type: str  # "mha" | "transformer_encoder" | "autoencoder" | "space_time_attention"
 
     n_neighbours: int = 30
+    graph_update_frequency: int = 5
+    graph_warmup: int = 0
+    graph_freeze_epoch: int = 20
     positional_encoding: bool = False
     n_time_layers: int = 3
 
@@ -708,6 +711,94 @@ ablation_study = {
             attention_type="space_time_attention",
 
             n_time_layers = 1
+        )},
+    "exp33": {
+        "description": "Raw KNN, MHA, weighted time???????????????? todo",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+        )},
+    "exp34": {
+        "description": "Dynamic KNN, MHA, update every 10 epochs (until epoch 50)",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            graph_update_frequency=10,
+            graph_freeze_epoch=50,
+        )},
+    "exp35": {
+        "description": "Dynamic KNN, MHA, update every epoch",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            graph_update_frequency=1
+        )},
+    "exp36": {
+        "description": "Raw KNN, MHA, 20 epochs warmup before graph learning",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            graph_warmup=20,
+            graph_freeze_epoch=200,  # No freezing
         )},
     # "exp19": {
     #     "description": "Baseline, raw KNN, space_time_attention (only 1 time layer, not 3)",

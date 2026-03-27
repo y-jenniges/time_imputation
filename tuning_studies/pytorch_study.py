@@ -231,7 +231,9 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
             batch_size=batch_size,
             generator=generator)
     if model_name == "mastnet":
-        graph_provider = GraphProvider(n_neighbours=n_neighbours, update_every=5, cfg=cfg, test_idx=test_idx, val_idx=val_idx)
+        graph_provider = GraphProvider(n_neighbours=n_neighbours, update_every=cfg.graph_update_frequency, 
+                                       cfg=cfg,
+                                       test_idx=test_idx, val_idx=val_idx)
         loader_kwargs["graph_provider"] = graph_provider
         loader_kwargs["cfg"] = cfg
     else:
