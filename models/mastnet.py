@@ -50,6 +50,7 @@ class MaSTNeT(nn.Module):
         self.cfg = cfg
         self.coord_dim = coord_dim
         self.value_dim = value_dim
+        self.d_model = d_model
         self.input_dim = self.compute_input_dim()
 
         # Define global means (and automatically make it move to correct device)
@@ -57,6 +58,11 @@ class MaSTNeT(nn.Module):
             self.global_means = None
         else:
             self.register_buffer("global_means", torch.tensor(global_means, dtype=torch.float32))
+
+        # Optional positional encoding
+        if self.cfg.positional_encoding:
+            self.pos_encoder = PositionalEncoder(input_dim=self.coord_dim, hidden_dim=pos_hidden_dim, output_dim=d_model)
+            # self.pos_bias = nn.Linear(d_model, nhead)
 
         # Optional coordinate encoder
         if self.cfg.encoder_scope != "none":
@@ -157,7 +163,6 @@ class MaSTNeT(nn.Module):
 
     def compute_input_dim(self):
         dim = 0
-
         # Coordinate encoding
         if self.cfg.encoder_scope not in ["none", "graph"]:
             dim += self.cfg.encoder_output_dim
@@ -169,7 +174,10 @@ class MaSTNeT(nn.Module):
 
         # Relative positions
         if self.cfg.use_rel_pos:
-            dim += self.coord_dim
+            if self.cfg.positional_encoding:
+                dim += self.d_model
+            else:
+                dim += self.coord_dim
 
         # Masks
         if self.cfg.use_masks:
@@ -211,6 +219,12 @@ class MaSTNeT(nn.Module):
 
         return coords
 
+    def positional_encoding(self, rel_positions):
+        if self.cfg.positional_encoding:
+            return self.pos_encoder(rel_positions)
+
+        return rel_positions
+
     def forward(self, batch):
         # Unpack
         query_features = batch["query_features"]
@@ -226,12 +240,15 @@ class MaSTNeT(nn.Module):
         # Optional coordinate encoding
         encoded_query_coords = self.encode_coordinates(coords=query_coords, features=query_features_filled, mask=query_mask)
 
+        # Relative position encoding
+        query_rel_pos_embed = self.positional_encoding(torch.zeros_like(query_coords))  # Embed relative positions
+
         # Build query token
         query_token = self.construct_token(
             encoded_coords=encoded_query_coords,
             encoded_features=encoded_query_features,
             mask=query_mask,
-            rel_positions=torch.zeros_like(query_coords),
+            rel_positions=query_rel_pos_embed,
         ).unsqueeze(1)  # [B, 1, input_dim]
 
         # Project query token
@@ -244,7 +261,7 @@ class MaSTNeT(nn.Module):
             n_feat = data["features"]
             n_mask = data["mask"]
             n_coords = data["coords"]
-            rel_pos = data["rel_positions"]
+            rel_pos = self.positional_encoding(data["rel_positions"])
 
             # Filling features
             n_features_filled = fill_feature_tensor(features=n_feat, mask=n_mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
