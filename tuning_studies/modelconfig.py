@@ -740,9 +740,9 @@ ablation_study = {
             graph_metric="isotropic",
 
             encoder_scope="both",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
 
             fill_strategy="zero",
             feature_mixer=False,
@@ -799,6 +799,46 @@ ablation_study = {
 
             graph_warmup=20,
             graph_freeze_epoch=200,  # No freezing
+        )},
+    "exp37": {
+        "description": "Raw KNN, autoencoder, feature mixer (feat)",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="autoencoder"
+        )},
+    "exp38": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat)",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder",
         )},
     # "exp19": {
     #     "description": "Baseline, raw KNN, space_time_attention (only 1 time layer, not 3)",
