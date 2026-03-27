@@ -736,7 +736,7 @@ ablation_study = {
         "description": "Dynamic KNN, MHA, update every 10 epochs (until epoch 50)",
         "config": ModelConfig(
             graph_mode="dynamic",
-            graph_space="raw",
+            graph_space="encoded",
             graph_metric="isotropic",
 
             encoder_scope="both",
@@ -759,7 +759,7 @@ ablation_study = {
         "description": "Dynamic KNN, MHA, update every epoch",
         "config": ModelConfig(
             graph_mode="static",
-            graph_space="raw",
+            graph_space="encoded",
             graph_metric="isotropic",
 
             encoder_scope="both",
@@ -781,7 +781,7 @@ ablation_study = {
         "description": "Raw KNN, MHA, 20 epochs warmup before graph learning",
         "config": ModelConfig(
             graph_mode="static",
-            graph_space="raw",
+            graph_space="encoded",
             graph_metric="isotropic",
 
             encoder_scope="both",
