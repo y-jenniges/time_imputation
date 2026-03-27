@@ -758,7 +758,7 @@ ablation_study = {
     "exp35": {
         "description": "Dynamic KNN, MHA, update every epoch",
         "config": ModelConfig(
-            graph_mode="static",
+            graph_mode="dynamic",
             graph_space="encoded",
             graph_metric="isotropic",
 
