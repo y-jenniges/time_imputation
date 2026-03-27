@@ -596,6 +596,47 @@ def plot_boxplots(df, config, figsize=(2 * 6, 10), save_as=None, dpi=300):
         plt.savefig(save_as, dpi=dpi, transparent=True)
 
 
+def plot_total_missingness(df, config, save_as=None, dpi=300):
+    df_miss = pd.DataFrame(df[config.parameters].isna().sum(axis=0) / len(df) * 100).reset_index().rename(
+        columns={"index": "parameter", 0: "missingness"})
+    df_miss["parameter"] = df_miss["parameter"].map(config.parameter_name_map)
+
+    ax = sns.barplot(df_miss, x="parameter", y="missingness")
+    for i in ax.containers:
+        ax.bar_label(i, fmt="%.1f")
+
+    plt.xticks(rotation=90)
+    plt.xlabel("")
+    plt.ylabel("Missingness [%]")
+
+    if save_as:
+        plt.savefig(save_as, dpi=dpi)
+
+
+def plot_missingness_over_column(df, config, col="DATEANDTIME", figsize=(8, 6), save_as=None, dpi=300):
+    # Infer missingness information
+    temp = df.set_index(col)[config.parameters]
+    missingness = temp.isna().groupby(col).mean().reset_index()
+    missingness = missingness.melt(id_vars=[col], value_vars=config.parameters, var_name="Parameter",
+                                   value_name="missingness")
+    missingness["Parameter"] = missingness["Parameter"].map(config.parameter_name_map)
+
+    # Plot
+    fig = plt.figure(figsize=figsize)
+    sns.lineplot(data=missingness, x=col, y="missingness", hue="Parameter", marker="o")
+
+    plt.xlabel("")
+    plt.ylabel("Missingness [%]")
+
+    plt.gca().set_xticks(ticks=np.sort(missingness[col].unique()))
+    plt.xticks(rotation=90)
+    plt.grid(True, color="black", alpha=0.1, linestyle="--")
+    plt.tight_layout()
+
+    if save_as:
+        plt.savefig(save_as, dpi=dpi)
+
+
 """
 Following function (adapted) from:
 Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1). 
