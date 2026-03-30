@@ -28,8 +28,10 @@ class ModelConfig:
     graph_update_frequency: int = 5
     graph_warmup: int = 0
     graph_freeze_epoch: int = 20
+    learn_anisotropic_weights: bool = False
     positional_encoding: bool = False
     n_time_layers: int = 3
+    loss_name: str = "hetero"
 
 
 ablation_study = {
@@ -862,6 +864,123 @@ ablation_study = {
 
             n_time_layers=2
         )},
+    "exp40": {
+        "description": "Dynamic KNN, update every epoch (no freeze)",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            graph_update_frequency=1,
+            graph_freeze_epoch=200
+        )},
+    "exp41": {
+        "description": "Raw KNN, MHA, 20 epochs warmup before graph learning (update every epoch, no freeze)",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            graph_warmup=20,
+            graph_update_frequency=1,
+            graph_freeze_epoch=200,  # No freezing
+        )},
+    "exp42": {
+        "description": "Raw KNN, MHA, graph_dim=16 (not 3)",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=16,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+        )},
+    "exp43": {
+        "description": "Raw KNN (learnable dim weights), MHA",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            learn_anisotropic_weights=True,
+            graph_update_frequency=1,
+            graph_freeze_epoch=200,
+            loss_name="hetero_smooth",
+        )},
+    "exp44": {
+        "description": "Raw KNN, MHA, hetero smooth loss",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="mha",
+
+            graph_update_frequency=1,
+            graph_freeze_epoch=200,
+            loss_name="hetero_smooth",
+        )},
+
     # "exp19": {
     #     "description": "Baseline, raw KNN, space_time_attention (only 1 time layer, not 3)",
     #     "config": ModelConfig(

@@ -38,7 +38,7 @@ class ModelAdapter(ABC):
         pass
 
     @abstractmethod
-    def loss_inputs(self, batch, outputs, masks):
+    def loss_inputs(self, batch, outputs, masks, **kwargs):
         pass
 
     @abstractmethod
@@ -121,7 +121,7 @@ class NeighbourAdapter(ModelAdapter):
 
         return model(batch)
 
-    def loss_inputs(self, batch, outputs, masks):
+    def loss_inputs(self, batch, outputs, masks, **kwargs):
         pred_mean, pred_var = outputs
 
         return dict(
@@ -129,6 +129,8 @@ class NeighbourAdapter(ModelAdapter):
             target=batch["query_features"],
             mask=masks["q_loss_mask"],
             pred_var=pred_var,
+            query_coords=batch["query_coords"],
+            anisotropic_weights=kwargs.get("anisotropic_weights", None),
 
             # Structured neighbour info
             neighbours={
@@ -197,7 +199,7 @@ class PointwiseAdapter(ModelAdapter):
         x = torch.cat([coords, feat_filled, mask.float()], dim=-1)
         return model(x)
 
-    def loss_inputs(self, batch, outputs, masks):
+    def loss_inputs(self, batch, outputs, masks, **kwargs):
         if len(outputs) == 2:
             pred_mean, pred_var = outputs
         else:
@@ -274,7 +276,7 @@ class Trainer:
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
 
             # Compute loss
-            loss_input = self.adapter.loss_inputs(batch=batch, outputs=outputs, masks=masks)
+            loss_input = self.adapter.loss_inputs(batch=batch, outputs=outputs, masks=masks, anisotropic_weights=self.model.anisotropic_weights)
             loss = self.loss_fn(**loss_input)
             if loss is None:
                 continue
@@ -315,7 +317,7 @@ class Trainer:
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
 
             # Compute loss
-            loss_inputs = self.adapter.loss_inputs(batch=batch, outputs=outputs, masks=masks)
+            loss_inputs = self.adapter.loss_inputs(batch=batch, outputs=outputs, masks=masks, anisotropic_weights=self.model.anisotropic_weights)
             loss = self.loss_fn(**loss_inputs)
             if loss is None:
                 continue
@@ -365,7 +367,9 @@ class Trainer:
         st = time()
         self.model.eval()
 
-        self.graph_provider.update(encoder=self.model.coord_encoder, coords=self.full_coords, values=self.full_values, mask=self.full_mask, mean_values=self.global_means)
+        self.graph_provider.update(encoder=self.model.coord_encoder, coords=self.full_coords, values=self.full_values,
+                                   mask=self.full_mask, mean_values=self.global_means,
+                                   anisotropic_weights=self.model.anisotropic_weights)
         logging.info("Updated graph in %.0f minutes." % ((time() - st) / 60 ))
 
     def log_metrics(self, prefix, d):

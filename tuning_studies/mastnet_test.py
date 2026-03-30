@@ -79,7 +79,7 @@ if __name__ == "__main__":
                 "patience": 10,
                 "n_epochs": 100,
                 "mask_ratio": 0.3,
-                "loss": "hetero", # "hetero",
+                "loss": cfg.loss_name,
                 "optimizer": torch.optim.Adam
             },
             "model": {

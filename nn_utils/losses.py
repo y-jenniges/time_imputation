@@ -27,6 +27,9 @@ def name_to_loss_spec(loss_name):
     elif loss_name == "physics_hetero":
         loss_spec["class"] = PhysicsLoss
         loss_spec["kwargs"] = {"sigma": 1.0, "lambda_smooth": 1e-3}
+    elif loss_name == "hetero_smooth":
+        loss_spec["class"] = PhysicsLoss
+        loss_spec["kwargs"] = {"base_loss": HeteroscedasticGaussianNLL(), "sigma": 1.0, "lambda_smooth": 1e-3}
     else:
         raise ValueError(f"Unknown loss name {loss_name}")
     return loss_spec
@@ -108,8 +111,11 @@ class PhysicsLoss(BaseLoss):
         self.bounds = bounds
         self.sigma = sigma
 
-    def forward(self, input, target, mask=None, coords=None, pred_var=None,
-                neighbour_features=None, neighbour_coords=None, query_coords=None,
+    def forward(self, input, target, mask=None, pred_var=None,
+                coords=None, neighbour_features=None, neighbour_coords=None,
+                query_coords=None,
+                neighbours=None,
+                anisotropic_weights=None,
                 **kwargs):
         # Only use not-nan entries (from ground truth)
         if mask is None:
@@ -126,9 +132,12 @@ class PhysicsLoss(BaseLoss):
 
         # Spatiotemporal smoothness penalty
         smooth_loss_val = 0.0
-        if neighbour_features is not None and neighbour_coords is not None:
-            smooth_loss_val += self._compute_smoothness_loss(input=input, neighbour_features=neighbour_features,
-                                                           neighbour_coords=neighbour_coords, query_coords=query_coords)
+        if neighbours is not None: #  and neighbour_coords is not None:
+            smooth_loss_val += self._compute_smoothness_loss(input=input,
+                                                             neighbour_features=neighbours["default"]["features"],  # @todo what to do with multiple scopes? smoothness in every direction?
+                                                             neighbour_coords=neighbours["default"]["coords"],
+                                                             query_coords=query_coords,
+                                                             anisotropic_weights=anisotropic_weights)
 
         # Enforce physical bounds
         bounds_loss_val = 0.0
@@ -137,19 +146,26 @@ class PhysicsLoss(BaseLoss):
 
         return base_loss_val + self.lambda_smooth * smooth_loss_val + self.lambda_bounds * bounds_loss_val
 
-    def _compute_smoothness_loss(self, input, neighbour_features, neighbour_coords, query_coords):
+    def _compute_smoothness_loss(self, input, neighbour_features, neighbour_coords, query_coords, anisotropic_weights=None):
         """ Distance-weighted smoothness penalty. """
         valid = ~torch.isnan(neighbour_features)
         n_feat = torch.nan_to_num(neighbour_features)
 
         # Squared spatio-temporal distances
-        dist2 = ((query_coords.unsqueeze(1) - neighbour_coords) ** 2).sum(dim=-1)  # [batch_size, n_neighbours]
+        dist2_coords = ((query_coords.unsqueeze(1) - neighbour_coords) ** 2)  # [B, K, C]
+
+        if anisotropic_weights is not None:
+            # Ensure positivity
+            pos_aniso_weights = torch.nn.functional.softplus(anisotropic_weights)  # [C]
+
+            # Broadcast: [1,1,C]
+            dist2_coords = (dist2_coords * pos_aniso_weights.view(1, 1, -1))  # [B, K]
 
         # RBF kernel edge weight
-        w = torch.exp(-dist2 / (2*self.sigma**2) ).unsqueeze(-1)  # [batch_size, n_neighbours, 1]
+        w = torch.exp(-dist2_coords.sum(dim=-1) / (2*self.sigma**2) ).unsqueeze(-1)  # [B, K, 1]
 
         # Squared feature difference
-        diff2 = (input.unsqueeze(1) - n_feat) ** 2  # [batch_size, n_neighbours, n_features]
+        diff2 = (input.unsqueeze(1) - n_feat) ** 2  # [B, K, F]
         weighted = w * diff2 * valid
         denom = (w * valid).sum()
 

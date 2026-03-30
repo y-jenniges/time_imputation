@@ -59,6 +59,13 @@ class MaSTNeT(nn.Module):
         else:
             self.register_buffer("global_means", torch.tensor(global_means, dtype=torch.float32))
 
+        # Optional learnable anisotropic graph weights
+        if self.cfg.learn_anisotropic_weights:
+            self.anisotropic_weights = nn.Parameter(torch.ones(coord_dim))
+            print("Weights in mastnet: ", self.anisotropic_weights)
+        else:
+            self.anisotropic_weights = None
+
         # Optional positional encoding
         if self.cfg.positional_encoding:
             self.pos_encoder = PositionalEncoder(input_dim=self.coord_dim, hidden_dim=pos_hidden_dim, output_dim=d_model)

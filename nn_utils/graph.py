@@ -81,7 +81,7 @@ class GraphProvider:
             self.history[scope] = base_history
 
     @torch.no_grad()
-    def build_graph(self, encoded, coords, values, mask):
+    def build_graph(self, encoded, coords, values, mask, anisotropic_weights=None):
         if self.cfg.attention_type == "space_time_attention":
             # Time neighbours
             time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours+1)
@@ -159,7 +159,7 @@ class GraphProvider:
 
         self.prev_neighbour_indices = {k: v.clone() for k, v in self.neighbour_indices.items()}
 
-    def update(self, encoder, coords, values, mask, mean_values=None):
+    def update(self, encoder, coords, values, mask, mean_values=None, anisotropic_weights=None):
         """ Recompute graph from latent space. """
         values = values.clone()
         mask = mask.clone()
@@ -174,7 +174,12 @@ class GraphProvider:
         encoded = self.encode_input(encoder=encoder, coords=coords, values=values, mask=mask, mean_values=mean_values)  # second visit here somehow leaves nan
 
         # Graph building
-        self.build_graph(encoded=encoded, coords=coords, values=values, mask=mask)
+        # Weighting each coordinate dimension
+        w = 1 if anisotropic_weights is None else torch.nn.functional.softplus(anisotropic_weights)
+        print("Weights in graph: ", w)
+        coords_scaled = coords * w
+        encoded_scaled = encoded * w
+        self.build_graph(encoded=encoded_scaled, coords=coords_scaled, values=values, mask=mask, anisotropic_weights=anisotropic_weights)
 
         # KNN eval metrics
         self.update_eval_metrics(values=values, coords=coords, mask=mask)
