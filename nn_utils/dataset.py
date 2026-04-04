@@ -83,6 +83,167 @@ class PointwiseDataset(Dataset):
         return {"features": self.values[idx], "coords": self.coords[idx], "mask": self.feature_mask[idx]}
 
 
+class TimeSequenceDataset(Dataset):
+    def __init__(self, coords: torch.Tensor, values: torch.Tensor, query_indices: np.ndarray | None = None,
+                 sequence_length: int = None,
+                 scopes=None):
+        # self.scopes = scopes if scopes is not None else ["time"]
+
+        if sequence_length is None:
+            sequence_length = len(torch.unique(coords[:, -1]))
+        assert sequence_length % 2 == 1, "sequence_length must be odd"
+
+        self.coords = coords
+        self.values = values
+        self.query_indices = query_indices
+
+        # Sequence info
+        self.seq_len = sequence_length
+        self.half = sequence_length // 2
+
+        # Initial mask: True = observed (False = NaN)
+        self.feature_mask = ~torch.isnan(values)
+
+        # Sort by time
+        self.sorted_idx = torch.argsort(coords[:, -1])
+        self.coords_sorted = coords[self.sorted_idx]
+        self.values_sorted = values[self.sorted_idx]
+        self.mask_sorted = self.feature_mask[self.sorted_idx]
+
+        # Store original indices of query points
+        if query_indices is None:
+            self.query_indices = torch.arange(len(coords), dtype=torch.long)
+        else:
+            self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
+
+        # Map query indices to sorted indices
+        self.query_indices = torch.searchsorted(self.sorted_idx, self.query_indices)
+
+    def __len__(self):
+        return self.query_indices.shape[0]
+
+    def __getitem__(self, idx) -> Dict[str, Any]:
+        # Map local query point idx to global idx
+        q_idx = self.query_indices[idx]
+
+        # Sequence
+        seq_start = q_idx -self.half
+        seq_end = q_idx + self.half + 1
+
+        # Sequence boundaries
+        seq_start = max(seq_start, 0)
+        seq_end = min(seq_end, len(self.coords_sorted))
+
+        seq_coords = self.coords_sorted[seq_start:seq_end]
+        seq_values = self.values_sorted[seq_start:seq_end]
+        seq_mask = self.mask_sorted[seq_start:seq_end]
+
+        # Query point is the center
+        q_local = min(self.half, seq_coords.shape[0] - 1)
+
+        # Pad (if sequence shorter than seq length)
+        if seq_coords.shape[0] < self.seq_len:
+            pad_size = self.seq_len - seq_coords.shape[0]
+
+            seq_coords = torch.cat([seq_coords, seq_coords[-1:].repeat(pad_size, 1)], dim=0)
+            seq_values = torch.cat([seq_values, seq_values[-1:].repeat(pad_size, 1)], dim=0)
+            seq_mask = torch.cat([seq_mask, seq_mask[-1:].repeat(pad_size, 1)], dim=0)
+
+        return {
+            "query_features": seq_values[q_local],
+            "query_mask": seq_mask[q_local],
+            "query_coords": seq_coords[q_local],
+            "time": {
+                "features": seq_values,
+                "mask": seq_mask,
+                "coords": seq_coords,
+                "rel_positions": seq_coords - seq_coords[q_local]
+            }
+        }
+
+
+
+def prepare_time_sequence_loaders(coords: torch.Tensor,
+                                  values: torch.Tensor,
+                                  train_idx: np.ndarray,
+                                  val_idx: np.ndarray,
+                                  test_idx: np.ndarray,
+                                  batch_size: int,
+                                  sequence_length: int,
+                                  generator: torch.Generator,
+                                  cyclic_time: bool = False,
+                                  cfg=None,
+                                  graph_provider=None,
+                                  ) -> tuple[
+    DataLoader[Any], DataLoader[Any], DataLoader[Any], DataLoader[Any], dict | dict[
+        Any, Any], int, int, None, Tensor, Tensor, Tensor]:
+    """
+    Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
+    return query and spatio-temporally neighbouring tokens.
+
+    :param coords: Latitude, longitude, depth and time data
+    :param values: Variable data (torch.tensor)
+    :param train_idx: Rows meant for training
+    :param val_idx: Rows meant for validation
+    :param test_idx: Rows meant for testing
+    :param batch_size: Batch size
+    :param generator: Random number generator
+    :param graph_provider: GraphProvider object
+    :param cyclic_time: Whether to encode time cyclically (e.g. for monthly data) or not (e.g. for yearly data)
+    :param cfg: Configuration object
+    :return:
+        - full_loader
+        - train_loader
+        - val_loader
+        - test_loader
+        - train_scaler_dict
+        - n_coords
+        - n_values
+        - dists
+    """
+    # Split raw data
+    coords_train_raw = coords[train_idx]
+    values_train_raw = values[train_idx]
+
+    # Preprocess training data
+    coords_train, values_train, train_scaler_dict = preprocess(coords=coords_train_raw,
+                                                               values=values_train_raw,
+                                                               coord_names=config.coordinates,
+                                                               parameter_names=config.parameters,
+                                                               cyclic_time=cyclic_time,
+                                                               scaler_dict=None)
+
+    # Preprocess full dataset using training scalers
+    coords_full, values_full, _ = preprocess(
+        coords=coords,
+        values=values,
+        coord_names=config.coordinates,
+        parameter_names=config.parameters,
+        cyclic_time=cyclic_time,
+        scaler_dict=train_scaler_dict
+    )
+    mask_full = ~torch.isnan(values_full)
+
+    # Define datasets
+    train_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=train_idx, sequence_length=sequence_length)
+    val_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=val_idx, sequence_length=sequence_length)
+    test_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=test_idx, sequence_length=sequence_length)
+    full_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=None, sequence_length=sequence_length)
+
+    print(len(train_dataset), len(val_dataset), len(test_dataset))
+
+    # Define data loaders
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
+
+    dists_train = None
+    # print(f"Median distance of training data: {np.nanmedian(dists_train)}")
+
+    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1), dists_train, coords_full, values_full, mask_full
+
+
 def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
                                           values: torch.Tensor,
                                           train_idx: np.ndarray,
@@ -169,118 +330,6 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     # print(f"Median distance of training data: {np.nanmedian(dists_train)}")
 
     return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1), dists_train, coords_full, values_full, mask_full
-
-
-def prepare_neighbourhood_loaders(coords: torch.Tensor,
-                                  values: torch.Tensor,
-                                  train_idx: np.ndarray,
-                                  val_idx: np.ndarray,
-                                  test_idx: np.ndarray,
-                                  batch_size: int,
-                                  generator: torch.Generator,
-                                  cyclic_time: bool = False,
-                                  n_neighbours: int = 24,
-                                  ) -> Tuple[
-    DataLoader, DataLoader, DataLoader, DataLoader, dict, int, int, np.ndarray]:
-    """
-    Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
-    return query and spatio-temporally neighbouring tokens.
-
-    :param coords: Latitude, longitude, depth and time data
-    :param values: Variable data (torch.tensor)
-    :param train_idx: Rows meant for training
-    :param val_idx: Rows meant for validation
-    :param test_idx: Rows meant for testing
-    :param batch_size: Batch size
-    :param generator: Random number generator
-    :param cyclic_time: Whether to encode time cyclically (e.g. for monthly data) or not (e.g. for yearly data)
-    :param n_neighbours: Number of neighbours to use
-    :return:
-        - full_loader
-        - train_loader
-        - val_loader
-        - test_loader
-        - train_scaler_dict
-        - n_coords
-        - n_values
-        - dists
-    """
-    # Split raw data
-    coords_train_raw = coords[train_idx]
-    values_train_raw = values[train_idx]
-
-    # Preprocess training data
-    coords_train, values_train, train_scaler_dict = preprocess(coords=coords_train_raw,
-                                                               values=values_train_raw,
-                                                               coord_names=config.coordinates,
-                                                               parameter_names=config.parameters,
-                                                               cyclic_time=cyclic_time,
-                                                               scaler_dict=None)
-
-    # Preprocess full dataset using training scalers
-    coords_full, values_full, _ = preprocess(
-        coords=coords,
-        values=values,
-        coord_names=config.coordinates,
-        parameter_names=config.parameters,
-        cyclic_time=cyclic_time,
-        scaler_dict=train_scaler_dict
-    )
-
-    # Build graph for neighbour search
-    # Compute neighbours only on non-empty training data points
-    train_valid_mask = ~torch.isnan(values_train_raw).all(dim=1)
-    train_valid_idx = train_idx[train_valid_mask]
-    coords_valid = coords_full[train_valid_idx]
-
-    n_samples = values.shape[0]
-    # neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours+1, n_samples), algorithm="auto").fit(coords_full[train_idx].cpu().numpy())
-    neighbours_train = NearestNeighbors(n_neighbors=min(n_neighbours + 1, n_samples), algorithm="auto").fit(coords_valid.cpu().numpy())
-    dists_train, neighbour_indices_train = neighbours_train.kneighbors(coords_full[train_idx].cpu().numpy(), return_distance=True)
-    neighbour_indices_train = torch.as_tensor(neighbour_indices_train[:, 1:], dtype=torch.long, device="cpu")  # Exclude self and convert to tensor
-
-    dists_val, neighbour_indices_val = neighbours_train.kneighbors(coords_full[val_idx].cpu().numpy(),
-                                                                   return_distance=True)
-    neighbour_indices_val = torch.as_tensor(neighbour_indices_val[:, :n_neighbours], dtype=torch.long, device="cpu")
-
-    dists_test, neighbour_indices_test = neighbours_train.kneighbors(coords_full[test_idx].cpu().numpy(),
-                                                                     return_distance=True)
-    neighbour_indices_test = torch.as_tensor(neighbour_indices_test[:, :n_neighbours], dtype=torch.long, device="cpu")
-
-    neighbour_indices_train = train_valid_idx[neighbour_indices_train]
-    neighbour_indices_val = train_valid_idx[neighbour_indices_val]
-    neighbour_indices_test = train_valid_idx[neighbour_indices_test]
-
-    # Define datasets
-    train_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx,
-                                     neighbour_indices=neighbour_indices_train)
-    val_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx,
-                                   neighbour_indices=neighbour_indices_val)
-    test_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx,
-                                    neighbour_indices=neighbour_indices_test)
-
-    # Define data loaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-    # Define loader for complete dataset (for complete reconstruction)
-    dists, neighbours_local = neighbours_train.kneighbors(coords_full.cpu().numpy(), return_distance=True)
-
-    neighbour_local = neighbours_local[:, :n_neighbours]
-    neighbour_indices = train_valid_idx[neighbour_local]
-    neighbour_indices = torch.as_tensor(neighbour_indices, dtype=torch.long, device="cpu")
-
-    # neighbour_indices = torch.as_tensor(neighbour_indices[:, :n_neighbours], dtype=torch.long, device="cpu")
-    # neighbour_indices = train_idx[neighbour_indices]
-    full_dataset = NeighbourDataset(coords=coords_full, values=values_full, query_indices=None,
-                                    neighbour_indices=neighbour_indices)
-    full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
-
-    print(f"Median distance of training data: {np.median(dists_train)}")
-
-    return (full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1),
-            values_train.size(1), dists_train)
 
 
 def prepare_pointwise_loaders(coords: torch.Tensor,
@@ -482,6 +531,57 @@ def random_feature_mask(batch_size: int,
         neighbour_mask = torch.zeros(batch_size, n_neighbours, feature_dim, dtype=torch.bool, device=device)
 
     return query_mask, neighbour_mask
+
+
+def block_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
+    """ Creates single line mask. """
+    lonlats = batch["query_coords"][:, :3]  # [B, 3]
+    B = lonlats.shape[0]
+
+    # Apply block mask in p % of batches
+    if torch.rand(1) > p:
+        return torch.zeros(B, feature_dim, dtype=torch.bool, device=device)
+
+    # Random center
+    center = torch.rand(3, device=device)
+
+    # Distance to center
+    dist = torch.norm(lonlats - center, dim=1)
+
+    # Spherical block
+    mask_block = dist < size  # [B]
+
+    return mask_block.unsqueeze(1).expand(B, feature_dim)
+
+
+def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu"):
+    """ Creates single block (sphere) mask. """
+    lonlats = batch["query_coords"][:, :3]  # [B, 3]
+    B = lonlats.shape[0]
+
+    # Only apply with probability p
+    if torch.rand(1) > p:
+        return torch.zeros(B, feature_dim, dtype=torch.bool, device=device)
+
+    # Random line: point + direction
+    p0 = torch.rand(3, device=device)  # Random point (on line)
+    d = torch.randn(3, device=device)  # Direction
+    d = d / torch.norm(d)  # Normalize to unit vector
+
+    # Vector from line point to all points
+    v = lonlats - p0  # [B, 3]
+
+    # Distance to line: ||v - (v·d)d||
+    proj = (v @ d).unsqueeze(1) * d  # Projection onto line
+    dist = torch.norm(v - proj, dim=1)  # Perpendicular distance
+
+    # Points close to line
+    mask_line = dist < width  # [B]
+
+    # Expand to features
+    mask = mask_line.unsqueeze(1).expand(B, feature_dim)
+
+    return mask
 
 
 def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool = False, scaler_dict: dict = None):
