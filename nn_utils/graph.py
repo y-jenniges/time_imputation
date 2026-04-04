@@ -1,8 +1,22 @@
 import torch
+import numpy as np
 from typing import Union, Dict, Any
 from sklearn.neighbors import NearestNeighbors
 
 from utils.preprocessing import fill_feature_tensor, get_scopes
+
+
+def set_seed(seed):
+    np.random.seed(seed)
+    torch.manual_seed(seed)  # CPU
+    torch.cuda.manual_seed(seed)  # current GPU
+    torch.cuda.manual_seed_all(seed)  # all GPUs, if multiple
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    return generator
 
 
 def knn_feature_variance(values, mask, knn_idx, scope="default"):
@@ -82,7 +96,11 @@ class GraphProvider:
 
     @torch.no_grad()
     def build_graph(self, encoded, coords, values, mask, anisotropic_weights=None):
-        if self.cfg.attention_type == "space_time_attention":
+        if self.cfg.graph_mode == "random":
+            # Random neighbours
+            self.neighbour_indices = {"default": compute_random_neighbours(coords, k=self.n_neighbours, seed=42)}
+
+        elif self.cfg.attention_type == "space_time_attention":
             # Time neighbours
             time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours+1)
             time_indices = time_indices[:, 1:]  # Remove self
@@ -175,7 +193,8 @@ class GraphProvider:
 
         # Graph building
         # Weighting each coordinate dimension
-        w = 1 if anisotropic_weights is None else torch.nn.functional.softplus(anisotropic_weights)
+        # w = 1 if anisotropic_weights is None else torch.nn.functional.softplus(anisotropic_weights)  # torch.exp(anisotropic_weights)
+        w = 1 if anisotropic_weights is None else torch.exp(anisotropic_weights)
         print("Weights in graph: ", w)
         coords_scaled = coords * w
         encoded_scaled = encoded * w
@@ -196,6 +215,22 @@ class GraphProvider:
             "mask": feature_mask[n_idx],
             "coords": coords[n_idx]
         }
+
+
+def compute_random_neighbours(coords, k, seed=None):
+    generator = set_seed(seed) if seed is not None else None
+
+    N = coords.shape[0]
+
+    indices = torch.empty((N, k), dtype=torch.long)
+
+    for i in range(N):
+        # sample k from N-1 without full permutation
+        choices = torch.randint(0, N-1, (k,))
+        choices[choices >= i] += 1  # skip self
+        indices[i] = choices
+
+    return indices
 
 
 def compute_candidates(coords, k=200):
