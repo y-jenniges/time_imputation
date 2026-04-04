@@ -32,7 +32,7 @@ class CrossAttentionBlock(nn.Module):
         )
 
     def forward(self, q, n):
-        attn_out, _ = self.attn(q, n, n)
+        attn_out, attn_weights = self.attn(q, n, n)
         q = self.norm1(q + attn_out)
 
         mlp_out = self.mlp(q)
@@ -68,7 +68,8 @@ class MaSTNeT(nn.Module):
 
         # Optional positional encoding
         if self.cfg.positional_encoding:
-            self.pos_encoder = PositionalEncoder(input_dim=self.coord_dim, hidden_dim=pos_hidden_dim, output_dim=d_model)
+            pos_input_dim = self.coord_dim if not self.cfg.positional_encoding_time_only else 1
+            self.pos_encoder = PositionalEncoder(input_dim=pos_input_dim, hidden_dim=pos_hidden_dim, output_dim=d_model)
             # self.pos_bias = nn.Linear(d_model, nhead)
 
         # Optional coordinate encoder
@@ -103,6 +104,22 @@ class MaSTNeT(nn.Module):
         else:
             self.feature_mixer = None
 
+        # Optional global context
+        if self.cfg.global_context:
+            self.global_context = nn.Sequential(
+                nn.Linear(d_model, d_model),
+            )
+
+            self.gate_mlp = nn.Sequential(
+                nn.Linear(d_model, d_model),
+                nn.GELU(),
+                nn.Linear(d_model, 1),
+                nn.Sigmoid()
+            )
+        else:
+            self.global_context = None
+            self.gate_mlp = None
+
         # Input projector
         self.input_projector = nn.Linear(self.input_dim, d_model)
 
@@ -127,6 +144,20 @@ class MaSTNeT(nn.Module):
                 dropout=dropout
             )
             self.encoder_transformer = nn.TransformerEncoder(encoder_layer, nlayers)
+
+            # Transformer decoder
+            decoder_layer = nn.TransformerDecoderLayer(
+                d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, activation="gelu", batch_first=True,
+                dropout=dropout
+            )
+            self.decoder_transformer = nn.TransformerDecoder(decoder_layer, nlayers)
+
+        elif self.cfg.attention_type == "mha_decoder":
+            # Encoder
+            self. mha_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(nlayers)
+            ])
 
             # Transformer decoder
             decoder_layer = nn.TransformerDecoderLayer(
@@ -184,7 +215,10 @@ class MaSTNeT(nn.Module):
             if self.cfg.positional_encoding:
                 dim += self.d_model
             else:
-                dim += self.coord_dim
+                if self.cfg.positional_encoding:
+                    dim += 1
+                else:
+                    dim += self.coord_dim
 
         # Masks
         if self.cfg.use_masks:
@@ -228,6 +262,8 @@ class MaSTNeT(nn.Module):
 
     def positional_encoding(self, rel_positions):
         if self.cfg.positional_encoding:
+            if self.cfg.positional_encoding_time_only:
+                return self.pos_encoder(rel_positions=rel_positions[:, -1])
             return self.pos_encoder(rel_positions)
 
         return rel_positions
@@ -310,6 +346,13 @@ class MaSTNeT(nn.Module):
                 # Decode query conditioned on memory (neighbours)
                 encoded = self.decoder_transformer(tgt=q, memory=n)
 
+            elif self.cfg.attention_type == "mha_decoder":
+                n = self.input_projector(n_tokens)
+
+                for layer in self.mha_layers:
+                    q = layer(q, n)
+                encoded = self.decoder_transformer(tgt=q, memory=n)
+
             elif self.cfg.attention_type == "space_time_attention":
                 n = self.input_projector(n_tokens)  # [B, K, d_model]
 
@@ -343,6 +386,17 @@ class MaSTNeT(nn.Module):
             else:
                 raise ValueError(f"MaSTNeT: Unknown attention type: {self.cfg.attention_type}")
 
+        # Add global context to each node
+        if self.global_context is not None and self.gate_mlp is not None:
+            h_global = encoded.mean(dim=1, keepdim=True)
+            g = self.global_context(h_global)
+
+            # Gating
+            alpha = self.gate_mlp(encoded)
+
+            encoded = encoded + alpha * g
+            # encoded = encoded + g
+
         # Take the query token output only for reconstruction (not neighbours)
         query_encoded = encoded[:, 0, :]  # [B, d_model]
 
@@ -351,162 +405,3 @@ class MaSTNeT(nn.Module):
         pvar = self.var_decoder(query_encoded)  # [B, F]
 
         return pmean, pvar
-
-
-
-        batch_size, n_features = query_features.shape
-
-        # Prepare neighbour token
-        # rel_pos_embed = self.pos_encoder(rel_positions)  # Embed relative positions
-
-        # Encode query coordinates
-        q_time = query_coords[:, -1:].float()
-        q_space = query_coords[:, :4].float()
-
-        q_feat_for_encoder = fill_feature_tensor(features=query_features, mask=query_mask, fill_strategy="mean", mean_values=self.global_means)
-        z_query = self.coord_encoder(coords=q_space, times=q_time, values=q_feat_for_encoder, mask=query_mask.float()).unsqueeze(1)  # [B, 1, d_enc]
-
-        # Encode neighbour coordinates
-        n_time = neighbour_coords[:, :, -1:].float()
-        n_space = neighbour_coords[:, :, :4].float()
-
-        n_feat_for_encoder = fill_feature_tensor(features=neighbour_features, mask=neighbour_mask, fill_strategy="mean", mean_values=self.global_means)
-        z_neighbours = self.coord_encoder(coords=n_space, times=n_time, values=n_feat_for_encoder, mask=neighbour_mask.float()).unsqueeze(1)  # [B, 1, d_enc]
-
-        # Prepare query token
-        query_mask_float = query_mask.float().unsqueeze(1)  # [batch_size, 1, n_features]
-        query_coords_float = query_coords.float().unsqueeze(1)
-        query_feat_filled = fill_feature_tensor(features=query_features, mask=query_mask, fill_strategy="mean", mean_values=self.global_means).unsqueeze(1)
-        query_feat_filled = self.feature_mixer(torch.cat([query_feat_filled, query_mask_float], dim=-1))
-        #query_feat_filled = self.feature_mixer(query_feat_filled)
-
-        # global_pred = self.global_mlp(torch.cat([query_feat_filled, query_mask_float], dim=-1).squeeze(1))
-        # print(global_pred.shape)
-
-        # rel_positions_dummy = torch.zeros(query_coords.shape[0], 1, self.coord_dim, device=query_coords.device)
-        # rel_pos_query_embed = self.pos_encoder(rel_positions_dummy)
-        ## query_token = torch.cat([rel_pos_query_embed, query_coords_float, query_feat_filled, query_mask_float], dim=-1)  # [batch_size, 1, input_dim]
-        # query_token = torch.cat([query_coords_float, query_feat_filled, query_mask_float], dim=-1)  # [batch_size, 1, input_dim]
-
-        rel_positions_dummy = torch.zeros_like(query_coords_float)
-        # query_token = torch.cat([rel_positions_dummy, query_coords_float, query_feat_filled, query_mask_float], dim=-1)  # [batch_size, 1, input_dim]
-        query_token = torch.cat([rel_positions_dummy, z_query, query_feat_filled], dim=-1)  # [batch_size, 1, input_dim]
-
-        neighbour_mask_float = neighbour_mask.float()
-        neighbour_feat_filled = torch.where(neighbour_mask, neighbour_features, torch.zeros_like(neighbour_features) if self.global_means is None else self.global_means.unsqueeze(0))  # Fill missing features with 0
-        neighbour_feat_filled = self.feature_mixer(torch.cat([neighbour_feat_filled, neighbour_mask_float], dim=-1))
-        #neighbour_feat_filled = self.feature_mixer(neighbour_feat_filled)
-        # neighbour_tokens = torch.cat([rel_positions, neighbour_coords, neighbour_feat_filled, neighbour_mask_float], dim=-1)  # [batch_size, neighbours, input_dim]
-        neighbour_tokens = torch.cat([rel_positions, z_neighbours, neighbour_feat_filled], dim=-1)  # [batch_size, neighbours, input_dim]
-        # neighbour_tokens = torch.cat([rel_pos_embed, neighbour_coords, neighbour_feat_filled, neighbour_mask_float], dim=-1)  # [batch_size, neighbours, input_dim]
-        # neighbour_tokens = torch.cat([neighbour_coords, neighbour_feat_filled, neighbour_mask_float], dim=-1)  # [batch_size, neighbours, input_dim]
-
-        # Weight for relative positions
-        # weights = torch.softmax(-torch.norm(rel_positions, dim=-1), dim=-1)
-        # weighted_neighbours = weights.unsqueeze(-1) * neighbour_feat_filled
-        # neighbour_tokens = torch.cat([rel_positions, neighbour_coords, weighted_neighbours, neighbour_mask_float], dim=-1)  # [batch_size, neighbours, input_dim]
-
-        # Encode tokens and perform cross attention (query attends to neighbours)
-        q = self.encoder_input(query_token)
-        n = self.encoder_input(neighbour_tokens) # + rel_pos_embed
-        attn_out, _ = self.attn(q, n, n, attn_mask=None, key_padding_mask=None)  # query attends to neighbours
-        q = self.norm1(q + attn_out)
-        mlp_out = self.mlp(q)
-        encoded = self.norm2(q + mlp_out)
-
-        # Take the query token output only for reconstruction (not neighbours)
-        query_encoded = encoded[:, 0, :]  # [batch_size, d_model]
-
-        # Predict mean and variance
-        pmean = self.mean_decoder(query_encoded)
-        pvar = self.var_decoder(query_encoded)  # [batch_size, n_features]
-
-        return pmean, pvar
-    #
-    # def predict(self, x, y, n_neighbours, batch_size, device: torch.device = torch.device("cpu")):
-    #     """ Impute missing data given scaled x (coordinates) and y (values). """
-    #     # Compute neighbours
-    #     n_samples = y.shape[0]
-    #     neighbours = NearestNeighbors(n_neighbors=min(n_neighbours, n_samples), algorithm="auto").fit(x.cpu().numpy())
-    #     neighbour_indices = neighbours.kneighbors(x.cpu().numpy(), return_distance=False)
-    #     neighbour_indices = torch.as_tensor(neighbour_indices[:, 1:], dtype=torch.long, device="cpu")  # Exclude self and convert to tensor
-    #
-    #     # Define dataset and loader (to predict everything)
-    #     dataset = NeighbourDataset(coords=x, values=y, query_indices=None, neighbour_indices=neighbour_indices)
-    #     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    #     adapter = NeighbourAdapter()
-    #
-    #     # Predict batch-wise
-    #     y_hat = []
-    #     y_var = []
-    #     with torch.no_grad():
-    #         for batch in loader:
-    #             batch = adapter.prepare_batch(batch, device=device)
-    #             masks = adapter.make_masks(batch=batch, mask_ratio=0.0, mode="reconstruct", device=device)
-    #             pmean, pvar = adapter.forward(self, batch=batch, masks=masks)
-    #
-    #             y_hat.append(pmean.cpu())
-    #             y_var.append(pvar.cpu())
-    #
-    #     return torch.cat(y_hat, dim=0).cpu().numpy(), torch.exp(torch.cat(y_var, dim=0)).cpu().numpy()
-    #
-
-        #
-        #
-        # # Define global means (and automatically make it move to correct device)
-        # if global_means is None:
-        #     self.global_means = None
-        # else:
-        #     self.register_buffer("global_means", torch.tensor(global_means, dtype=torch.float32))
-        #
-        # self.coord_dim = coord_dim
-        # self.value_dim = value_dim
-        # self.coord_encoder_hidden_dim = coord_encoder_hidden_dim
-        # self.coord_encoder_output_dim = coord_encoder_output_dim
-        #
-        # self.input_dim = self.coord_dim * 2 + self.value_dim  # coords and relative coords, features
-        # self.input_dim = self.coord_dim + self.value_dim + self.coord_encoder_output_dim # relative coords, features, encoded coords
-        # # self.input_dim = self.coord_dim * 2 + self.value_dim * 2  # coords and relative coords, features and feature masks
-        # # self.input_dim = self.coord_dim + d_model + self.value_dim * 2  # coords and relative coords embedding, features and feature masks
-        # # self.input_dim = self.coord_dim + self.value_dim * 2  # coords and relative coords embedding, features and feature masks
-        #
-        # # Positional embeddings
-        # # self.pos_encoder = PositionalEncoder(input_dim=self.coord_dim, hidden_dim=pos_hidden_dim, output_dim=d_model)
-        # # self.pos_bias = nn.Linear(d_model, nhead)
-        #
-        # self.coord_encoder = CoordEncoder(hidden_dim=coord_encoder_hidden_dim,
-        #                                   coord_dim=coord_dim-1, value_dim=value_dim, time_dim=1,
-        #                                   output_dim=3
-        #                                   )
-        #
-        # # Input encoder
-        # self.encoder_input = nn.Linear(self.input_dim, d_model)
-        #
-        # # Multi-head attention
-        # self.attn = nn.MultiheadAttention(
-        #     embed_dim=d_model,
-        #     num_heads=nhead,
-        #     batch_first=True,
-        #     dropout=dropout
-        # )
-        # self.norm1 = nn.LayerNorm(d_model)
-        # self.norm2 = nn.LayerNorm(d_model)
-        #
-        # self.mlp = nn.Sequential(
-        #     nn.Linear(d_model, dim_feedforward),
-        #     nn.GELU(),
-        #     nn.Dropout(dropout),
-        #     nn.Linear(dim_feedforward, d_model),
-        # )
-        #
-        # # Decoder: Mean head (for reconstruction)
-        # self.mean_decoder = nn.Linear(d_model, value_dim)
-        #
-        # # Decoder: Variance head (for heteroscedastic uncertainty)
-        # self.var_decoder = nn.Linear(d_model, value_dim)
-        #
-        # self.feature_mixer = nn.Sequential(
-        #     nn.Linear(self.value_dim * 2, self.value_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(self.value_dim, self.value_dim),
-        # )
