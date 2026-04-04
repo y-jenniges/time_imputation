@@ -156,7 +156,8 @@ class PhysicsLoss(BaseLoss):
 
         if anisotropic_weights is not None:
             # Ensure positivity
-            pos_aniso_weights = torch.nn.functional.softplus(anisotropic_weights)  # [C]
+            # pos_aniso_weights = torch.nn.functional.softplus(anisotropic_weights)  # [C]  # torch.exp(anisotropic_weights)
+            pos_aniso_weights = torch.exp(anisotropic_weights)
 
             # Broadcast: [1,1,C]
             dist2_coords = (dist2_coords * pos_aniso_weights.view(1, 1, -1))  # [B, K]
