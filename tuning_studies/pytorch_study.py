@@ -17,10 +17,10 @@ import psutil
 import os
 
 from nn_utils.losses import build_loss, name_to_loss_spec
-from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter, GraphProvider
+from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter, GraphProvider, TimeSequenceAdapter
 from nn_utils.early_stopping import EarlyStopping
-from nn_utils.dataset import prepare_neighbourhood_loaders, load_dataset, prepare_pointwise_loaders, \
-    prepare_learned_neighbourhood_loaders, LearnedNeighbourDataset
+from nn_utils.dataset import load_dataset, prepare_pointwise_loaders, \
+    prepare_learned_neighbourhood_loaders, LearnedNeighbourDataset, prepare_time_sequence_loaders
 from utils.metrics import compute_metrics
 from utils.tuning import get_model_class
 
@@ -216,8 +216,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     results = TuningResult(split=split_fname, seed=seed, model=model_name, hyp_combo_id=trial_id, hyps=hyps)
 
     # Adapter and data loaders
-    model_adapters = {"mastnet": NeighbourAdapter, "mlp": PointwiseAdapter, "ann_att": PointwiseAdapter}
-    loader_funcs = {"mastnet": prepare_learned_neighbourhood_loaders, "mlp": prepare_pointwise_loaders, "ann_att": prepare_pointwise_loaders}
+    model_adapters = {"mastnet": NeighbourAdapter if cfg.graph_mode != "time_sequence" else TimeSequenceAdapter, "mlp": PointwiseAdapter, "ann_att": PointwiseAdapter}
+    loader_funcs = {"mastnet": prepare_learned_neighbourhood_loaders if cfg.graph_mode != "time_sequence" else prepare_time_sequence_loaders, "mlp": prepare_pointwise_loaders, "ann_att": prepare_pointwise_loaders}
 
     if model_name not in model_adapters.keys():
         raise ValueError(f"Unknown model_name {model_name}")
@@ -239,6 +239,10 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         loader_kwargs["cfg"] = cfg
     else:
         graph_provider = None
+
+    if cfg.graph_mode == "time_sequence":
+        loader_kwargs["sequence_length"] = 13  # Total number of available time steps in the NA dataset
+        del loader_kwargs["graph_provider"]
 
     # Adapter and loader
     adapter = model_adapters[model_name]()
