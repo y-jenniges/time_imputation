@@ -19,5 +19,7 @@ def get_scopes(cfg):
         return ["space", "time"]
     elif cfg.attention_type == "space_time_depth_attention":
         return ["space", "time", "depth"]
+    elif cfg.graph_mode == "time_sequence":
+        return ["time"]
     else:
         return ["default"]
