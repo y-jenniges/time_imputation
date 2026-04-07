@@ -383,6 +383,7 @@ def prepare_pointwise_loaders(coords: torch.Tensor,
         cyclic_time=cyclic_time,
         scaler_dict=train_scaler_dict
     )
+    mask_full = ~torch.isnan(values_full)
 
     # Full dataset and loader (no splitting yet, for reconstruction)
     full_dataset = PointwiseDataset(coords=coords_full, values=values_full)
@@ -399,7 +400,7 @@ def prepare_pointwise_loaders(coords: torch.Tensor,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(
-        1), values_train.size(1), None, None, None, None
+        1), values_train.size(1), None, coords_full, values_full, mask_full
 
 
 def prepare_sklearn_data(df, train_idx, val_idx, test_idx):
