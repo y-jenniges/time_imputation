@@ -30,6 +30,7 @@ class ModelConfig:
     block_mask_p: float = 0.3
     line_mask_width: float = 0.05
     line_mask_p: float = 0.3
+    mask_ratio: float = 0.3
 
     n_neighbours: int = 30
     graph_update_frequency: int = 5
@@ -1294,8 +1295,55 @@ ablation_study = {
 
             masking_strategies=["random", "block"]
         )},
-    "exp59": {
-        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), transect masking",
+    # "exp59": {
+    #     "description": "Raw KNN, autoencoder with masks, feature mixer (feat), transect masking",
+    #     "config": ModelConfig(
+    #         graph_mode="static",
+    #         graph_space="raw",
+    #         graph_metric="isotropic",
+    #
+    #         encoder_scope="none",
+    #         encoder_input="coords",
+    #         encoder_output_dim=3,
+    #         encoder_hidden_dim=64,
+    #
+    #         fill_strategy="zero",
+    #         feature_mixer=True,
+    #         feature_mixer_input="feat",
+    #
+    #         use_rel_pos=False,
+    #         use_masks=True,
+    #         attention_type="autoencoder",
+    #
+    #         masking_strategies=["line"],
+    #         line_mask_p=1.0,
+    #     )},
+    # "exp60": {
+    #     "description": "Raw KNN, autoencoder with masks, feature mixer (feat), block masking",
+    #     "config": ModelConfig(
+    #         graph_mode="static",
+    #         graph_space="raw",
+    #         graph_metric="isotropic",
+    #
+    #         encoder_scope="none",
+    #         encoder_input="coords",
+    #         encoder_output_dim=3,
+    #         encoder_hidden_dim=64,
+    #
+    #         fill_strategy="zero",
+    #         feature_mixer=True,
+    #         feature_mixer_input="feat",
+    #
+    #         use_rel_pos=False,
+    #         use_masks=True,
+    #         attention_type="autoencoder",
+    #
+    #         masking_strategies=["block"],
+    #         block_mask_p=1.0,
+    #     )},
+
+    "exp61": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0",
         "config": ModelConfig(
             graph_mode="static",
             graph_space="raw",
@@ -1314,11 +1362,36 @@ ablation_study = {
             use_masks=True,
             attention_type="autoencoder",
 
-            masking_strategies=["line"],
+            masking_strategies=["random", "block"],
+            block_mask_p=1.0,
+        )},
+
+    "exp62": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+transect masking p=1.0",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder",
+
+            masking_strategies=["random", "line"],
             line_mask_p=1.0,
         )},
-    "exp60": {
-        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), block masking",
+
+    "exp63": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.2",
         "config": ModelConfig(
             graph_mode="static",
             graph_space="raw",
@@ -1337,8 +1410,177 @@ ablation_study = {
             use_masks=True,
             attention_type="autoencoder",
 
-            masking_strategies=["block"],
+            masking_strategies=["random", "block"],
             block_mask_p=1.0,
+            block_mask_size=0.2,
+        )},
+    "exp64": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.3",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder",
+
+            masking_strategies=["random", "block"],
+            block_mask_p=1.0,
+            block_mask_size=0.3,
+        )},
+    "exp65": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.4",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder",
+
+            masking_strategies=["random", "block"],
+            block_mask_p=1.0,
+            block_mask_size=0.4,
+        )},
+    "exp66": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.5",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder",
+
+            masking_strategies=["random", "block"],
+            block_mask_p=1.0,
+            block_mask_size=0.5,
+        )},
+    "exp67": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.6",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder",
+
+            masking_strategies=["random", "block"],
+            block_mask_p=1.0,
+            block_mask_size=0.6,
+        )},
+    "exp68": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.7",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder",
+
+            masking_strategies=["random", "block"],
+            block_mask_p=1.0,
+            block_mask_size=0.7,
+        )},
+    "exp69": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.8",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder",
+
+            masking_strategies=["random", "block"],
+            block_mask_p=1.0,
+            block_mask_size=0.8,
+        )},
+    "exp70": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.9",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder",
+
+            masking_strategies=["random", "block"],
+            block_mask_p=1.0,
+            block_mask_size=0.9,
         )},
 
 }
