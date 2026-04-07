@@ -161,9 +161,9 @@ def suggest_hyperparameters(trial, model_name):
 
 
 def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_idx, model_name, split_path, trial_id,
-                               optuna_callback=None, seed=42, save_model=False, tuning_mode=True):
+                               optuna_callback=None, seed=42, save_model=False, tuning_mode=True, output_dir=None):
     # Create output subdir
-    model_outdir = Path(config.output_dir_tuning) / model_name
+    model_outdir = Path(output_dir) if output_dir else Path(config.output_dir_tuning) / model_name
     os.makedirs(model_outdir, exist_ok=True)
 
     # Output file
