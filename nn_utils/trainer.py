@@ -297,7 +297,7 @@ class PointwiseAdapter(ModelAdapter):
     def prepare_batch(self, batch, device):
         return {k: v.to(device) for k, v in batch.items()}
 
-    def make_masks(self, batch, mask_ratio, mode="train", device=torch.device("cpu"), masking_strategies=None):
+    def make_masks(self, batch, mask_ratio, mode="train", device=torch.device("cpu"), masking_strategies=None, cfg=None):
         feat = batch["features"]
         mask = batch["mask"]
         batch_size, n_features = feat.shape
