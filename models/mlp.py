@@ -28,6 +28,9 @@ class MLP(nn.Module):
         # Variance head (for heteroscedastic uncertainty)
         self.var_head= nn.Linear(last_dim, output_dim)
 
+        # Dummy weights
+        self.anisotropic_weights = None
+
     def forward(self, x):
         h = self.shared_nn(x)
         pmean = self.mean_head(h)
