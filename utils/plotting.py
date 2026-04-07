@@ -416,6 +416,93 @@ def plot_simple_reconstruction_error(y_true, y_pred, save_as=None, close=False):
         plt.show()
 
 
+def plot_depth_panels(
+    data,
+    depth_dim="depth",
+    cmap="inferno",
+    vmin=None,
+    vmax=None,
+    norm=None,
+    ncols=4,
+    interval=400,
+    save_as=None,
+    coast_color="lightgrey",
+    dpi=150
+    ):
+    """
+    Plot multiple depth-level panels for a 3D DataArray (depth × lat × lon).
+    Each subplot corresponds to one depth level.
+    """
+
+    # --- Validate input
+    if data.ndim != 3:
+        raise ValueError(f"Expected a 3D DataArray with dims (depth, lat, lon). Got ndim = {data.ndim}")
+
+    data = data.transpose(depth_dim, "lat", "lon")
+    depths = data[depth_dim].values
+    ndepths = len(depths)
+    nrows = int(np.ceil(ndepths / ncols))
+
+    fig, axs = plt.subplots(
+        nrows=nrows,
+        ncols=ncols,
+        figsize=(ncols * 3.2, nrows * 2.6),
+        subplot_kw={"projection": ccrs.PlateCarree()},
+        constrained_layout=True,
+    )
+    axs = axs.flatten()
+
+    if vmin is None:
+        vmin = float(data.min())
+    if vmax is None:
+        vmax = float(data.max())
+
+    pcm_list = []
+
+    for i, d in enumerate(depths):
+        ax = axs[i]
+        ax.set_extent([float(data.lon.min()), float(data.lon.max()),
+                       float(data.lat.min()), float(data.lat.max())])
+        ax.add_feature(cfeature.LAND, facecolor=coast_color, zorder=0)
+        ax.coastlines(linewidth=0.5)
+        ax.add_feature(cfeature.BORDERS, linewidth=0.3)
+
+        gl = ax.gridlines(draw_labels=True, linewidth=0.3, linestyle="--", alpha=0.5)
+        gl.top_labels = False
+        gl.right_labels = False
+        gl.xlabel_style = {"size": 8}
+        gl.ylabel_style = {"size": 8}
+
+        da2d = data.sel({depth_dim: d})
+
+        if norm is not None:
+            pcm = ax.pcolormesh(
+                data.lon, data.lat, da2d,
+                cmap=cmap, norm=norm,
+                transform=ccrs.PlateCarree(),
+            )
+        else:
+            pcm = ax.pcolormesh(
+                data.lon, data.lat, da2d,
+                cmap=cmap, vmin=vmin, vmax=vmax,
+                transform=ccrs.PlateCarree(),
+            )
+        ax.set_title(f"{d} m", fontsize=9)
+        pcm_list.append(pcm)
+
+    for j in range(i + 1, len(axs)):
+        axs[j].axis("off")
+
+    cbar = fig.colorbar(pcm_list[0], ax=axs, orientation="vertical",
+                        shrink=0.9, aspect=30, pad=0.02)
+    cbar.set_label(data.name)
+
+    # Save
+    if save_as:
+        plt.savefig(save_as, dpi=dpi)
+
+
+
 def animate_depth_panels(
     data,
     depth_dim="depth",
@@ -475,11 +562,19 @@ def animate_depth_panels(
         gl.ylabel_style = {"size": 8}
 
         da2d = data.isel(time=0).sel({depth_dim: d})
-        pcm = ax.pcolormesh(
-            data.lon, data.lat, da2d,
-            cmap=cmap, vmin=vmin, vmax=vmax,
-            transform=ccrs.PlateCarree(),
-        )
+
+        if norm is not None:
+            pcm = ax.pcolormesh(
+                data.lon, data.lat, da2d,
+                cmap=cmap, norm=norm,
+                transform=ccrs.PlateCarree(),
+            )
+        else:
+            pcm = ax.pcolormesh(
+                data.lon, data.lat, da2d,
+                cmap=cmap, vmin=vmin, vmax=vmax,
+                transform=ccrs.PlateCarree(),
+            )
         ax.set_title(f"{d} m", fontsize=9)
         pcm_list.append(pcm)
 
@@ -529,7 +624,7 @@ def animate_depth_panels(
         plt.show()
 
 
-def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", save_as=None):
+def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", save_as=None, cmap="inferno", norm=None):
     temp = df_imputed.copy()
 
     # Undo scaling
@@ -543,7 +638,11 @@ def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", 
     ds = df_to_gridded_da(temp, value_col=parameter)
 
     # Animate and save
-    animate_depth_panels(data=ds, save_as=save_as)
+    if len(df_imputed["DATEANDTIME"].unique()) > 1:
+        animate_depth_panels(data=ds, save_as=save_as, cmap=cmap, norm=norm)
+    else:
+        ds = ds.squeeze(dim="time")
+        plot_depth_panels(data=ds, save_as=save_as, cmap=cmap, norm=norm)
 
 
 def plot_profile(df, param, figsize=(6, 8), save_as=None, dpi=300):
