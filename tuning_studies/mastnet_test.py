@@ -78,7 +78,7 @@ if __name__ == "__main__":
                 "learning_rate": 1e-4,
                 "patience": 10,
                 "n_epochs": 100,
-                "mask_ratio": 0.3,
+                "mask_ratio": cfg.mask_ratio,
                 "loss": cfg.loss_name,
                 "optimizer": torch.optim.Adam
             },
