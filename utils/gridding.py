@@ -857,11 +857,14 @@ def df_to_gridded_da(df, value_col="P_TEMPERATURE"):
     """
     df = df.copy()
 
-    # Ensure integer year
-    df["DATEANDTIME"] = df["DATEANDTIME"].astype(int)
+    if "DATEANDTIME" in df.columns:
+        df["DATEANDTIME"] = df["DATEANDTIME"].astype(int)  # Ensure integer year
+        df = df.sort_values(["DATEANDTIME", "LEV_M", "LATITUDE", "LONGITUDE"])
+        times = np.sort(df["DATEANDTIME"].unique())
+    else:
+        df = df.sort_values(["LEV_M", "LATITUDE", "LONGITUDE"])
+        times = None
 
-    df = df.sort_values(["DATEANDTIME", "LEV_M", "LATITUDE", "LONGITUDE"])
-    times = np.sort(df["DATEANDTIME"].unique())
     depths = np.sort(df["LEV_M"].unique())
     lats = np.sort(df["LATITUDE"].unique())
     lons = np.sort(df["LONGITUDE"].unique())
@@ -876,23 +879,40 @@ def df_to_gridded_da(df, value_col="P_TEMPERATURE"):
         print("Unkown type")
         return
 
-    data = np.full((len(times), len(depths), len(lats), len(lons)), fill_val, dtype=dtype)
+    if times is not None:
+        data = np.full((len(times), len(depths), len(lats), len(lons)), fill_val, dtype=dtype)
+        for ti, t in enumerate(times):
+            subset = df[df["DATEANDTIME"] == t]
+            for di, d in enumerate(depths):
+                sel = subset[subset["LEV_M"] == d]
+                if sel.empty:
+                    continue
+                lat_idx = np.searchsorted(lats, sel["LATITUDE"])
+                lon_idx = np.searchsorted(lons, sel["LONGITUDE"])
+                data[ti, di, lat_idx, lon_idx] = sel[value_col].values
 
-    for ti, t in enumerate(times):
-        subset = df[df["DATEANDTIME"] == t]
+        da = xr.DataArray(
+            data,
+            dims=("time", "depth", "lat", "lon"),
+            coords={"time": times, "depth": depths, "lat": lats, "lon": lons},
+            name=value_col,
+        )
+
+    else:
+        data = np.full((len(depths), len(lats), len(lons)), fill_val, dtype=dtype)
         for di, d in enumerate(depths):
-            sel = subset[subset["LEV_M"] == d]
+            sel = df[df["LEV_M"] == d]
             if sel.empty:
                 continue
             lat_idx = np.searchsorted(lats, sel["LATITUDE"])
             lon_idx = np.searchsorted(lons, sel["LONGITUDE"])
-            data[ti, di, lat_idx, lon_idx] = sel[value_col].values
+            data[di, lat_idx, lon_idx] = sel[value_col].values
 
-    da = xr.DataArray(
-        data,
-        dims=("time", "depth", "lat", "lon"),
-        coords={"time": times, "depth": depths, "lat": lats, "lon": lons},
-        name=value_col,
-    )
+        da = xr.DataArray(
+            data,
+            dims=("depth", "lat", "lon"),
+            coords={"depth": depths, "lat": lats, "lon": lons},
+            name=value_col,
+        )
     return da
 
