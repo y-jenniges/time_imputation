@@ -17,7 +17,9 @@ def fill_feature_tensor(features, mask, fill_strategy="zero", mean_values=None):
 def get_scopes(cfg):
     if cfg.attention_type == "space_time_attention":
         return ["space", "time"]
-    elif cfg.attention_type == "space_time_depth_attention":
+    elif cfg.attention_type == "time_space_attention":
+        return ["time", "space"]
+    elif cfg.attention_type == "space_time_depth_attention" or cfg.attention_type == "weighted_space_time_depth_attention":
         return ["space", "time", "depth"]
     elif cfg.graph_mode == "time_sequence":
         return ["time"]
