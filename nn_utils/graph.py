@@ -100,7 +100,7 @@ class GraphProvider:
             # Random neighbours
             self.neighbour_indices = {"default": compute_random_neighbours(coords, k=self.n_neighbours, seed=42)}
 
-        elif self.cfg.attention_type == "space_time_attention":
+        elif self.cfg.attention_type == "space_time_attention" or self.cfg.attention_type == "time_space_attention":
             # Time neighbours
             time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours+1)
             time_indices = time_indices[:, 1:]  # Remove self
@@ -111,7 +111,7 @@ class GraphProvider:
 
             self.neighbour_indices = {"space": space_indices, "time": time_indices}
 
-        elif self.cfg.attention_type == "space_time_depth_attention":
+        elif self.cfg.attention_type == "space_time_depth_attention" or self.cfg.attention_type == "weighted_space_time_depth_attention":
             # Time neighbours
             time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours+1)
             time_indices = time_indices[:, 1:]  # Remove self
@@ -217,9 +217,7 @@ class GraphProvider:
         }
 
 
-def compute_random_neighbours(coords, k, seed=None):
-    generator = set_seed(seed) if seed is not None else None
-
+def compute_random_neighbours(coords, k):
     N = coords.shape[0]
 
     indices = torch.empty((N, k), dtype=torch.long)
