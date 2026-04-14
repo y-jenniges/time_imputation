@@ -6,6 +6,9 @@ from torch import Tensor
 from torch.utils.data import Dataset, DataLoader, Subset
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.utils.validation import check_array, check_is_fitted
+
 
 import config
 from nn_utils.graph import GraphProvider
@@ -477,6 +480,45 @@ def prepare_sklearn_data(df, train_idx, val_idx, test_idx):
     return x_train, y_true_scaled, scaler_dict, coord_dim, values_dim
 
 
+def random_per_feature_mask(batch,
+                            feature_dim: int,
+                            mask_ratio: float = 0.5,
+                            n_neighbours: int = 24,
+                            device="cpu",
+                            mask_query: bool = True,
+                            mask_neighbours: bool = False
+                            ):
+    """
+    Masks a proportion of samples per feature (column-wise masking).
+    Each feature has mask_ratio * batch_size samples masked.
+    Note: With gridded data, it can happen that only missing entries are masked... @todo
+    Returns:
+        mask: [B, F] boolean tensor
+    """
+    batch_size = batch.shape[0]
+
+    # Init mask
+    mask = torch.zeros(batch_size, feature_dim, dtype=torch.bool, device=device)
+
+    # Number of samples to mask per feature
+    n_mask = int(batch_size * mask_ratio)
+
+    if n_mask == 0:
+        return mask
+
+    # For each feature, randomly select samples to mask
+    rand_idx = torch.rand(feature_dim, batch_size, device=device).argsort(dim=1)
+
+    # Take first n_mask indices per feature
+    selected = rand_idx[:, :n_mask]  # [F, n_mask]
+
+    # Scatter into mask
+    for f in range(feature_dim):
+        mask[selected[f], f] = True
+
+    return mask
+
+
 def random_feature_mask(batch_size: int,
                         feature_dim: int,
                         mask_ratio: float = 0.5,
@@ -486,7 +528,7 @@ def random_feature_mask(batch_size: int,
                         mask_neighbours: bool = False
                         ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Generates masks that hide a given proportion of the data randomly per feature.
+    Generates masks that hide a given proportion of each sample randomly.
 
     :param batch_size: Batch size
     :param feature_dim: Number of features
@@ -534,8 +576,8 @@ def random_feature_mask(batch_size: int,
     return query_mask, neighbour_mask
 
 
-def block_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
-    """ Creates single line mask. """
+def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
+    """ Creates single spherical mask. """
     lonlats = batch["query_coords"][:, :3]  # [B, 3]
     B = lonlats.shape[0]
 
@@ -544,7 +586,9 @@ def block_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
         return torch.zeros(B, feature_dim, dtype=torch.bool, device=device)
 
     # Random center
-    center = torch.rand(3, device=device)
+    # center = torch.rand(3, device=device)
+    center = torch.randn(3, device=device)
+    center = center / center.norm()
 
     # Distance to center
     dist = torch.norm(lonlats - center, dim=1)
@@ -555,26 +599,52 @@ def block_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
     return mask_block.unsqueeze(1).expand(B, feature_dim)
 
 
-def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu"):
-    """ Creates single block (sphere) mask. """
+def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu", orientation=0.0):
+    """ Creates single transect mask. Orientation: 0 random orientation and 1 horizontal or vertical"""
     lonlats = batch["query_coords"][:, :3]  # [B, 3]
     B = lonlats.shape[0]
 
     # Only apply with probability p
-    if torch.rand(1) > p:
+    if torch.rand(1, device=device) > p:
         return torch.zeros(B, feature_dim, dtype=torch.bool, device=device)
 
-    # Random line: point + direction
-    p0 = torch.rand(3, device=device)  # Random point (on line)
-    d = torch.randn(3, device=device)  # Direction
-    d = d / torch.norm(d)  # Normalize to unit vector
+    # Normalize lons and lats
+    lonlats = lonlats / torch.norm(lonlats, dim=1, keepdim=True)
 
-    # Vector from line point to all points
-    v = lonlats - p0  # [B, 3]
+    # Orientation probability
+    use_structured = torch.rand(1, device=device) < orientation
+    if use_structured:
+        if torch.rand(1, device=device) < 0.5:
+            # Latitude transect (parallel to equator, constant z)
+            z0 = torch.empty(1, device=device).uniform_(-1, 1)
+            dist = torch.abs(lonlats[:, 2] - z0)
 
-    # Distance to line: ||v - (v·d)d||
-    proj = (v @ d).unsqueeze(1) * d  # Projection onto line
-    dist = torch.norm(v - proj, dim=1)  # Perpendicular distance
+        else:
+            # Longitude transect (meridian, great circle through poles)
+            # Normal vector constrained to equatorial plane
+            n = torch.randn(3, device=device)
+            n[2] = 0.0  # Force vertical plane
+            n = n / torch.norm(n)
+            dist = torch.abs(lonlats @ n)
+
+    else:
+        # Fully random orientation
+        # Point on sphere
+        p0 = torch.randn(3, device=device)
+        p0 = p0 / torch.norm(p0)
+
+        # Random direction
+        d = torch.randn(3, device=device)
+        d = d / torch.norm(d)
+
+        n = torch.cross(p0, d)
+        n_norm = torch.norm(n)
+        if n_norm < 1e-6:
+            return torch.zeros(B, feature_dim, dtype=torch.bool, device=device)
+        n = n / n_norm
+
+        # Great circle distance
+        dist = torch.abs(lonlats @ n)
 
     # Points close to line
     mask_line = dist < width  # [B]
@@ -584,8 +654,62 @@ def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu"):
 
     return mask
 
+class WeightedMinMaxScaler(BaseEstimator, TransformerMixin):
+    def __init__(self, feature_range=(0, 1), use_sqrt=True, weights=None):
+        self.feature_range = feature_range
+        self.use_sqrt = use_sqrt
+        self.weights = weights
+        self.scaler_ = MinMaxScaler(feature_range=feature_range)
 
-def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool = False, scaler_dict: dict = None):
+    def fit(self, X, y=None):
+        X = check_array(X, dtype=np.float64)
+        self.scaler_.fit(X)
+        return self
+
+    def transform(self, X):
+        sample_weight = self.weights[X.long()]
+
+        check_is_fitted(self, "scaler_")
+        X = check_array(X, dtype=np.float64)
+
+        X_scaled = self.scaler_.transform(X)
+
+        if sample_weight is None:
+            return X_scaled
+
+        sample_weight = np.asarray(sample_weight)
+
+        if self.use_sqrt:
+            sample_weight = np.sqrt(sample_weight)
+
+        # Reshape for broadcasting if needed
+        if sample_weight.ndim == 1:
+            sample_weight = sample_weight[:, None]
+
+        return X_scaled * sample_weight
+
+    def fit_transform(self, X, y=None, sample_weight=None):
+        return self.fit(X).transform(X)
+
+
+def get_availability_per_time(coords, values):
+    time = coords[:, -1].long()
+
+    valid = ~torch.isnan(values)
+    n_features = values.shape[1]
+
+    total = torch.bincount(time).float() * n_features
+
+    available = torch.zeros_like(total).scatter_add(
+        0,
+        time.repeat_interleave(n_features),
+        valid.flatten().float()
+    )
+
+    return available / total.clamp(min=1)
+
+
+def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool = False, scaler_dict: dict = None, time_scaler_weights=None):
     """
     Preprocess coordinates and values of the inputa data by scaling and/or encoding them. Most variables are
     transformed using MinMax scaling. Latitude and longitude are mapped to Cartesian coordinates on a unit sphere.
@@ -635,6 +759,9 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool =
             scaled_time = scaler_dict["DATEANDTIME"].transform(coord_dict["DATEANDTIME"].reshape(-1, 1))
         else:
             scaler_time = MinMaxScaler()
+            # scaler_time =  MinMaxScaler(feature_range=(0, 0.5))
+            # time_scaler_weights = get_availability_per_time(coords, values)
+            # scaler_time = WeightedMinMaxScaler(weights=time_scaler_weights)
             scaled_time = scaler_time.fit_transform(coord_dict["DATEANDTIME"].reshape(-1, 1))
             scaler_dict["DATEANDTIME"] = scaler_time
 
