@@ -4,44 +4,48 @@ from dataclasses import dataclass
 @dataclass
 class ModelConfig:
     # Graph
-    graph_mode: str  # "static" | "dynamic" | "random" | "time_sequence"  (with time_sequence, time sequence input will be used, no neighbourhoods graph)
-    graph_space: str  # "raw" | "encoded"
-    graph_metric: str  # "isotropic" | "anisotropic"
-
-    # Encoder
-    encoder_scope: str  # "none" | "graph" | "model" | "both"
-    encoder_input: str  # "coords" | "coords_feat" | "coords_feat_mask"
-    encoder_output_dim: int
-    encoder_hidden_dim: int
-
-    # Feature handling
-    fill_strategy: str  # "zero" | "mean"
-    feature_mixer: bool
-    feature_mixer_input: str  # "feat" | "feat_mask"
-
-    # Attention
-    use_rel_pos: bool
-    use_masks: bool
-    attention_type: str  # "mha" | "transformer_encoder" | "autoencoder" | "space_time_attention"
-
-    # Masking
-    masking_strategies: list[str] = None  # "random" | "line" | "block"
-    block_mask_size: float = 0.1
-    block_mask_p: float = 0.3
-    line_mask_width: float = 0.05
-    line_mask_p: float = 0.3
-    mask_ratio: float = 0.3
+    graph_mode: str = "static"  # "static" | "dynamic" | "random" | "time_sequence"  (with time_sequence, time sequence input will be used, no neighbourhoods graph)
+    graph_space: str = "raw"  # "raw" | "encoded"
+    graph_metric: str = "isotropic"  # "isotropic" | "anisotropic"
 
     n_neighbours: int = 30
     graph_update_frequency: int = 5
     graph_warmup: int = 0
     graph_freeze_epoch: int = 20
     learn_anisotropic_weights: bool = False
+
+    # Coordinate encoder
+    encoder_scope: str ="none"  # "none" | "graph" | "model" | "both"
+    encoder_input: str  = "coords"  # "coords" | "coords_feat" | "coords_feat_mask"
+    encoder_output_dim: int = 3
+    encoder_hidden_dim: int = 64
+
+    # Feature handling
+    fill_strategy: str = "zero"  # "zero" | "mean"
+    feature_mixer: bool = "False"
+    feature_mixer_input: str = "feat"  # "feat" | "feat_mask"
+
+    # Attention
+    use_rel_pos: bool = False
+    use_masks: bool = False
+    attention_type: str = "mha"  # "mha" | "transformer_encoder" | "autoencoder" | "space_time_attention" | "space_time_depth_attention" | "weighted_space_time_depth_attention"
+    n_time_layers: int = 3
+    global_context: bool = False
+
+    # Masking
+    masking_strategies: list[str] = None  # "random" | "transect" | "sphere" | "per_feature"
+    sphere_mask_radius: float = 0.1
+    sphere_mask_p: float = 0.3
+    transect_mask_width: float = 0.05
+    transect_mask_p: float = 0.3
+    mask_ratio: float = 0.3
+
+    # Positional encoding
     positional_encoding: bool = False
     positional_encoding_time_only: bool = False
-    n_time_layers: int = 3
+
+    # Loss
     loss_name: str = "hetero"
-    global_context: bool = False
 
 
 ablation_study = {
@@ -1339,7 +1343,7 @@ ablation_study = {
     #         attention_type="autoencoder",
     #
     #         masking_strategies=["block"],
-    #         block_mask_p=1.0,
+    #         sphere_mask_p=1.0,
     #     )},
 
     "exp61": {
@@ -1363,7 +1367,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "block"],
-            block_mask_p=1.0,
+            sphere_mask_p=1.0,
         )},
 
     "exp62": {
@@ -1387,7 +1391,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "line"],
-            line_mask_p=1.0,
+            transect_mask_p=1.0,
         )},
 
     "exp63": {
@@ -1411,8 +1415,8 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "block"],
-            block_mask_p=1.0,
-            block_mask_size=0.2,
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.2,
         )},
     "exp64": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.3",
@@ -1435,8 +1439,8 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "block"],
-            block_mask_p=1.0,
-            block_mask_size=0.3,
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
         )},
     "exp65": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.4",
@@ -1459,8 +1463,8 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "block"],
-            block_mask_p=1.0,
-            block_mask_size=0.4,
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.4,
         )},
     "exp66": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.5",
@@ -1483,8 +1487,8 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "block"],
-            block_mask_p=1.0,
-            block_mask_size=0.5,
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
         )},
     "exp67": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.6",
@@ -1507,8 +1511,8 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "block"],
-            block_mask_p=1.0,
-            block_mask_size=0.6,
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.6,
         )},
     "exp68": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.7",
@@ -1531,8 +1535,8 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "block"],
-            block_mask_p=1.0,
-            block_mask_size=0.7,
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
         )},
     "exp69": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.8",
@@ -1555,8 +1559,8 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "block"],
-            block_mask_p=1.0,
-            block_mask_size=0.8,
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.8,
         )},
     "exp70": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), random+block masking p=1.0, s=0.9",
@@ -1579,8 +1583,689 @@ ablation_study = {
             attention_type="autoencoder",
 
             masking_strategies=["random", "block"],
-            block_mask_p=1.0,
-            block_mask_size=0.9,
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
         )},
 
+    "exp71": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=True,
+            use_masks=True,
+            attention_type="autoencoder",
+        )},
+    "exp72": {
+        "description": "Raw KNN, feature mixer (feat), space_time_attention",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="space_time_attention"
+        )},
+    "exp73": {
+        "description": "Raw KNN, feature mixer (feat), space_time_attention, masks",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="space_time_attention"
+        )},
+    "exp74": {
+        "description": "Raw KNN, feature mixer (feat+mask), space_time_attention, masks",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="space_time_attention"
+        )},
+    "exp75": {
+        "description": "Raw KNN, feature mixer (feat+mask), space_time_attention, masks, rel_pos",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=True,
+            use_masks=True,
+            attention_type="space_time_attention"
+        )},
+    "exp76": {
+        "description": "Raw KNN, autoencoder, masks",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",  # Unused
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="autoencoder"
+        )},
+    "exp77": {
+        "description": "Raw KNN, space_time_attention, masks",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="space_time_attention"
+        )},
+    "exp78": {
+        "description": "Raw KNN, feature mixer, MHA",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=True,
+            use_masks=False,
+            attention_type="mha"
+        )},
+    "exp79": {
+        "description": "Raw KNN, autoencoder, rel_pos",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",  # Unused
+
+            use_rel_pos=True,
+            use_masks=False,
+            attention_type="autoencoder"
+        )},
+
+    "exp80": {
+        "description": "Optimal acc to ablation: Autoencoder, dynamic KNN (update every epoch, warmup, k=20), coord encoding (both) on coords, rel_pos",
+        "config": ModelConfig(
+            graph_mode="dynamic",
+            graph_space="encoded",
+            graph_metric="isotropic",
+
+            encoder_scope="both",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat_mask",  # Unused
+
+            use_rel_pos=True,
+            use_masks=False,
+            attention_type="autoencoder",
+
+            n_neighbours=20,
+            graph_update_frequency=1,
+            graph_warmup=20,
+            graph_freeze_epoch=200,
+        )},
+    "exp81": {
+        "description": "Raw KNN, feature mixer (feat), space_time_attention, rel_pos",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=True,
+            use_masks=False,
+            attention_type="space_time_attention"
+        )},
+    "exp82": {
+        "description": "Raw KNN, space_time_attention, rel_pos",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=True,
+            use_masks=False,
+            attention_type="space_time_attention"
+        )},
+    "exp83": {
+        "description": "Raw KNN, space_time_attention, feature mixer (feat+mask), rel_pos",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+
+            use_rel_pos=True,
+            use_masks=False,
+            attention_type="space_time_attention"
+        )},
+    "exp84": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos, scale time to [0, 0.5]",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=True,
+            use_masks=True,
+            attention_type="autoencoder",
+        )},
+    "exp85": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos, standardscaler",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=True,
+            use_masks=True,
+            attention_type="autoencoder",
+        )},
+    "exp86": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos, times weighted by data availability",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=True,
+            use_masks=True,
+            attention_type="autoencoder",
+        )},
+    "exp87": {
+        "description": "Raw KNN, weighted space-time-depth attention",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=False,
+            feature_mixer_input="feat",  # Unused
+
+            use_rel_pos=False,
+            use_masks=False,
+            attention_type="weighted_space_time_depth_attention"
+        )},
+    "exp88": {
+        "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos, residual gated global context",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",
+            encoder_output_dim=3,
+            encoder_hidden_dim=64,
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=True,
+            use_masks=True,
+            attention_type="autoencoder",
+
+            global_context=True,
+        )},
+    "exp89": {
+        "description": "Raw KNN, feature mixer (feat), space_time_attention, masks, rel_pos",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=True,
+            use_masks=True,
+            attention_type="space_time_attention"
+        )},
+    "exp90": {
+        "description": "Raw KNN, feature mixer (feat), time_space_attention, masks",
+        "config": ModelConfig(
+            graph_mode="static",
+            graph_space="raw",
+            graph_metric="isotropic",
+
+            encoder_scope="none",
+            encoder_input="coords",  # Unused
+            encoder_output_dim=3,  # Unused
+            encoder_hidden_dim=64,  # Unused
+
+            fill_strategy="zero",
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="time_space_attention"
+        )},
+    # Per-sample masking
+    "exp91": {
+        "description": "Exp73 - mask_ratio=0.4",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.4
+        )},
+    "exp92": {
+        "description": "Exp73 - mask_ratio=0.7",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.7
+        )},
+    "exp93": {
+        "description": "Exp73 - mask_ratio=0.5",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.5
+        )},
+    "exp94": {
+        "description": "Exp73 - mask_ratio=0.9",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.9
+        )},
+    # Per-feature masking
+    "exp95": {
+        "description": "Exp73 - mask_ratio=0.1, masking: per_feature",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.1,
+            masking_strategies=["per_feature"],
+        )},
+    "exp96": {
+        "description": "Exp73 - mask_ratio=0.2, masking: per_feature",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.2,
+            masking_strategies=["per_feature"],
+        )},
+    "exp97": {
+        "description": "Exp73 - mask_ratio=0.3, masking: per_feature",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["per_feature"],
+        )},
+    "exp98": {
+        "description": "Exp73 - mask_ratio=0.4, masking: per_feature",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["per_feature"],
+        )},
+    "exp99": {
+        "description": "Exp73 - mask_ratio=0.5, masking: per_feature",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["per_feature"],
+        )},
+    "exp100": {
+        "description": "Exp73 - mask_ratio=0.6, masking: per_feature",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.6,
+            masking_strategies=["per_feature"],
+        )},
+    "exp101": {
+        "description": "Exp73 - mask_ratio=0.7, masking: per_feature",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["per_feature"],
+        )},
+    "exp102": {
+        "description": "Exp73 - mask_ratio=0.8, masking: per_feature",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.8,
+            masking_strategies=["per_feature"],
+        )},
+    "exp103": {
+        "description": "Exp73 - mask_ratio=0.9, masking: per_feature",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["per_feature"],
+        )},
+    # Spherical masking (per_sample with mask_ratio=0.3)
+    "exp104": {
+        "description": "Exp73 - mask_ratio=0.3, masking: per_sample, sphere (radius=0.1)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp105": {
+        "description": "Exp73 - mask_ratio=0.3, masking: per_sample, sphere (radius=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp106": {
+        "description": "Exp73 - mask_ratio=0.3, masking: per_sample, sphere (radius=0.5)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp107": {
+        "description": "Exp73 - mask_ratio=0.3, masking: per_sample, sphere (radius=0.7)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp108": {
+        "description": "Exp73 - mask_ratio=0.3, masking: per_sample, sphere (radius=0.9)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+    # Transect masking (various mask ratios)
+    "exp109": {
+        "description": "Exp73 - mask_ratio=0.3, masking: per_sample, transect (width=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05
+        )},
+    "exp110": {
+        "description": "Exp73 - mask_ratio=0.4, masking: per_sample, transect (width=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05
+        )},
+    "exp111": {
+        "description": "Exp73 - mask_ratio=0.5, masking: per_sample, transect (width=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05
+        )},
+    "exp112": {
+        "description": "Exp73 - mask_ratio=0.7, masking: per_sample, transect (width=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05
+        )},
+    "exp113": {
+        "description": "Exp73 - mask_ratio=0.9, masking: per_sample, transect (width=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05
+        )},
 }
