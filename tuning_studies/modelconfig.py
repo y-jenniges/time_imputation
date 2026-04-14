@@ -38,6 +38,7 @@ class ModelConfig:
     sphere_mask_p: float = 0.3
     transect_mask_width: float = 0.05
     transect_mask_p: float = 0.3
+    transect_mask_orientation: float = 0.0
     mask_ratio: float = 0.3
 
     # Positional encoding

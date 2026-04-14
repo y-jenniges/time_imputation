@@ -88,7 +88,10 @@ class NeighbourAdapter(ModelAdapter):
 
             if "transect" in masking_strategies:
                 q_transect_mask = transect_feature_mask(batch=batch,feature_dim=q_mask.shape[1],
-                                                        width=cfg.transect_mask_width, p=cfg.transect_mask_p, device=device)
+                                                        width=cfg.transect_mask_width,
+                                                        p=cfg.transect_mask_p,
+                                                        orientation=cfg.transect_mask_orientation,
+                                                        device=device)
                 masks_list.append(q_transect_mask)
 
             if "sphere" in masking_strategies:
