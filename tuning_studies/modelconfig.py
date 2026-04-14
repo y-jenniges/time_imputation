@@ -2039,6 +2039,7 @@ ablation_study = {
             mask_ratio=0.9
         )},
 
+    # ---------------------------------------------------------------------------------------------------------------- #
     # Per-feature masking
     "exp95": {
         "description": "Exp73 - mask_ratio=0.1, masking: per_feature",
@@ -2140,6 +2141,7 @@ ablation_study = {
             masking_strategies=["per_feature"],
         )},
 
+    # --------------------------------------------------------------------------------------------------------------- #
     # Spherical masking (per_sample with mask_ratio=0.3)
     "exp104": {
         "description": "Exp73 - mask_ratio=0.3, masking: sphere (radius=0.1)",
@@ -2692,7 +2694,7 @@ ablation_study = {
             attention_type="space_time_attention",
 
             mask_ratio=0.3,
-            masking_strategies=["transect"],
+            masking_strategies=["random", "transect"],
             transect_mask_p=1.0,
             transect_mask_width=0.05,
             transect_mask_orientation=1.0
