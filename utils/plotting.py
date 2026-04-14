@@ -638,10 +638,11 @@ def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", 
     ds = df_to_gridded_da(temp, value_col=parameter)
 
     # Animate and save
-    if len(df_imputed["DATEANDTIME"].unique()) > 1:
+    if "DATEANDTIME" in df_imputed.columns and len(df_imputed["DATEANDTIME"].unique()) > 1:
         animate_depth_panels(data=ds, save_as=save_as, cmap=cmap, norm=norm)
     else:
-        ds = ds.squeeze(dim="time")
+        if "time" in ds.dims:
+            ds = ds.squeeze(dim="time")
         plot_depth_panels(data=ds, save_as=save_as, cmap=cmap, norm=norm)
 
 
