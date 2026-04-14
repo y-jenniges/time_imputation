@@ -45,6 +45,10 @@ class ModelAdapter(ABC):
     def outputs_to_cpu(self, batch, outputs, to_numpy: bool = True):
         pass
 
+    @abstractmethod
+    def get_query_mask(self, batch):
+        pass
+
 
 class NeighbourAdapter(ModelAdapter):
     def batch_size(self, batch):
@@ -195,6 +199,9 @@ class NeighbourAdapter(ModelAdapter):
         else:
             return q_feat, pred_mean
 
+    def get_query_mask(self, batch):
+        return batch["query_mask"]
+
 
 class TimeSequenceAdapter(ModelAdapter):
     def batch_size(self, batch):
@@ -318,6 +325,9 @@ class TimeSequenceAdapter(ModelAdapter):
         else:
             return q_feat, pred_mean
 
+    def get_query_mask(self, batch):
+        return batch["query_mask"]
+
 
 class PointwiseAdapter(ModelAdapter):
     def batch_size(self, batch):
@@ -394,6 +404,9 @@ class PointwiseAdapter(ModelAdapter):
             return q_feat.numpy(), pred_mean.numpy()
         else:
             return q_feat, pred_mean
+
+    def get_query_mask(self, batch):
+        return batch["mask"]
 
 
 class Trainer:
@@ -604,7 +617,7 @@ class Trainer:
             all_preds.append(pred_mean)
 
             # Compute true dataset missingness
-            q_mask = batch["query_mask"]  # True = observed
+            q_mask = self.adapter.get_query_mask(batch=batch)  # True = observed
             total_valid = q_mask.sum()
             total_total = q_mask.numel()
             if total_total > 0:
