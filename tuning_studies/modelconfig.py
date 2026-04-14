@@ -2137,6 +2137,7 @@ ablation_study = {
             mask_ratio=0.9,
             masking_strategies=["per_feature"],
         )},
+
     # Spherical masking (per_sample with mask_ratio=0.3)
     "exp104": {
         "description": "Exp73 - mask_ratio=0.3, masking: per_sample, sphere (radius=0.1)",
@@ -2203,6 +2204,7 @@ ablation_study = {
             sphere_mask_p=1.0,
             sphere_mask_radius=0.9,
         )},
+
     # Transect masking (various mask ratios)
     "exp109": {
         "description": "Exp73 - mask_ratio=0.3, masking: per_sample, transect (width=0.3)",
@@ -2340,5 +2342,273 @@ ablation_study = {
             transect_mask_p=1.0,
             transect_mask_width=0.05,
             transect_mask_orientation=1.0
+        )},
+
+    # Spherical masking (per_sample with mask_ratio=0.4)
+    "exp119": {
+        "description": "Exp73 - mask_ratio=0.4, masking: per_sample, sphere (radius=0.1)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp120": {
+        "description": "Exp73 - mask_ratio=0.4, masking: per_sample, sphere (radius=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp121": {
+        "description": "Exp73 - mask_ratio=0.4, masking: per_sample, sphere (radius=0.5)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp122": {
+        "description": "Exp73 - mask_ratio=0.4, masking: per_sample, sphere (radius=0.7)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp123": {
+        "description": "Exp73 - mask_ratio=0.4, masking: per_sample, sphere (radius=0.9)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+
+    # Spherical masking (per_sample with mask_ratio=0.5)
+    "exp124": {
+        "description": "Exp73 - mask_ratio=0.5, masking: per_sample, sphere (radius=0.1)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp125": {
+        "description": "Exp73 - mask_ratio=0.5, masking: per_sample, sphere (radius=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp126": {
+        "description": "Exp73 - mask_ratio=0.5, masking: per_sample, sphere (radius=0.5)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp127": {
+        "description": "Exp73 - mask_ratio=0.5, masking: per_sample, sphere (radius=0.7)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp128": {
+        "description": "Exp73 - mask_ratio=0.5, masking: per_sample, sphere (radius=0.9)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+
+    # Spherical masking (per_sample with mask_ratio=0.7)
+    "exp129": {
+        "description": "Exp73 - mask_ratio=0.7, masking: per_sample, sphere (radius=0.1)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp130": {
+        "description": "Exp73 - mask_ratio=0.7, masking: per_sample, sphere (radius=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp131": {
+        "description": "Exp73 - mask_ratio=0.7, masking: per_sample, sphere (radius=0.5)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp132": {
+        "description": "Exp73 - mask_ratio=0.7, masking: per_sample, sphere (radius=0.7)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp133": {
+        "description": "Exp73 - mask_ratio=0.7, masking: per_sample, sphere (radius=0.9)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+
+    # Spherical masking (per_sample with mask_ratio=0.9)
+    "exp134": {
+        "description": "Exp73 - mask_ratio=0.9, masking: per_sample, sphere (radius=0.1)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp135": {
+        "description": "Exp73 - mask_ratio=0.9, masking: per_sample, sphere (radius=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp136": {
+        "description": "Exp73 - mask_ratio=0.9, masking: per_sample, sphere (radius=0.5)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp137": {
+        "description": "Exp73 - mask_ratio=0.9, masking: per_sample, sphere (radius=0.7)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp138": {
+        "description": "Exp73 - mask_ratio=0.9, masking: per_sample, sphere (radius=0.9)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["per_sample", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
         )},
 }
