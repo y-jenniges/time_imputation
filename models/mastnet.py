@@ -111,7 +111,8 @@ class MaSTNeT(nn.Module):
             )
 
             self.gate_mlp = nn.Sequential(
-                nn.Linear(d_model, d_model),
+                # nn.Linear(d_model, d_model),
+                nn.Linear(2 * d_model, d_model),
                 nn.GELU(),
                 nn.Linear(d_model, 1),
                 nn.Sigmoid()
@@ -166,7 +167,7 @@ class MaSTNeT(nn.Module):
             )
             self.decoder_transformer = nn.TransformerDecoder(decoder_layer, nlayers)
 
-        elif self.cfg.attention_type == "space_time_attention":
+        elif self.cfg.attention_type == "space_time_attention" or cfg.attention_type == "time_space_attention":
             self.time_layers = nn.ModuleList([
                 CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
                 for _ in range(self.cfg.n_time_layers)
@@ -192,6 +193,23 @@ class MaSTNeT(nn.Module):
                 CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
                 for _ in range(nlayers)
             ])
+        elif self.cfg.attention_type == "weighted_space_time_depth_attention":
+            self.time_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(self.cfg.n_time_layers)
+            ])
+
+            self.space_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(nlayers)
+            ])
+
+            self.depth_layers = nn.ModuleList([
+                CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
+                for _ in range(nlayers)
+            ])
+            self.gate = nn.Linear(d_model, 3)
+
         else:
             raise ValueError(f"MaSTNeT: Unknown attention_type {self.cfg.attention_type}")
 
@@ -296,6 +314,7 @@ class MaSTNeT(nn.Module):
 
         # Project query token
         q = self.input_projector(query_token)  # [B, 1, d_model]
+        q_dict = {}
 
         # Iterate over scopes
         scopes = get_scopes(cfg=self.cfg)
@@ -353,7 +372,7 @@ class MaSTNeT(nn.Module):
                     q = layer(q, n)
                 encoded = self.decoder_transformer(tgt=q, memory=n)
 
-            elif self.cfg.attention_type == "space_time_attention":
+            elif self.cfg.attention_type == "space_time_attention" or self.cfg.attention_type == "time_space_attention":
                 n = self.input_projector(n_tokens)  # [B, K, d_model]
 
                 if scope == "time":
@@ -383,8 +402,39 @@ class MaSTNeT(nn.Module):
                     q = layer(q, n)
                 encoded = q
 
+            elif self.cfg.attention_type == "weighted_space_time_depth_attention":
+                n = self.input_projector(n_tokens)  # [B, K, d_model]
+
+                if scope == "time":
+                    layers = self.time_layers
+                elif scope == "space":
+                    layers = self.space_layers
+                elif scope == "depth":
+                    layers = self.depth_layers
+                else:
+                    raise ValueError(f"Unknown attention scope {scope}")
+
+                q_temp = 0.0
+                for layer in layers:
+                    q_temp = layer(q, n)
+                q_dict[scope] = q_temp
+
             else:
                 raise ValueError(f"MaSTNeT: Unknown attention type: {self.cfg.attention_type}")
+
+        if self.cfg.attention_type == "weighted_space_time_depth_attention":
+            # print(q_dict["time"].shape, q_dict["space"].shape, q_dict["depth"].shape)
+            h_shared = torch.cat([q_dict["time"], q_dict["space"], q_dict["depth"]], dim=1)
+
+            # Pool across branches
+            h_pooled = h_shared.mean(dim=1)  # [B, d_model]
+
+            # Get weights
+            w = torch.softmax(self.gate(h_pooled), dim=-1)  # [B, 3]
+            w = w.unsqueeze(-1)  # [B, 3, 1]
+
+            # Compute encoded q
+            encoded = w[:, 0:1] * q_dict["time"] + w[:, 1:2] * q_dict["space"] + w[:, 2:3] * q_dict["depth"]
 
         # Add global context to each node
         if self.global_context is not None and self.gate_mlp is not None:
@@ -392,10 +442,12 @@ class MaSTNeT(nn.Module):
             g = self.global_context(h_global)
 
             # Gating
-            alpha = self.gate_mlp(encoded)
+            alpha = self.gate_mlp(torch.cat([encoded, g], dim=-1))  # [B,T,1]
+            encoded = encoded + alpha * (g - encoded)
 
-            encoded = encoded + alpha * g
-            # encoded = encoded + g
+            # alpha = self.gate_mlp(encoded)
+            # encoded = encoded + alpha * g
+            # # encoded = encoded + g
 
         # Take the query token output only for reconstruction (not neighbours)
         query_encoded = encoded[:, 0, :]  # [B, d_model]
