@@ -480,7 +480,7 @@ def prepare_sklearn_data(df, train_idx, val_idx, test_idx):
     return x_train, y_true_scaled, scaler_dict, coord_dim, values_dim
 
 
-def random_per_feature_mask(batch,
+def random_per_feature_mask(batch_size,
                             feature_dim: int,
                             mask_ratio: float = 0.5,
                             n_neighbours: int = 24,
@@ -495,8 +495,6 @@ def random_per_feature_mask(batch,
     Returns:
         mask: [B, F] boolean tensor
     """
-    batch_size = batch.shape[0]
-
     # Init mask
     mask = torch.zeros(batch_size, feature_dim, dtype=torch.bool, device=device)
 

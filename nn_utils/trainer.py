@@ -84,10 +84,11 @@ class NeighbourAdapter(ModelAdapter):
                 masks_list.append(q_rand_mask)
 
             if "per_feature" in masking_strategies:
-                q_per_feature_mask = random_per_feature_mask(batch=batch,
-                            feature_dim=q_mask.shape[1],
-                            mask_ratio=cfg.mask_ratio,
-                            device=device)
+                q_per_feature_mask = random_per_feature_mask(
+                    batch_size=q_mask.shape[0],
+                    feature_dim=q_mask.shape[1],
+                    mask_ratio=cfg.mask_ratio,
+                    device=device)
                 masks_list.append(q_per_feature_mask)
 
             if "transect" in masking_strategies:
