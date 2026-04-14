@@ -323,7 +323,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
             # Prediction
             sval = time()
-            full_pred, full_var = trainer.reconstruct_full_dataset(loader=full_loader, do_dropout=do_dropout, show_progress=(i==0))
+            full_pred, full_var, avg_miss_ratio = trainer.reconstruct_full_dataset(loader=full_loader, do_dropout=do_dropout, show_progress=(i==0))
             pred_time = time() - sval
 
             all_preds.append(full_pred.unsqueeze(0))
@@ -331,6 +331,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
             if full_var is not None:
                 all_vars.append(full_var.unsqueeze(0))
+
+            logging.info(f"  Mean missingness ratio during inference: {avg_miss_ratio:.3f}")
 
         # Stack predictions (n_inferences, N, output_dim)
         all_preds = torch.cat(all_preds, dim=0)

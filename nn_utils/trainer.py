@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Union, Callable
+from typing import Union, Callable, Tuple
 import torch
 import numpy as np
 import copy
@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from nn_utils.graph import GraphProvider
 from nn_utils.losses import MaskedMSELoss, BaseLoss
-from nn_utils.dataset import random_feature_mask, transect_feature_mask, block_feature_mask
+from nn_utils.dataset import random_feature_mask, transect_feature_mask, spherical_feature_mask, random_per_feature_mask
 from utils.metrics import compute_metrics
 
 import config
@@ -79,18 +79,25 @@ class NeighbourAdapter(ModelAdapter):
                 )
                 masks_list.append(q_rand_mask)
 
-            if "line" in masking_strategies:
+            if "per_feature" in masking_strategies:
+                q_per_feature_mask = random_per_feature_mask(batch=batch,
+                            feature_dim=q_mask.shape[1],
+                            mask_ratio=cfg.mask_ratio,
+                            device=device)
+                masks_list.append(q_per_feature_mask)
+
+            if "transect" in masking_strategies:
                 q_transect_mask = transect_feature_mask(batch=batch,feature_dim=q_mask.shape[1],
-                                                        width=cfg.line_mask_width, p=cfg.line_mask_p, device=device)
+                                                        width=cfg.transect_mask_width, p=cfg.transect_mask_p, device=device)
                 masks_list.append(q_transect_mask)
 
-            if "block" in masking_strategies:
-                q_block_mask = block_feature_mask(batch=batch, feature_dim=q_mask.shape[1],
-                                                  size=cfg.block_mask_size, p=cfg.block_mask_p, device=device)
-                masks_list.append(q_block_mask)
+            if "sphere" in masking_strategies:
+                q_sphere_mask = spherical_feature_mask(batch=batch, feature_dim=q_mask.shape[1],
+                                                      size=cfg.sphere_mask_radius, p=cfg.sphere_mask_p, device=device)
+                masks_list.append(q_sphere_mask)
 
+            # Combine masks
             q_random_mask = masks_list[0]
-
             if len(masks_list) > 1:
                 for mask in masks_list[1:]:
                     q_random_mask = q_random_mask | mask
@@ -133,7 +140,16 @@ class NeighbourAdapter(ModelAdapter):
                 masks["neighbour_input"][scope] = n_mask
                 masks["neighbour_loss"][scope] = n_mask
 
-        return masks
+        # Compute missingness ratio for query token
+        total_valid = q_mask.sum()  # Total valid entries
+        total_masked = masks["q_loss_mask"].sum()  # Actually masked entries (only where data existed)
+
+        # Avoid division by zero
+        if total_valid > 0:
+            miss_ratio = total_masked.float() / total_valid.float()
+        else:
+            miss_ratio = torch.tensor(0.0, device=q_mask.device)
+        return masks, miss_ratio
 
     def forward(self, model, batch, masks):
         batch["query_mask"] = masks["q_input_mask"]
@@ -242,7 +258,17 @@ class TimeSequenceAdapter(ModelAdapter):
                 masks["sequence_input"][scope] = n_mask
                 masks["sequence_loss"][scope] = n_mask
 
-        return masks
+        # Compute missingness ratio for query token
+        total_valid = q_mask.sum()  # Total valid entries
+        total_masked = masks["q_loss_mask"].sum()  # Actually masked entries (only where data existed)
+
+        # Avoid division by zero
+        if total_valid > 0:
+            miss_ratio = total_masked.float() / total_valid.float()
+        else:
+            miss_ratio = torch.tensor(0.0, device=q_mask.device)
+
+        return masks, miss_ratio
 
     def forward(self, model, batch, masks):
         batch["query_mask"] = masks["q_input_mask"]
@@ -323,7 +349,17 @@ class PointwiseAdapter(ModelAdapter):
             input_mask = mask
             loss_mask = mask
 
-        return dict(input_mask=input_mask, loss_mask=loss_mask)
+        # Compute missingness ratio for query token
+        total_valid = input_mask.sum()  # Total valid entries
+        total_masked = loss_mask.sum()  # Actually masked entries (only where data existed)
+
+        # Avoid division by zero
+        if total_valid > 0:
+            miss_ratio = total_masked.float() / total_valid.float()
+        else:
+            miss_ratio = torch.tensor(0.0, device=loss_mask.device)
+
+        return dict(input_mask=input_mask, loss_mask=loss_mask), miss_ratio
 
     def forward(self, model, batch, masks):
         feat = batch["features"]
@@ -398,15 +434,14 @@ class Trainer:
         # Init summary writer
         self.writer = SummaryWriter(log_dir=f"/tmp/{self.model.__class__.__name__}_{int(time())}")
 
-    def train_one_epoch(self, loader: DataLoader, mask_ratio: float = 0.5) -> float:
+    def train_one_epoch(self, loader: DataLoader, mask_ratio: float = 0.5) -> Tuple[float, float]:
         self.model.train()
-        total_loss, n_samples = 0.0, 0
+        total_loss, total_miss_ratio, n_samples = 0.0, 0.0, 0
 
         for batch in tqdm(loader, desc="Train", leave=False):
             batch = self.adapter.prepare_batch(batch=batch, device=self.device)
 
-            masks = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="train", device=self.device,
-                                            cfg=self.cfg)
+            masks, miss_ratio = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="train", device=self.device, cfg=self.cfg)
 
             # Predict
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
@@ -424,9 +459,10 @@ class Trainer:
 
             batch_size = self.adapter.batch_size(batch=batch)
             total_loss += loss.item() * batch_size
+            total_miss_ratio += miss_ratio.item() * batch_size
             n_samples += batch_size
 
-        return total_loss / max(1, n_samples)
+        return total_loss / max(1, n_samples), total_miss_ratio / max(1, n_samples)
 
     def _enable_dropout(self, enable=True):
         if enable:
@@ -442,13 +478,12 @@ class Trainer:
     @torch.no_grad()
     def evaluate(self, loader: DataLoader, mask_ratio: float, metrics_key: str = "Metrics", full_metrics: bool = True):
         self.model.eval()  # Disables dropout
-        total_loss, n_samples = 0.0, 0
+        total_loss, total_miss_ratio, n_samples = 0.0, 0.0, 0
         all_true, all_pred = [], []
 
         for batch in tqdm(loader, desc="Val", leave=False):
             batch = self.adapter.prepare_batch(batch, self.device)
-            masks = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="eval", device=self.device,
-                                            cfg=self.cfg)
+            masks, miss_ratio = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="eval", device=self.device, cfg=self.cfg)
 
             # Predict
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
@@ -461,6 +496,7 @@ class Trainer:
 
             batch_size = self.adapter.batch_size(batch=batch)
             total_loss += loss.item() * batch_size
+            total_miss_ratio += miss_ratio.item() * batch_size
             n_samples += batch_size
 
             # Collect flattened tensors for metric calculation (only on loss mask)
@@ -479,7 +515,7 @@ class Trainer:
         if full_metrics:
             if len(all_true) == 0:
                 print("Warning: No valid entries to evaluate!")
-                return total_loss / max(1, n_samples), {}
+                return total_loss / max(1, n_samples), {}, total_miss_ratio / max(1, n_samples)
 
             # Stack for full array metrics
             y_true = np.concatenate(all_true, axis=0)
@@ -491,7 +527,7 @@ class Trainer:
         else:
             metrics = {}
 
-        return total_loss / max(1, n_samples), metrics
+        return total_loss / max(1, n_samples), metrics, total_miss_ratio / max(1, n_samples)
 
     def update_graph(self):
         if self.graph_provider is None:
@@ -533,6 +569,7 @@ class Trainer:
         self.model.eval()
         all_preds = []
         all_vars = []
+        total_miss_ratio, n_samples = 0.0, 0
 
         self._enable_dropout(enable=do_dropout)
 
@@ -545,8 +582,8 @@ class Trainer:
         for batch in iterator:
             batch = self.adapter.prepare_batch(batch, self.device)
 
-            # In reconstruction, everything becomes input (truly missing features are predicted)
-            masks = self.adapter.make_masks(batch, mask_ratio=0.0, mode="reconstruct", device=self.device, cfg=self.cfg)
+            # In reconstruction, everything becomes input (truly missing features are predicted, no artificial masking)
+            masks, _ = self.adapter.make_masks(batch, mask_ratio=0.0, mode="reconstruct", device=self.device, cfg=self.cfg)
 
             # Predict all nan-values (true in feature mask means observed)
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
@@ -563,7 +600,22 @@ class Trainer:
             # Add predictions to the list
             all_preds.append(pred_mean)
 
-        return torch.cat(all_preds), torch.cat(all_vars) if all_vars else None
+            # Compute true dataset missingness
+            q_mask = batch["query_mask"]  # True = observed
+            total_valid = q_mask.sum()
+            total_total = q_mask.numel()
+            if total_total > 0:
+                miss_ratio = 1.0 - (float(total_valid) / float(total_total))
+            else:
+                miss_ratio = torch.tensor(0.0, device=q_mask.device)
+
+            batch_size = self.adapter.batch_size(batch=batch)
+            total_miss_ratio += miss_ratio * batch_size
+            n_samples += batch_size
+
+        avg_miss_ratio = total_miss_ratio / max(1, n_samples)
+
+        return torch.cat(all_preds), torch.cat(all_vars) if all_vars else None, avg_miss_ratio
 
 
     def fit(self,
@@ -574,7 +626,7 @@ class Trainer:
             mask_ratio: Union[float, Callable[[int], float]] = 0.5,
             optuna_callback=None,
             full_metrics: bool = False):
-        history = {"train": {}, "val": {}, "metrics": {}}
+        history = {"train": {}, "val": {}, "metrics": {}, "train_miss_ratio": {}, "val_miss_ratio": {}}
 
         # Iterate over epochs
         for epoch in range(max_epochs):
@@ -606,14 +658,16 @@ class Trainer:
                         self.update_graph()
 
             # Train and compute losses
-            train_loss = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)
-            val_loss, val_metrics = self.evaluate(loader=val_loader, mask_ratio=mask_ratio, metrics_key=f"Epoch_{epoch}", full_metrics=full_metrics)
+            train_loss, train_miss_ratio = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)
+            val_loss, val_metrics, val_miss_ratio = self.evaluate(loader=val_loader, mask_ratio=mask_ratio, metrics_key=f"Epoch_{epoch}", full_metrics=full_metrics)
 
             # Update best model
             self.update_best_model(val_loss=val_loss)
 
             history["train"][epoch] = train_loss
             history["val"][epoch] = val_loss
+            history["train_miss_ratio"][epoch] = train_miss_ratio
+            history["val_miss_ratio"][epoch] = val_miss_ratio
             history["metrics"][epoch] = val_metrics
             tqdm.write(f"Epoch {epoch:03d}: Train Loss={train_loss:.6f} | Val Loss={val_loss:.6f}")
 
