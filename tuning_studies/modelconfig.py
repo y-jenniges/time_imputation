@@ -2269,4 +2269,76 @@ ablation_study = {
             transect_mask_p=1.0,
             transect_mask_width=0.05
         )},
+
+    # Transect masking (various mask ratios) - horizontal/vertical orientation
+    "exp114": {
+        "description": "Exp73 - mask_ratio=0.3, masking: per_sample, transect (width=0.3, orientation=1.0)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0
+        )},
+    "exp115": {
+        "description": "Exp73 - mask_ratio=0.4, masking: per_sample, transect (width=0.3, orientation=1.0)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0
+        )},
+    "exp116": {
+        "description": "Exp73 - mask_ratio=0.5, masking: per_sample, transect (width=0.3, orientation=1.0)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0
+        )},
+    "exp117": {
+        "description": "Exp73 - mask_ratio=0.7, masking: per_sample, transect (width=0.3, orientation=1.0)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0
+        )},
+    "exp118": {
+        "description": "Exp73 - mask_ratio=0.9, masking: per_sample, transect (width=0.3, orientation=1.0)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["per_sample", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0
+        )},
 }
