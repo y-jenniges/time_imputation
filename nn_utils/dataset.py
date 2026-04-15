@@ -635,7 +635,7 @@ def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu", o
         # p0 = p0 / torch.norm(p0)
 
         idx = torch.randint(0, B, (1,), device=device)
-        p0 = lonlats[idx]  # Anchor point on data
+        p0 = lonlats[idx][0]  # Anchor point on data
 
         # Random direction
         d = torch.randn(3, device=device)
