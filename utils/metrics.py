@@ -29,9 +29,9 @@ def compute_metrics(y_true, y_pred, var_names=None):
         yt = y_true[:, i]
         yp = y_pred[:, i]
 
-        # Check number of valid entries
+        # Check number of valid entries (min. 2 required for metrics)
         mask = ~np.isnan(yt) & ~np.isnan(yp)
-        if np.sum(mask) == 0:
+        if np.sum(mask) <= 1:
             var_metrics[name] = {m: np.nan for m in config.EVAL_METRICS}
             continue
 
