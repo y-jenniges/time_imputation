@@ -584,9 +584,12 @@ def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
         return torch.zeros(B, feature_dim, dtype=torch.bool, device=device)
 
     # Random center
-    # center = torch.rand(3, device=device)
-    center = torch.randn(3, device=device)
-    center = center / center.norm()
+    # # center = torch.rand(3, device=device)
+    # center = torch.randn(3, device=device)
+    # center = center / center.norm()
+
+    idx = torch.randint(0, B, (1,), device=device)
+    center = lonlats[idx]
 
     # Distance to center
     dist = torch.norm(lonlats - center, dim=1)
@@ -628,8 +631,11 @@ def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu", o
     else:
         # Fully random orientation
         # Point on sphere
-        p0 = torch.randn(3, device=device)
-        p0 = p0 / torch.norm(p0)
+        # p0 = torch.randn(3, device=device)
+        # p0 = p0 / torch.norm(p0)
+
+        idx = torch.randint(0, B, (1,), device=device)
+        p0 = lonlats[idx]  # Anchor point on data
 
         # Random direction
         d = torch.randn(3, device=device)
