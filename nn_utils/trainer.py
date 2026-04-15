@@ -73,35 +73,47 @@ class NeighbourAdapter(ModelAdapter):
         if mode in ["train", "eval"] and mask_ratio > 0:
             masks_list = []
             if "random" in masking_strategies:
-                q_rand_mask, _ = random_feature_mask(
-                    batch_size=q_mask.shape[0],
-                    feature_dim=q_mask.shape[1],
-                    mask_ratio=mask_ratio,
-                    device=device,
-                    mask_query=True,
-                    mask_neighbours=False
-                )
+                any_mask = False
+                while not any_mask:
+                    q_rand_mask, _ = random_feature_mask(
+                        batch_size=q_mask.shape[0],
+                        feature_dim=q_mask.shape[1],
+                        mask_ratio=mask_ratio,
+                        device=device,
+                        mask_query=True,
+                        mask_neighbours=False
+                    )
+                    any_mask = q_rand_mask.any()
                 masks_list.append(q_rand_mask)
 
             if "per_feature" in masking_strategies:
-                q_per_feature_mask = random_per_feature_mask(
-                    batch_size=q_mask.shape[0],
-                    feature_dim=q_mask.shape[1],
-                    mask_ratio=cfg.mask_ratio,
-                    device=device)
+                any_mask = False
+                while not any_mask:
+                    q_per_feature_mask = random_per_feature_mask(
+                        batch_size=q_mask.shape[0],
+                        feature_dim=q_mask.shape[1],
+                        mask_ratio=cfg.mask_ratio,
+                        device=device)
+                    any_mask = q_per_feature_mask.any()
                 masks_list.append(q_per_feature_mask)
 
             if "transect" in masking_strategies:
-                q_transect_mask = transect_feature_mask(batch=batch,feature_dim=q_mask.shape[1],
-                                                        width=cfg.transect_mask_width,
-                                                        p=cfg.transect_mask_p,
-                                                        orientation=cfg.transect_mask_orientation,
-                                                        device=device)
+                any_mask = False
+                while not any_mask:
+                    q_transect_mask = transect_feature_mask(batch=batch,feature_dim=q_mask.shape[1],
+                                                            width=cfg.transect_mask_width,
+                                                            p=cfg.transect_mask_p,
+                                                            orientation=cfg.transect_mask_orientation,
+                                                            device=device)
+                    any_mask = q_transect_mask.any()
                 masks_list.append(q_transect_mask)
 
             if "sphere" in masking_strategies:
-                q_sphere_mask = spherical_feature_mask(batch=batch, feature_dim=q_mask.shape[1],
-                                                      size=cfg.sphere_mask_radius, p=cfg.sphere_mask_p, device=device)
+                any_mask = False
+                while not any_mask:
+                    q_sphere_mask = spherical_feature_mask(batch=batch, feature_dim=q_mask.shape[1],
+                                                          size=cfg.sphere_mask_radius, p=cfg.sphere_mask_p, device=device)
+                    any_mask = q_sphere_mask.any()
                 masks_list.append(q_sphere_mask)
 
             # Combine masks
@@ -676,7 +688,10 @@ class Trainer:
 
             # Train and compute losses
             train_loss, train_miss_ratio = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)
-            val_loss, val_metrics, val_miss_ratio = self.evaluate(loader=val_loader, mask_ratio=mask_ratio, metrics_key=f"Epoch_{epoch}", full_metrics=full_metrics)
+            val_loss, val_metrics, val_miss_ratio = self.evaluate(loader=val_loader,
+                                                                  mask_ratio=mask_ratio,
+                                                                  metrics_key=f"Epoch_{epoch}",
+                                                                  full_metrics=full_metrics)
 
             # Update best model
             self.update_best_model(val_loss=val_loss)
