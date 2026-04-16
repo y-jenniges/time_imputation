@@ -74,11 +74,11 @@ def suggest_hyperparameters(trial, model_name="mae"):
 
         return {
             "train": {
-                "n_neighbours": trial.suggest_int("n_neighbours", 2, 60),
-                "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
+                "n_neighbours": trial.suggest_int("n_neighbours", 5, 60),
+                "batch_size": trial.suggest_categorical("batch_size", [64, 128, 256, 512]),
                 "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
-                "patience": 5,  # trial.suggest_int("patience", 3, 12),
-                "n_epochs": 20,  #20,  # trial.suggest_int("epochs", 20, 80),
+                "patience": 7,  # trial.suggest_int("patience", 3, 12),
+                "n_epochs": 30,  #20,  # trial.suggest_int("epochs", 20, 80),
                 "mask_ratio": mask_ratio,  #  trial.suggest_float("mask_ratio", 0.0, 0.99),
                 "loss": loss,
                 "lambda_smooth": lambda_smooth,
