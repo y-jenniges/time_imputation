@@ -16,6 +16,9 @@ from optuna.storages.journal import JournalFileBackend
 import psutil
 import os
 
+import config
+from utils.plotting import plot_loss, plot_simple_reconstruction_error
+from utils.tuning import set_seed, TuningResult
 from nn_utils.losses import build_loss, name_to_loss_spec
 from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter, GraphProvider, TimeSequenceAdapter
 from nn_utils.early_stopping import EarlyStopping
@@ -23,10 +26,7 @@ from nn_utils.dataset import load_dataset, prepare_pointwise_loaders, \
     prepare_learned_neighbourhood_loaders, LearnedNeighbourDataset, prepare_time_sequence_loaders
 from utils.metrics import compute_metrics
 from utils.tuning import get_model_class
-
-import config
-from utils.plotting import plot_loss, plot_simple_reconstruction_error
-from utils.tuning import set_seed, TuningResult
+from tuning_studies.modelconfig import ablation_study
 
 
 # Load data globally
@@ -60,17 +60,30 @@ def suggest_hyperparameters(trial, model_name="mae"):
     elif model_name == "mastnet":
         loss = trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
         lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
+
+        strategy = trial.suggest_categorical("strategy", ["sphere", "transect"])
+        mask_ratio = trial.suggest_categorical("mask_ratio", [0.3, 0.4, 0.5])
+        radius, width, masking_strategies = 0.0, 0.0, ["random"]
+
+        if strategy == "sphere":
+            radius = trial.suggest_categorical("sphere_radius", [0.3, 0.4, 0.5])
+            masking_strategies = ["random", "sphere"]
+        elif strategy == "transect":
+            width = trial.suggest_categorical("transect_width", [0.02, 0.05])
+            masking_strategies = ["random", "transect"]
+
         return {
             "train": {
                 "n_neighbours": trial.suggest_int("n_neighbours", 2, 60),
                 "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
                 "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
                 "patience": 5,  # trial.suggest_int("patience", 3, 12),
-                "n_epochs": 1,  #20,  # trial.suggest_int("epochs", 20, 80),
-                "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
+                "n_epochs": 20,  #20,  # trial.suggest_int("epochs", 20, 80),
+                "mask_ratio": mask_ratio,  #  trial.suggest_float("mask_ratio", 0.0, 0.99),
                 "loss": loss,
                 "lambda_smooth": lambda_smooth,
-                "optimizer": torch.optim.Adam
+                "optimizer": torch.optim.Adam,
+                "masking": {"sphere_radius": radius, "transect_width": width, "masking_strategies": masking_strategies},
             },
             "model": {
                 "d_model": trial.suggest_categorical("d_model", [32, 64, 128, 256, 512]),
@@ -78,7 +91,6 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "nlayers": trial.suggest_int("nlayers", 2, 8),
                 "dim_feedforward": trial.suggest_categorical("dim_feedforward", [128, 256, 512, 1024]),
                 "dropout": trial.suggest_float("dropout", 0.0, 0.4),
-                # "pos_hidden_dim": trial.suggest_categorical("pos_hidden_dim", [32, 64, 128, 256, 512]),
             }
         }
     elif model_name == "mastnet_finetune":
@@ -202,6 +214,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
     # Hyperparameters
     n_neighbours = get_hyp(hyps, "train", "n_neighbours", default=5)
+    cfg.n_neighbours = n_neighbours
+
     batch_size = get_hyp(hyps, "train", "batch_size", default=64)
     optimizer_class = get_hyp(hyps, "train", "optimizer", default=torch.optim.Adam)
     learning_rate = get_hyp(hyps, "train", "learning_rate", default=1e-3)
@@ -211,6 +225,12 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     model_hyps = get_hyp(hyps, "model", default={})
     lambda_smooth = get_hyp(hyps, "train", "lambda_smooth", default=None)
     loss_spec = name_to_loss_spec(get_hyp(hyps, "train", "loss", default="mse"))
+
+    masking = get_hyp(hyps, "train", "masking", default=None)
+    cfg.mask_ratio = masking["mask_ratio"]
+    cfg.sphere_mask_radius = masking["sphere_radius"]
+    cfg.transect_mask_width = masking["transect_width"]
+    cfg.masking_strategies = masking["masking_strategies"]
 
     # Init results object
     results = TuningResult(split=split_fname, seed=seed, model=model_name, hyp_combo_id=trial_id, hyps=hyps)
@@ -457,6 +477,9 @@ def optuna_objective(trial, model_name, output_dir):
         train_idx = np.array(split["train_idx"])
         val_idx = np.array(split["val_idx"])
 
+        # Load basic architecture config
+        base_cfg = ablation_study["exp73"]["config"]
+
         # Train
         results, _, _, _ = train_pytorch_single_split(
             coords_raw=coords_raw,
@@ -472,7 +495,8 @@ def optuna_objective(trial, model_name, output_dir):
             optuna_callback=None,  # make_optuna_callback(trial, split_i, n_epochs),
             seed=42 + int(trial.number) + split_i,
             device=device,
-            output_dir=output_dir
+            output_dir=output_dir,
+            cfg=base_cfg,
         )
 
         logging.info(f"Validation loss: {results.val_rmse:.8f}")
