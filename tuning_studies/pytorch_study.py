@@ -228,9 +228,9 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
     masking = get_hyp(hyps, "train", "masking", default=None)
     cfg.mask_ratio = mask_ratio
-    cfg.sphere_mask_radius = masking["sphere_radius"]
-    cfg.transect_mask_width = masking["transect_width"]
-    cfg.masking_strategies = masking["masking_strategies"]
+    cfg.sphere_mask_radius = None if masking is None else masking["sphere_radius"]
+    cfg.transect_mask_width = None if masking is None else masking["transect_width"]
+    cfg.masking_strategies = None if masking is None else masking["masking_strategies"]
 
     # Init results object
     results = TuningResult(split=split_fname, seed=seed, model=model_name, hyp_combo_id=trial_id, hyps=hyps)
