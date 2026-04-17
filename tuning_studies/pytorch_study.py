@@ -58,7 +58,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 }
             }
     elif model_name == "mastnet":
-        loss = trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
+        loss = "hetero"  # trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
         lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
 
         strategy = trial.suggest_categorical("strategy", ["sphere", "transect"])
@@ -227,7 +227,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     loss_spec = name_to_loss_spec(get_hyp(hyps, "train", "loss", default="mse"))
 
     masking = get_hyp(hyps, "train", "masking", default=None)
-    cfg.mask_ratio = masking["mask_ratio"]
+    cfg.mask_ratio = mask_ratio
     cfg.sphere_mask_radius = masking["sphere_radius"]
     cfg.transect_mask_width = masking["transect_width"]
     cfg.masking_strategies = masking["masking_strategies"]
