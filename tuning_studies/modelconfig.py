@@ -4077,4 +4077,74 @@ ablation_study = {
             sphere_mask_radius=0.1,
         )},
 
+    #################################################
+    # --- Architectures
+    ################################################
+
+    # Time-space attention
+    "exp245": {
+        "description": "Time_space_attention",
+        "config": ModelConfig(
+            feature_mixer=False,
+            attention_type="time_space_attention"
+        )},
+    "exp246": {
+        "description": "Time_space_attention, feature mixer (feat)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            attention_type="time_space_attention"
+        )},
+    "exp247": {
+        "description": "Time_space_attention, feature mixer (feat+mask)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="time_space_attention"
+        )},
+
+    # Space-time-depth attention
+    # Same as exp18
+    # "exp248": {
+    #     "description": "Space_time_depth_attention",
+    #     "config": ModelConfig(
+    #         attention_type="space_time_depth_attention"
+    #     )},
+    "exp248": {
+        "description": "Space_time_depth_attention, feature mixer (feat)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            attention_type="space_time_depth_attention"
+        )},
+    "exp249": {
+        "description": "Space_time_depth_attention, feature mixer (feat+mask)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="space_time_depth_attention"
+        )},
+
+    # Encoder layer
+    # Same as exp10
+    # "exp250": {
+    #     "description": "Transformer encoder",
+    #     "config": ModelConfig(
+    #         attention_type="transformer_encoder"
+    #     )},
+    "exp250": {
+        "description": "Transformer encoder, feature mixer (feat)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            attention_type="transformer_encoder"
+        )},
+    "exp251": {
+        "description": "Transformer encoder, feature mixer (feat+mask)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="transformer_encoder"
+        )},
+
 }
