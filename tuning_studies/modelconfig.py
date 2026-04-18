@@ -3179,7 +3179,7 @@ ablation_study = {
             attention_type="space_time_attention",
 
             mask_ratio=0.3,
-            masking_strategies=["random", "transect", "spherical"],
+            masking_strategies=["random", "transect", "sphere"],
             transect_mask_p=1.0,
             transect_mask_width=0.02,
             sphere_mask_p=1.0,
@@ -3273,7 +3273,7 @@ ablation_study = {
             use_masks=True,
             attention_type="autoencoder",
 
-            masking_strategies=["spherical"],
+            masking_strategies=["sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.1,
         )},
@@ -3287,7 +3287,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.3,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.1,
         )},
@@ -3301,7 +3301,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.4,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.1,
         )},
@@ -3315,7 +3315,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.5,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.1,
         )},
@@ -3329,7 +3329,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.7,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.1,
         )},
@@ -3343,7 +3343,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.9,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.1,
         )},
@@ -3358,7 +3358,7 @@ ablation_study = {
             use_masks=True,
             attention_type="autoencoder",
 
-            masking_strategies=["spherical"],
+            masking_strategies=["sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.3,
         )},
@@ -3372,7 +3372,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.3,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.3,
         )},
@@ -3386,7 +3386,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.4,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.3,
         )},
@@ -3400,7 +3400,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.5,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.3,
         )},
@@ -3414,7 +3414,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.7,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.3,
         )},
@@ -3428,7 +3428,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.9,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.3,
         )},
@@ -3443,7 +3443,7 @@ ablation_study = {
             use_masks=True,
             attention_type="autoencoder",
 
-            masking_strategies=["spherical"],
+            masking_strategies=["sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.5,
         )},
@@ -3457,7 +3457,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.3,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.5,
         )},
@@ -3471,7 +3471,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.4,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.5,
         )},
@@ -3485,7 +3485,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.5,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.5,
         )},
@@ -3499,7 +3499,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.7,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.5,
         )},
@@ -3513,7 +3513,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.9,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.5,
         )},
@@ -3528,7 +3528,7 @@ ablation_study = {
             use_masks=True,
             attention_type="autoencoder",
 
-            masking_strategies=["spherical"],
+            masking_strategies=["sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.7,
         )},
@@ -3542,7 +3542,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.3,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.7,
         )},
@@ -3556,7 +3556,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.4,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.7,
         )},
@@ -3570,7 +3570,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.5,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.7,
         )},
@@ -3584,7 +3584,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.7,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.7,
         )},
@@ -3598,7 +3598,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.9,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.7,
         )},
@@ -3613,7 +3613,7 @@ ablation_study = {
             use_masks=True,
             attention_type="autoencoder",
 
-            masking_strategies=["spherical"],
+            masking_strategies=["sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.9,
         )},
@@ -3627,7 +3627,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.3,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.9,
         )},
@@ -3641,7 +3641,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.4,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.9,
         )},
@@ -3655,7 +3655,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.5,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.9,
         )},
@@ -3669,7 +3669,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.7,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.9,
         )},
@@ -3683,7 +3683,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.9,
-            masking_strategies=["random", "spherical"],
+            masking_strategies=["random", "sphere"],
             sphere_mask_p=1.0,
             sphere_mask_radius=0.9,
         )},
@@ -4070,7 +4070,7 @@ ablation_study = {
             attention_type="autoencoder",
 
             mask_ratio=0.3,
-            masking_strategies=["random", "transect", "spherical"],
+            masking_strategies=["random", "transect", "sphere"],
             transect_mask_p=1.0,
             transect_mask_width=0.02,
             sphere_mask_p=1.0,
