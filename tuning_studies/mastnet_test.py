@@ -80,7 +80,12 @@ if __name__ == "__main__":
                 "n_epochs": 100,
                 "mask_ratio": cfg.mask_ratio,
                 "loss": cfg.loss_name,
-                "optimizer": torch.optim.Adam
+                "optimizer": torch.optim.Adam,
+                "masking": {"sphere_mask_radius": cfg.sphere_mask_radius, "sphere_mask_p": cfg.sphere_mask_p,
+                            "transect_mask_width": cfg.transect_mask_width, "transect_mask_p": cfg.transect_mask_p,
+                            "transect_mask_orientation": cfg.transect_mask_orientation,
+                            "masking_strategies": cfg.masking_strategies,
+                            },
             },
             "model": {
                 "d_model": 64,
