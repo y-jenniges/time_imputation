@@ -83,7 +83,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "loss": loss,
                 "lambda_smooth": lambda_smooth,
                 "optimizer": torch.optim.Adam,
-                "masking": {"sphere_mask_radius": radius, "transect_width": width, "masking_strategies": masking_strategies},
+                "masking": {"sphere_mask_radius": radius, "transect_mask_width": width, "masking_strategies": masking_strategies},
             },
             "model": {
                 "d_model": trial.suggest_categorical("d_model", [32, 64, 128, 256, 512]),
