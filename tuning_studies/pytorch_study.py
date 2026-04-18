@@ -66,10 +66,10 @@ def suggest_hyperparameters(trial, model_name="mae"):
         radius, width, masking_strategies = 0.0, 0.0, ["random"]
 
         if strategy == "sphere":
-            radius = trial.suggest_categorical("sphere_radius", [0.3, 0.4, 0.5])
+            radius = trial.suggest_categorical("sphere_mask_radius", [0.3, 0.4, 0.5])
             masking_strategies = ["random", "sphere"]
         elif strategy == "transect":
-            width = trial.suggest_categorical("transect_width", [0.02, 0.05])
+            width = trial.suggest_categorical("transect_mask_width", [0.02, 0.05])
             masking_strategies = ["random", "transect"]
 
         return {
@@ -83,7 +83,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "loss": loss,
                 "lambda_smooth": lambda_smooth,
                 "optimizer": torch.optim.Adam,
-                "masking": {"sphere_radius": radius, "transect_width": width, "masking_strategies": masking_strategies},
+                "masking": {"sphere_mask_radius": radius, "transect_width": width, "masking_strategies": masking_strategies},
             },
             "model": {
                 "d_model": trial.suggest_categorical("d_model", [32, 64, 128, 256, 512]),
