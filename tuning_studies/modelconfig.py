@@ -53,39 +53,12 @@ ablation_study = {
     "exp0": {
         "description": "Baseline, raw KNN, MHA",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp1": {
         "description": "Raw KNN, MHA with masks",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
             use_rel_pos=False,
             use_masks=True,
             attention_type="mha"
@@ -93,63 +66,34 @@ ablation_study = {
     "exp2": {
         "description": "Raw KNN, MHA with rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
 
             use_rel_pos=True,
-            use_masks=False,
+
             attention_type="mha"
         )},
 
     "exp3": {
         "description": "Raw KNN, feature mixer, MHA",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
-            use_rel_pos=False,
-            use_masks=False,
+
             attention_type="mha"
         )},
 
     "exp4": {
         "description": "Raw KNN, coordinate encoder (model), MHA",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
             encoder_scope="model",
             encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
 
-            use_rel_pos=False,
-            use_masks=False,
+
+
+
             attention_type="mha"
         )},
     "exp5": {
@@ -161,15 +105,11 @@ ablation_study = {
 
             encoder_scope="graph",
             encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
 
-            use_rel_pos=False,
-            use_masks=False,
+
+
+
             attention_type="mha"
         )},
     "exp6": {
@@ -177,119 +117,46 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp7": {
         "description": "Raw KNN, coordinate encoder (both, coords+feat), MHA",
         "config": ModelConfig(
-            graph_mode="static",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords_feat",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp8": {
         "description": "Raw KNN, coordinate encoder (both, coords+feat+mask), MHA",
         "config": ModelConfig(
-            graph_mode="static",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords_feat_mask",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp9": {
         "description": "Raw anisotropic KNN, MHA",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
             graph_metric="anisotropic",
-
-            encoder_scope="none",
-            encoder_input="coords_feat_mask",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp10": {
         "description": "Raw KNN, transformer encoder",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="transformer_encoder"
         )},
     "exp11": {
         "description": "Raw KNN, autoencoder",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="autoencoder"
         )},
     "exp12": {
@@ -297,19 +164,10 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp13": {
@@ -317,19 +175,10 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords_feat",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp14": {
@@ -337,186 +186,59 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords_feat_mask",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp15": {
         "description": "Raw KNN, feature mixer (feat+mask), MHA",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp16": {
         "description": "Baseline, raw KNN, MHA, mean filling",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
             fill_strategy="mean",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp17": {
         "description": "Baseline, raw KNN, space_time_attention",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="space_time_attention"
         )},
     "exp18": {
         "description": "Baseline, raw KNN, space_time_depth_attention",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="space_time_depth_attention"
         )},
     "exp19": {
         "description": "Baseline, raw KNN, MHA, k=5",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
-
             n_neighbours = 5
         )},
     "exp20": {
         "description": "Baseline, raw KNN, MHA, k=10",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
-
             n_neighbours=10
         )},
     "exp21": {
         "description": "Baseline, raw KNN, MHA, k=20",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
-
             n_neighbours=20
         )},
 
     "exp22": {
         "description": "Baseline, raw KNN, MHA, k=50",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
 
             n_neighbours=50
@@ -525,248 +247,97 @@ ablation_study = {
     "exp23": {
         "description": "Baseline, raw KNN, MHA, k=100",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
-
             n_neighbours=100
         )},
 
     "exp24": {
         "description": "Baseline, raw KNN, MHA, positional encoding",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
-
             positional_encoding=True
         )},
     "exp25": {
         "description": "Raw KNN, feature mixer (feat+mask), MHA with masks",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
-            use_rel_pos=False,
             use_masks=True,
             attention_type="mha"
         )},
     "exp26": {
         "description": "Raw KNN, feature mixer (feat+mask), MHA, rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
             use_rel_pos=True,
-            use_masks=False,
             attention_type="mha"
         )},
     "exp27": {
         "description": "Raw KNN, feature mixer (feat+mask), autoencoder",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="autoencoder"
         )},
     "exp28": {
         "description": "Raw KNN, feature mixer (feat+mask), autoencoder with masks",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
-            use_rel_pos=False,
             use_masks=True,
             attention_type="autoencoder"
         )},
     "exp29": {
         "description": "Raw KNN, feature mixer (feat+mask), autoencoder, rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
             use_rel_pos=True,
-            use_masks=False,
             attention_type="autoencoder"
         )},
     "exp30": {
         "description": "Raw KNN, feature mixer (feat), MHA with masks",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
-            use_rel_pos=False,
             use_masks=True,
             attention_type="mha"
         )},
     "exp31": {
         "description": "Raw KNN, feature mixer (feat+mask), space_time_attention",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="space_time_attention"
         )},
     "exp32": {
         "description": "Raw KNN, space_time_attention (#time_layers=1)",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="space_time_attention",
-
             n_time_layers = 1
         )},
-    "exp33": {
-        "description": "Raw KNN, MHA, weighted time???????????????? todo",
-        "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
-            attention_type="mha",
-        )},
+    # "exp33": {
+    #     "description": "Raw KNN, MHA, weighted time???????????????? todo",
+    #     "config": ModelConfig(
+    #         attention_type="mha",
+    #     )},
     "exp34": {
         "description": "Dynamic KNN, MHA, update every 10 epochs (until epoch 50)",
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
 
             graph_update_frequency=10,
@@ -777,19 +348,10 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
 
             graph_update_frequency=1
@@ -799,19 +361,10 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="static",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
 
             graph_warmup=20,
@@ -820,63 +373,24 @@ ablation_study = {
     "exp37": {
         "description": "Raw KNN, autoencoder, feature mixer (feat)",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="autoencoder"
         )},
     "exp38": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat)",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
-            use_rel_pos=False,
             use_masks=True,
             attention_type="autoencoder",
         )},
     "exp39": {
         "description": "Raw KNN, space_time_attention (#time_layers=2)",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="space_time_attention",
-
             n_time_layers=2
         )},
     "exp40": {
@@ -884,19 +398,10 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
 
             graph_update_frequency=1,
@@ -907,19 +412,10 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
             encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
 
             graph_warmup=20,
@@ -929,21 +425,12 @@ ablation_study = {
     "exp42": {
         "description": "Raw KNN, MHA, graph_dim=16 (not 3) with encoder [both on coords]",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
             encoder_scope="both",
             encoder_input="coords",
+
             encoder_output_dim=16,
             encoder_hidden_dim=64,
 
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
         )},
     "exp43": {
@@ -951,19 +438,7 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
 
             learn_anisotropic_weights=True,
@@ -974,23 +449,7 @@ ablation_study = {
     "exp44": {
         "description": "Raw KNN, MHA, hetero smooth loss",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
-
             loss_name="hetero_smooth",
         )},
     "exp45": {
@@ -998,19 +457,7 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
 
             learn_anisotropic_weights=True,
@@ -1022,81 +469,28 @@ ablation_study = {
         "description": "Random neighbours",
         "config": ModelConfig(
             graph_mode="random",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha",
         )},
     "exp47": {
         "description": "Time sequence, autoencoder",
         "config": ModelConfig(
             graph_mode="time_sequence",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
 
             use_rel_pos=True,
-            use_masks=False,
             attention_type="autoencoder",
-
             positional_encoding_time_only=True,
         )},
     "exp48": {
         "description": "Raw KNN, MHA-Decoder",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="mha_decoder"
         )},
     "exp49": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat); hetero_smooth (learnable anisotropic weights)",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
-            use_rel_pos=False,
             use_masks=True,
             attention_type="autoencoder",
 
@@ -1106,20 +500,9 @@ ablation_study = {
     "exp50": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), global context",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
-            use_rel_pos=False,
             use_masks=True,
             attention_type="autoencoder",
 
@@ -1128,20 +511,6 @@ ablation_study = {
     "exp51": {
         "description": "Raw KNN, autoencoder with masks, global context",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",
-
-            use_rel_pos=False,
             use_masks=True,
             attention_type="autoencoder",
 
@@ -1150,16 +519,6 @@ ablation_study = {
     "exp52": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), gated global context",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -1172,21 +531,6 @@ ablation_study = {
     # "exp53": {
     #     "description": "Raw KNN, MHA, random masking + transects",
     #     "config": ModelConfig(
-    #         graph_mode="static",
-    #         graph_space="raw",
-    #         graph_metric="isotropic",
-    #
-    #         encoder_scope="none",
-    #         encoder_input="coords",  # Unused
-    #         encoder_output_dim=3,  # Unused
-    #         encoder_hidden_dim=64,  # Unused
-    #
-    #         fill_strategy="zero",
-    #         feature_mixer=False,
-    #         feature_mixer_input="feat",  # Unused
-    #
-    #         use_rel_pos=False,
-    #         use_masks=False,
     #         attention_type="mha"
     #     )},
     # "exp54": {
@@ -1201,7 +545,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1223,12 +567,12 @@ ablation_study = {
     #         encoder_output_dim=3,  # Unused
     #         encoder_hidden_dim=64,  # Unused
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat_mask",
     #
     #         use_rel_pos=False,
-    #         use_masks=False,
+    #
     #         attention_type="space_time_attention",
     #
     #         masking_strategies=["random", "line"],
@@ -1245,12 +589,12 @@ ablation_study = {
     #         encoder_output_dim=3,  # Unused
     #         encoder_hidden_dim=64,  # Unused
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat_mask",
     #
     #         use_rel_pos=False,
-    #         use_masks=False,
+    #
     #         attention_type="space_time_attention",
     #
     #         masking_strategies=["random", "line", "block"],
@@ -1267,7 +611,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1290,7 +634,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1312,7 +656,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1335,7 +679,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1359,7 +703,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1383,7 +727,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1407,7 +751,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1431,7 +775,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1455,7 +799,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1479,7 +823,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1503,7 +847,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1527,7 +871,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1551,7 +895,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1575,7 +919,7 @@ ablation_study = {
     #         encoder_output_dim=3,
     #         encoder_hidden_dim=64,
     #
-    #         fill_strategy="zero",
+    #
     #         feature_mixer=True,
     #         feature_mixer_input="feat",
     #
@@ -1591,16 +935,9 @@ ablation_study = {
     "exp71": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
 
-            fill_strategy="zero",
+
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -1611,36 +948,17 @@ ablation_study = {
     "exp72": {
         "description": "Raw KNN, feature mixer (feat), space_time_attention",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
-            use_rel_pos=False,
-            use_masks=False,
+
             attention_type="space_time_attention"
         )},
     "exp73": {
         "description": "Raw KNN, feature mixer (feat), space_time_attention, masks",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -1651,16 +969,7 @@ ablation_study = {
     "exp74": {
         "description": "Raw KNN, feature mixer (feat+mask), space_time_attention, masks",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
@@ -1671,16 +980,7 @@ ablation_study = {
     "exp75": {
         "description": "Raw KNN, feature mixer (feat+mask), space_time_attention, masks, rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
@@ -1691,81 +991,29 @@ ablation_study = {
     "exp76": {
         "description": "Raw KNN, autoencoder, masks",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",  # Unused
-
-            use_rel_pos=False,
             use_masks=True,
             attention_type="autoencoder"
         )},
     "exp77": {
         "description": "Raw KNN, space_time_attention, masks",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
             use_masks=True,
             attention_type="space_time_attention"
         )},
     "exp78": {
         "description": "Raw KNN, feature mixer, MHA",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
             use_rel_pos=True,
-            use_masks=False,
+
             attention_type="mha"
         )},
     "exp79": {
         "description": "Raw KNN, autoencoder, rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",  # Unused
-
             use_rel_pos=True,
-            use_masks=False,
             attention_type="autoencoder"
         )},
 
@@ -1774,19 +1022,11 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="dynamic",
             graph_space="encoded",
-            graph_metric="isotropic",
 
             encoder_scope="both",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat_mask",  # Unused
+            encoder_input="coords",
 
             use_rel_pos=True,
-            use_masks=False,
             attention_type="autoencoder",
 
             n_neighbours=20,
@@ -1797,76 +1037,30 @@ ablation_study = {
     "exp81": {
         "description": "Raw KNN, feature mixer (feat), space_time_attention, rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
             use_rel_pos=True,
-            use_masks=False,
             attention_type="space_time_attention"
         )},
     "exp82": {
         "description": "Raw KNN, space_time_attention, rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
             use_rel_pos=True,
-            use_masks=False,
             attention_type="space_time_attention"
         )},
     "exp83": {
         "description": "Raw KNN, space_time_attention, feature mixer (feat+mask), rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
             use_rel_pos=True,
-            use_masks=False,
             attention_type="space_time_attention"
         )},
     "exp84": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos, scale time to [0, 0.5]",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -1877,16 +1071,6 @@ ablation_study = {
     "exp85": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos, standardscaler",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -1897,16 +1081,6 @@ ablation_study = {
     "exp86": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos, times weighted by data availability",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -1917,36 +1091,11 @@ ablation_study = {
     "exp87": {
         "description": "Raw KNN, weighted space-time-depth attention",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
-            feature_mixer=False,
-            feature_mixer_input="feat",  # Unused
-
-            use_rel_pos=False,
-            use_masks=False,
             attention_type="weighted_space_time_depth_attention"
         )},
     "exp88": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos, residual gated global context",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",
-            encoder_output_dim=3,
-            encoder_hidden_dim=64,
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -1959,16 +1108,6 @@ ablation_study = {
     "exp89": {
         "description": "Raw KNN, feature mixer (feat), space_time_attention, masks, rel_pos",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
-
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -1979,16 +1118,7 @@ ablation_study = {
     "exp90": {
         "description": "Raw KNN, feature mixer (feat), time_space_attention, masks",
         "config": ModelConfig(
-            graph_mode="static",
-            graph_space="raw",
-            graph_metric="isotropic",
 
-            encoder_scope="none",
-            encoder_input="coords",  # Unused
-            encoder_output_dim=3,  # Unused
-            encoder_hidden_dim=64,  # Unused
-
-            fill_strategy="zero",
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -4085,7 +3215,6 @@ ablation_study = {
     "exp245": {
         "description": "Time_space_attention",
         "config": ModelConfig(
-            feature_mixer=False,
             attention_type="time_space_attention"
         )},
     "exp246": {
