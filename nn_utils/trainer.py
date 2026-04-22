@@ -241,14 +241,19 @@ class TimeSequenceAdapter(ModelAdapter):
 
         # Query masking
         if mode in ["train", "eval"] and mask_ratio > 0:
-            q_random_mask, _ = random_feature_mask(
-                batch_size=q_mask.shape[0],
-                feature_dim=q_mask.shape[1],
-                mask_ratio=mask_ratio,
-                device=device,
-                mask_query=True,
-                mask_neighbours=False
-            )
+            batch_size = batch["query_mask"].shape[0]
+            q_random_mask = torch.zeros(q_mask.shape, device=device)
+            for i in range(batch_size):
+                q_random_mask, _ = random_feature_mask(
+                    batch_size=q_mask.shape[0],
+                    feature_dim=q_mask.shape[1],
+                    mask_ratio=mask_ratio,
+                    device=device,
+                    mask_query=True,
+                    mask_neighbours=False
+                )
+                if q_random_mask.any():
+                    break
 
             masks["q_input_mask"] = q_mask & ~q_random_mask  # Observed inputs after random masking
             masks["q_loss_mask"] = q_mask & q_random_mask  # Positions to reconstruct: Originally observed but randomly hidden
