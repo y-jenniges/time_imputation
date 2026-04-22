@@ -233,7 +233,8 @@ def prepare_time_sequence_loaders(coords: torch.Tensor,
     test_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=test_idx, sequence_length=sequence_length)
     full_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=None, sequence_length=sequence_length)
 
-    print(len(train_dataset), len(val_dataset), len(test_dataset))
+    print(f"Lenghts of train, val, test datasets: {len(train_dataset), len(val_dataset), len(test_dataset)}")
+    print("NaNs values_full:", torch.isnan(values_full).sum())
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)

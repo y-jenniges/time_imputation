@@ -381,6 +381,10 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         logging.info("cpu to np")
         y_true = all_values.detach().cpu().numpy()
         y_pred = y_pred_mean.detach().cpu().numpy()
+
+        print("NaNs y_true:", np.isnan(y_true).sum())
+        print("NaNs y_pred:", np.isnan(y_pred).sum())
+
         epistemic_uncertainty = epistemic_uncertainty.detach().cpu().numpy()
         aleatoric_uncertainty = aleatoric_uncertainty.detach().cpu().numpy() if aleatoric_uncertainty is not None else None
         all_preds_np = all_preds.cpu().numpy()
