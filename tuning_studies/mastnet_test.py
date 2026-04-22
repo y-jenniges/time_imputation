@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     logging.info(f"results: {results}")
 
-    # Store y_true?
+    # Store y_true
     df_true = pd.DataFrame(y_true, columns=config.parameters)
     df_true[config.coordinates] = df[config.coordinates]
     df_true.to_csv(f"{output_dir}/{model_name}_y_true.csv", index=False)
