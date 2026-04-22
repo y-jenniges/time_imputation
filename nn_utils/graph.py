@@ -98,7 +98,7 @@ class GraphProvider:
     def build_graph(self, encoded, coords, values, mask, anisotropic_weights=None):
         if self.cfg.graph_mode == "random":
             # Random neighbours
-            self.neighbour_indices = {"default": compute_random_neighbours(coords, k=self.n_neighbours, seed=42)}
+            self.neighbour_indices = {"default": compute_random_neighbours(coords, k=self.n_neighbours)}
 
         elif self.cfg.attention_type == "space_time_attention" or self.cfg.attention_type == "time_space_attention":
             # Time neighbours
