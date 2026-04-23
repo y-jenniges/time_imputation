@@ -121,10 +121,6 @@ class TimeSequenceDataset(Dataset):
 
         # Map query indices to sorted indices
         self.query_indices = self.sorted_idx[self.query_indices]
-        # self.query_indices = torch.searchsorted(self.sorted_idx, self.query_indices)
-
-        print("first 10 sorted times:", coords[self.sorted_idx[:10], -1])
-        print("query_indices sample:", self.query_indices[:10])
 
     def __len__(self):
         return self.query_indices.shape[0]
@@ -141,10 +137,6 @@ class TimeSequenceDataset(Dataset):
         seq_start = max(int(seq_start), 0)
         seq_end = min(int(seq_end), len(self.coords_sorted))
 
-        if idx < 5:
-            print("q_idx:", q_idx.item())
-            print("seq_start/end:", seq_start, seq_end)
-
         seq_coords = self.coords_sorted[seq_start:seq_end]
         seq_values = self.values_sorted[seq_start:seq_end]
         seq_mask = self.mask_sorted[seq_start:seq_end]
@@ -159,12 +151,6 @@ class TimeSequenceDataset(Dataset):
             seq_coords = torch.cat([seq_coords, seq_coords[-1:].repeat(pad_size, 1)], dim=0)
             seq_values = torch.cat([seq_values, seq_values[-1:].repeat(pad_size, 1)], dim=0)
             seq_mask = torch.cat([seq_mask, seq_mask[-1:].repeat(pad_size, 1)], dim=0)
-
-        if idx < 5:
-            print("q_local:", q_local)
-            print("seq_len actual:", seq_coords.shape[0])
-            print("query_features:", seq_values[q_local])
-            print("query_mask:", seq_mask[q_local])
 
         return {
             "query_features": seq_values[q_local],
