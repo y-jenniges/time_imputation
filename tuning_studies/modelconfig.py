@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
+    dropout: float = 0.05
+
     # Graph
     graph_mode: str = "static"  # "static" | "dynamic" | "random" | "time_sequence"  (with time_sequence, time sequence input will be used, no neighbourhoods graph)
     graph_space: str = "raw"  # "raw" | "encoded"
@@ -935,9 +937,6 @@ ablation_study = {
     "exp71": {
         "description": "Raw KNN, autoencoder with masks, feature mixer (feat), rel_pos",
         "config": ModelConfig(
-
-
-
             feature_mixer=True,
             feature_mixer_input="feat",
 
@@ -948,11 +947,8 @@ ablation_study = {
     "exp72": {
         "description": "Raw KNN, feature mixer (feat), space_time_attention",
         "config": ModelConfig(
-
             feature_mixer=True,
             feature_mixer_input="feat",
-
-
             attention_type="space_time_attention"
         )},
     "exp73": {
@@ -3274,6 +3270,32 @@ ablation_study = {
             feature_mixer=True,
             feature_mixer_input="feat_mask",
             attention_type="transformer_encoder"
+        )},
+    "exp252": {
+        "description": "Raw KNN, feature mixer (feat), space_time_attention, masks, dropout=0.1",
+        "config": ModelConfig(
+
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            dropout=0.1,
+        )},
+    "exp253": {
+        "description": "Raw KNN, feature mixer (feat), space_time_attention, masks, dropout=0.2",
+        "config": ModelConfig(
+
+            feature_mixer=True,
+            feature_mixer_input="feat",
+
+            use_rel_pos=False,
+            use_masks=True,
+            attention_type="space_time_attention",
+
+            dropout=0.2,
         )},
 
 }

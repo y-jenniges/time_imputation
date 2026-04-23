@@ -92,7 +92,7 @@ if __name__ == "__main__":
                 "nhead": 4,
                 "nlayers": 3,
                 "dim_feedforward": 256,
-                "dropout": 0.05
+                "dropout": cfg.dropout,
             }
         }
 
