@@ -130,12 +130,12 @@ class TimeSequenceDataset(Dataset):
         q_idx = self.query_indices[idx]
 
         # Sequence
-        seq_start = q_idx -self.half
+        seq_start = q_idx - self.half
         seq_end = q_idx + self.half + 1
 
         # Sequence boundaries
-        seq_start = max(seq_start, 0)
-        seq_end = min(seq_end, len(self.coords_sorted))
+        seq_start = max(int(seq_start), 0)
+        seq_end = min(int(seq_end), len(self.coords_sorted))
 
         seq_coords = self.coords_sorted[seq_start:seq_end]
         seq_values = self.values_sorted[seq_start:seq_end]
