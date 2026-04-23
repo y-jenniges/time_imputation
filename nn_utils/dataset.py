@@ -120,7 +120,8 @@ class TimeSequenceDataset(Dataset):
             self.query_indices = torch.as_tensor(query_indices, dtype=torch.long)
 
         # Map query indices to sorted indices
-        self.query_indices = torch.searchsorted(self.sorted_idx, self.query_indices)
+        self.query_indices = self.sorted_idx[self.query_indices]
+        # self.query_indices = torch.searchsorted(self.sorted_idx, self.query_indices)
 
         print("first 10 sorted times:", coords[self.sorted_idx[:10], -1])
         print("query_indices sample:", self.query_indices[:10])
