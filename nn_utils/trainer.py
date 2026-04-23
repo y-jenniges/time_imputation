@@ -309,6 +309,7 @@ class TimeSequenceAdapter(ModelAdapter):
         for scope, seq_mask in masks["sequence_input"].items():  # todo correct?
             # Replace center position with query mask
             center_pos = seq_mask.shape[1] // 2
+            seq_mask = seq_mask.clone()  # Break potential shared memory
             seq_mask[:, center_pos, :] = masks["q_input_mask"]
 
             batch[scope]["mask"] = seq_mask
