@@ -306,13 +306,13 @@ class TimeSequenceAdapter(ModelAdapter):
     def forward(self, model, batch, masks):
         batch["query_mask"] = masks["q_input_mask"]
 
-        for scope, seq_mask in masks["sequence_input"].items():  # todo correct?
+        for scope, seq_mask in masks["sequence_input"].items():
             # Replace center position with query mask
             center_pos = seq_mask.shape[1] // 2
-            seq_mask = seq_mask.clone()  # Break potential shared memory
-            seq_mask[:, center_pos, :] = masks["q_input_mask"]
+            sm = seq_mask.clone()  # Break potential shared memory
+            sm[:, center_pos, :] = masks["q_input_mask"]
 
-            batch[scope]["mask"] = seq_mask
+            batch[scope]["mask"] = sm
 
         return model(batch)
 
