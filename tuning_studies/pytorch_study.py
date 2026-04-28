@@ -232,6 +232,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     cfg.transect_mask_width = None if masking is None else masking["transect_mask_width"]
     cfg.masking_strategies = None if masking is None else masking["masking_strategies"]
 
+    logging.info(f"Using this cfg: {cfg}")
+
     # Init results object
     results = TuningResult(split=split_fname, seed=seed, model=model_name, hyp_combo_id=trial_id, hyps=hyps)
 

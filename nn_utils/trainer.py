@@ -622,8 +622,6 @@ class Trainer:
         for batch in iterator:
             batch = self.adapter.prepare_batch(batch, self.device)
 
-            print("query_mask sum:", batch["query_mask"].sum())
-
             # In reconstruction, everything becomes input (truly missing features are predicted, no artificial masking)
             masks, _ = self.adapter.make_masks(batch, mask_ratio=0.0, mode="reconstruct", device=self.device, cfg=self.cfg)
 
