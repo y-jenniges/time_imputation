@@ -55,7 +55,6 @@ ablation_study = {
     "exp0": {
         "description": "Baseline, raw KNN, MHA",
         "config": ModelConfig(
-
             attention_type="mha"
         )},
     "exp1": {
@@ -68,10 +67,7 @@ ablation_study = {
     "exp2": {
         "description": "Raw KNN, MHA with rel_pos",
         "config": ModelConfig(
-
-
             use_rel_pos=True,
-
             attention_type="mha"
         )},
 
