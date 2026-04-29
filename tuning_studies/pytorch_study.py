@@ -385,10 +385,10 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         time_std = np.std(all_times)
 
         # True values
-        if model_name == "mastnet":
-            all_values = torch.cat([batch["query_features"] for batch in full_loader], dim=0)
-        elif model_name == "mlp" or model_name == "ann_att":
+        if model_name == "mlp" or model_name == "ann_att" or cfg.graph_mode == "single_feature":
             all_values = torch.cat([batch["features"] for batch in full_loader], dim=0)
+        elif model_name == "mastnet":
+            all_values = torch.cat([batch["query_features"] for batch in full_loader], dim=0)
         else:
             raise ValueError(f"Unknown model_name {model_name}")
 
