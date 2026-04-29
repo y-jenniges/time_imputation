@@ -165,7 +165,6 @@ class TimeSequenceDataset(Dataset):
         }
 
 
-
 def prepare_time_sequence_loaders(coords: torch.Tensor,
                                   values: torch.Tensor,
                                   train_idx: np.ndarray,
@@ -343,7 +342,9 @@ def prepare_pointwise_loaders(coords: torch.Tensor,
                               test_idx: np.ndarray,
                               batch_size: int,
                               generator: torch.Generator,
-                              cyclic_time: bool = False):
+                              cyclic_time: bool = False,
+                              cfg=None,
+                              ):
     """
     Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
     return data pointwise.

@@ -72,6 +72,10 @@ class MaSTNeT(nn.Module):
             self.pos_encoder = PositionalEncoder(input_dim=pos_input_dim, hidden_dim=pos_hidden_dim, output_dim=d_model)
             # self.pos_bias = nn.Linear(d_model, nhead)
 
+        # Optional feature embedding
+        if self.cfg.graph_mode == "single_feature":
+            self.feature_embedding = nn.Embedding(value_dim, d_model)
+
         # Optional coordinate encoder
         if self.cfg.encoder_scope != "none":
             self.coord_encoder = CoordEncoder(
@@ -218,7 +222,26 @@ class MaSTNeT(nn.Module):
         self.var_decoder = nn.Linear(d_model, value_dim)  # Variance head (for heteroscedastic uncertainty)
 
     def compute_input_dim(self):
+        if self.cfg.graph_mode == "single_feature":
+            dim = 0
+
+            # Coordinate encoding
+            if self.cfg.encoder_scope not in ["none", "graph"]:
+                dim += self.cfg.encoder_output_dim
+            else:
+                dim += self.coord_dim
+
+            # Single feature value
+            dim += 1
+
+            # Masks
+            if self.cfg.use_masks:
+                dim += 1
+
+            return dim
+
         dim = 0
+
         # Coordinate encoding
         if self.cfg.encoder_scope not in ["none", "graph"]:
             dim += self.cfg.encoder_output_dim
@@ -286,7 +309,69 @@ class MaSTNeT(nn.Module):
 
         return rel_positions
 
+    def _forward_single_feature(self, batch):
+        assert self.cfg.attention_type in ["transformer_encoder", "autoencoder"]
+
+        feat = batch["features"]  # (B, F)  IndexError: too many indices for tensor of dimension 3
+        mask = batch["mask"]
+        coords = batch["coords"]
+
+        B, F = feat.shape
+
+        # Feature filling
+        feat_filled = fill_feature_tensor(features=feat, mask=mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
+
+        # Optional feature encoding
+        encoded_features = self.encode_features(features=feat_filled, mask=mask)
+
+        # Optional coordinate encoding
+        encoded_coords = self.encode_coordinates(coords=coords, features=feat_filled, mask=mask)
+
+        # Ensure per-feature coordinates
+        if encoded_coords.dim() == 2:
+            coords_exp = encoded_coords.unsqueeze(1).expand(-1, F, -1)
+        else:
+            coords_exp = encoded_coords
+
+        # Build tokens
+        parts = [coords_exp, encoded_features.unsqueeze(-1)]
+        if self.cfg.use_masks:
+            parts.append(mask.unsqueeze(-1).float())
+
+        tokens = torch.cat(parts, dim=-1)  # (B, F, input_dim)
+
+        # Projection
+        x = self.input_projector(tokens)  # (B, F, d_model)
+
+        # Feature identity encoding
+        feature_ids = torch.arange(F, device=feat.device).unsqueeze(0).expand(B, F)
+        x = x + self.feature_embedding(feature_ids)
+
+        # Attention
+        if self.cfg.attention_type == "transformer_encoder":
+            encoded = self.encoder_transformer(x)
+
+        elif self.cfg.attention_type == "autoencoder":
+            memory = self.encoder_transformer(x)
+            encoded = self.decoder_transformer(tgt=memory, memory=memory)
+
+        else:
+            raise ValueError(f"single_feature mode does not support {self.cfg.attention_type}")
+
+        # Pooling
+        pooled = encoded.mean(dim=1)
+
+        # Decoding
+        pmean = self.mean_decoder(pooled)
+        pvar = self.var_decoder(pooled)
+
+        return pmean, pvar
+
+
     def forward(self, batch):
+        if self.cfg.graph_mode == "single_feature":
+            return self._forward_single_feature(batch)
+
         # Unpack
         query_features = batch["query_features"]
         query_mask = batch["query_mask"]

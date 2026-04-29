@@ -20,10 +20,11 @@ import config
 from utils.plotting import plot_loss, plot_simple_reconstruction_error
 from utils.tuning import set_seed, TuningResult
 from nn_utils.losses import build_loss, name_to_loss_spec
-from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter, GraphProvider, TimeSequenceAdapter
+from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter, GraphProvider, TimeSequenceAdapter, \
+    FeatureAdapter
 from nn_utils.early_stopping import EarlyStopping
 from nn_utils.dataset import load_dataset, prepare_pointwise_loaders, \
-    prepare_learned_neighbourhood_loaders, LearnedNeighbourDataset, prepare_time_sequence_loaders
+    prepare_learned_neighbourhood_loaders, prepare_time_sequence_loaders
 from utils.metrics import compute_metrics
 from utils.tuning import get_model_class
 from tuning_studies.modelconfig import ablation_study
@@ -238,8 +239,17 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     results = TuningResult(split=split_fname, seed=seed, model=model_name, hyp_combo_id=trial_id, hyps=hyps)
 
     # Adapter and data loaders
-    model_adapters = {"mastnet": NeighbourAdapter if cfg.graph_mode != "time_sequence" else TimeSequenceAdapter, "mlp": PointwiseAdapter, "ann_att": PointwiseAdapter}
-    loader_funcs = {"mastnet": prepare_learned_neighbourhood_loaders if cfg.graph_mode != "time_sequence" else prepare_time_sequence_loaders, "mlp": prepare_pointwise_loaders, "ann_att": prepare_pointwise_loaders}
+    temp_mastnet_adapter = NeighbourAdapter
+    temp_mastnet_loader = prepare_learned_neighbourhood_loaders
+    if cfg.graph_mode == "time_sequence":
+        temp_mastnet_adapter = TimeSequenceAdapter
+        temp_mastnet_loader = prepare_time_sequence_loaders
+    elif cfg.graph_mode == "single_feature":
+        temp_mastnet_adapter = FeatureAdapter
+        temp_mastnet_loader = prepare_pointwise_loaders
+
+    model_adapters = {"mastnet": temp_mastnet_adapter, "mlp": PointwiseAdapter, "ann_att": PointwiseAdapter}
+    loader_funcs = {"mastnet": temp_mastnet_loader, "mlp": prepare_pointwise_loaders, "ann_att": prepare_pointwise_loaders}
 
     if model_name not in model_adapters.keys():
         raise ValueError(f"Unknown model_name {model_name}")
@@ -266,6 +276,9 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         loader_kwargs["sequence_length"] = 13  # Total number of available time steps in the NA dataset
         del loader_kwargs["graph_provider"]
 
+    if cfg.graph_mode == "single_feature":
+        del loader_kwargs["graph_provider"]
+
     # Adapter and loader
     adapter = model_adapters[model_name]()
     full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim, dists, full_coords, full_values, full_mask = (
@@ -275,8 +288,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     if model_name == "mastnet":
         total_sum, total_count = 0.0, 0.0
         for batch in train_loader:
-            feats = batch["query_features"]
-            mask = batch["query_mask"].float()
+            feats = batch["query_features"] if cfg.graph_mode != "single_feature" else batch["features"]
+            mask = batch["query_mask"].float() if cfg.graph_mode != "single_feature" else batch["mask"]
 
             total_sum += feats.nansum(dim=0)
             total_count += mask.sum(dim=0)

@@ -6,7 +6,7 @@ class ModelConfig:
     dropout: float = 0.05
 
     # Graph
-    graph_mode: str = "static"  # "static" | "dynamic" | "random" | "time_sequence"  (with time_sequence, time sequence input will be used, no neighbourhoods graph)
+    graph_mode: str = "static"  # "static" | "dynamic" | "random" | "time_sequence" | "single_feature" (with time_sequence, time sequence input will be used, no neighbourhoods graph; for single feature also no graph construction)
     graph_space: str = "raw"  # "raw" | "encoded"
     graph_metric: str = "isotropic"  # "isotropic" | "anisotropic"
 
@@ -74,11 +74,8 @@ ablation_study = {
     "exp3": {
         "description": "Raw KNN, feature mixer, MHA",
         "config": ModelConfig(
-
             feature_mixer=True,
             feature_mixer_input="feat",
-
-
             attention_type="mha"
         )},
 
@@ -87,11 +84,6 @@ ablation_study = {
         "config": ModelConfig(
             encoder_scope="model",
             encoder_input="coords",
-
-
-
-
-
             attention_type="mha"
         )},
     "exp5": {
@@ -103,11 +95,6 @@ ablation_study = {
 
             encoder_scope="graph",
             encoder_input="coords",
-
-
-
-
-
             attention_type="mha"
         )},
     "exp6": {
@@ -3292,6 +3279,14 @@ ablation_study = {
             attention_type="space_time_attention",
 
             dropout=0.2,
+        )},
+
+    # Single-feature tokens
+    "exp254": {
+        "description": "Raw KNN, autoencoder, single feature tokens",
+        "config": ModelConfig(
+            graph_mode="single_feature",
+            attention_type="autoencoder",
         )},
 
 }

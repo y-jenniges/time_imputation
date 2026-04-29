@@ -353,6 +353,80 @@ class TimeSequenceAdapter(ModelAdapter):
         return batch["query_mask"]
 
 
+class FeatureAdapter(ModelAdapter):
+    def batch_size(self, batch):
+        return batch["features"].shape[0]
+
+    def prepare_batch(self, batch, device):
+        return {k: v.to(device) for k, v in batch.items()}
+
+    def make_masks(self, batch, mask_ratio, mode="train", device=torch.device("cpu"), masking_strategies=None, cfg=None):
+        feat = batch["features"]
+        mask = batch["mask"]
+        batch_size, n_features = feat.shape
+
+        if mode in ["train", "eval"] and mask_ratio > 0:
+            # random_feature_mask: True means "mask/hide this feature"
+            random_mask, _ = (
+                random_feature_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio,
+                                    n_neighbours=0, device=device, mask_query=True, mask_neighbours=False))
+
+            # Observed inputs after random masking
+            input_mask = mask & ~random_mask
+
+            # Positions to reconstruct: originally observed but randomly hidden
+            loss_mask = mask & random_mask
+
+        elif mode == "reconstruct":
+            # Reconstruct all missing features
+            input_mask = mask
+            loss_mask = torch.zeros_like(mask, dtype=torch.bool)
+
+        else:
+            input_mask = mask
+            loss_mask = mask
+
+        # Compute missingness ratio for query token
+        total_valid = input_mask.sum()  # Total valid entries
+        total_masked = loss_mask.sum()  # Actually masked entries (only where data existed)
+
+        # Avoid division by zero
+        if total_valid > 0:
+            miss_ratio = total_masked.float() / total_valid.float()
+        else:
+            miss_ratio = torch.tensor(0.0, device=loss_mask.device)
+
+        return dict(input_mask=input_mask, loss_mask=loss_mask), miss_ratio
+
+    def forward(self, model, batch, masks):
+        return model(batch)
+
+    def loss_inputs(self, batch, outputs, masks, **kwargs):
+        if len(outputs) == 2:
+            pred_mean, pred_var = outputs
+        else:
+            pred_mean = outputs
+            pred_var = None
+        return dict(input=pred_mean, target=batch["features"], mask=masks["loss_mask"], pred_var=pred_var)
+
+    def outputs_to_cpu(self, batch, outputs, to_numpy: bool = True):
+        if len(outputs) == 2:
+            pred_mean, _ = outputs
+        else:
+            pred_mean = outputs
+
+        q_feat = batch["features"].detach().cpu()
+        pred_mean = pred_mean.detach().cpu()
+
+        if to_numpy:
+            return q_feat.numpy(), pred_mean.numpy()
+        else:
+            return q_feat, pred_mean
+
+    def get_query_mask(self, batch):
+        return batch["mask"]
+
+
 class PointwiseAdapter(ModelAdapter):
     def batch_size(self, batch):
         return batch["features"].shape[0]
