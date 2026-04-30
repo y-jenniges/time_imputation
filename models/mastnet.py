@@ -218,8 +218,9 @@ class MaSTNeT(nn.Module):
             raise ValueError(f"MaSTNeT: Unknown attention_type {self.cfg.attention_type}")
 
         # Decoding
-        self.mean_decoder = nn.Linear(d_model, value_dim)  # Mean head (for reconstruction)
-        self.var_decoder = nn.Linear(d_model, value_dim)  # Variance head (for heteroscedastic uncertainty)
+        output_dim = value_dim if self.cfg.graph_mode != "single_feature" else 1
+        self.mean_decoder = nn.Linear(d_model, output_dim)  # Mean head (for reconstruction)
+        self.var_decoder = nn.Linear(d_model, output_dim)  # Variance head (for heteroscedastic uncertainty)
 
     def compute_input_dim(self):
         if self.cfg.graph_mode == "single_feature":
@@ -358,12 +359,16 @@ class MaSTNeT(nn.Module):
         else:
             raise ValueError(f"single_feature mode does not support {self.cfg.attention_type}")
 
-        # Pooling
-        pooled = encoded.mean(dim=1)
+        # # Pooling
+        # pooled = encoded.mean(dim=1)
+        #
+        # # Decoding
+        # pmean = self.mean_decoder(pooled)
+        # pvar = self.var_decoder(pooled)
 
         # Decoding
-        pmean = self.mean_decoder(pooled)
-        pvar = self.var_decoder(pooled)
+        pmean = self.mean_decoder(encoded).squeeze(-1)  # (B, F)
+        pvar = self.var_decoder(encoded).squeeze(-1)
 
         return pmean, pvar
 

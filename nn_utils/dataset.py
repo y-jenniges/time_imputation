@@ -9,7 +9,6 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_array, check_is_fitted
 
-
 import config
 from nn_utils.graph import GraphProvider
 from utils.preprocessing import get_scopes
@@ -309,7 +308,6 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
 
     # Build initial graph for neighbour search
     init_encoder = lambda coords, times, values, mask: coords_full
-    #init_encoder = lambda coords, times: coords_full
     graph_provider.update(encoder=init_encoder, coords=coords_full, values=values_full, mask=mask_full)
 
     print("dataset graph provider updated")
@@ -519,6 +517,10 @@ def random_per_feature_mask(batch_size,
     return mask
 
 
+def random_token_mask(batch_size, feature_dim, mask_ratio, device):
+    return torch.rand(batch_size, feature_dim, device=device) < mask_ratio
+
+
 def random_feature_mask(batch_size: int,
                         feature_dim: int,
                         mask_ratio: float = 0.5,
@@ -586,10 +588,6 @@ def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
         return torch.zeros(B, feature_dim, dtype=torch.bool, device=device)
 
     # Random center
-    # # center = torch.rand(3, device=device)
-    # center = torch.randn(3, device=device)
-    # center = center / center.norm()
-
     idx = torch.randint(0, B, (1,), device=device)
     center = lonlats[idx]
 
@@ -632,10 +630,6 @@ def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu", o
 
     else:
         # Fully random orientation
-        # Point on sphere
-        # p0 = torch.randn(3, device=device)
-        # p0 = p0 / torch.norm(p0)
-
         idx = torch.randint(0, B, (1,), device=device)
         p0 = lonlats[idx][0]  # Anchor point on data
 

@@ -14,7 +14,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 from nn_utils.graph import GraphProvider
 from nn_utils.losses import MaskedMSELoss, BaseLoss
-from nn_utils.dataset import random_feature_mask, transect_feature_mask, spherical_feature_mask, random_per_feature_mask
+from nn_utils.dataset import random_feature_mask, transect_feature_mask, spherical_feature_mask, \
+    random_per_feature_mask, random_token_mask
 from utils.metrics import compute_metrics
 
 import config
@@ -366,10 +367,8 @@ class FeatureAdapter(ModelAdapter):
         batch_size, n_features = feat.shape
 
         if mode in ["train", "eval"] and mask_ratio > 0:
-            # random_feature_mask: True means "mask/hide this feature"
-            random_mask, _ = (
-                random_feature_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio,
-                                    n_neighbours=0, device=device, mask_query=True, mask_neighbours=False))
+            # random_mask: True means "mask/hide this token"
+            random_mask = random_token_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio, device=device)
 
             # Observed inputs after random masking
             input_mask = mask & ~random_mask
