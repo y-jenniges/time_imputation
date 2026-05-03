@@ -72,8 +72,13 @@ class MaSTNeT(nn.Module):
             self.pos_encoder = PositionalEncoder(input_dim=pos_input_dim, hidden_dim=pos_hidden_dim, output_dim=d_model)
             # self.pos_bias = nn.Linear(d_model, nhead)
 
-        # Optional feature embedding
+        # ...
         if self.cfg.graph_mode == "single_feature":
+            feat_input_dim = 1 + (1 if self.cfg.use_masks else 0)  # [value, mask_bit]
+            self.feat_projector = nn.Linear(feat_input_dim, d_model)
+            self.coord_projector = nn.Linear(1, d_model)  # One scalar per coord token
+            self.coord_embedding = nn.Embedding(coord_dim, d_model)
+
             self.feature_embedding = nn.Embedding(value_dim, d_model)
 
         # Optional coordinate encoder
@@ -224,21 +229,10 @@ class MaSTNeT(nn.Module):
 
     def compute_input_dim(self):
         if self.cfg.graph_mode == "single_feature":
-            dim = 0
-
-            # Coordinate encoding
-            if self.cfg.encoder_scope not in ["none", "graph"]:
-                dim += self.cfg.encoder_output_dim
-            else:
-                dim += self.coord_dim
-
-            # Single feature value
-            dim += 1
-
-            # Masks
+            dim = self.coord_dim
+            dim += 1  # single feature value instead of value_dim
             if self.cfg.use_masks:
-                dim += 1
-
+                dim += 1  # single mask bit instead of mask vector
             return dim
 
         dim = 0
@@ -311,12 +305,9 @@ class MaSTNeT(nn.Module):
         return rel_positions
 
     def _forward_single_feature(self, batch):
-        assert self.cfg.attention_type in ["transformer_encoder", "autoencoder"]
-
-        feat = batch["features"]  # (B, F)  IndexError: too many indices for tensor of dimension 3
-        mask = batch["mask"]
-        coords = batch["coords"]
-
+        feat = batch["features"]  # (B, F)
+        mask = batch["mask"]  # (B, F) bool
+        coords = batch["coords"]  # (B, coord_dim)
         B, F = feat.shape
 
         # Feature filling
@@ -328,50 +319,97 @@ class MaSTNeT(nn.Module):
         # Optional coordinate encoding
         encoded_coords = self.encode_coordinates(coords=coords, features=feat_filled, mask=mask)
 
-        # Ensure per-feature coordinates
-        if encoded_coords.dim() == 2:
-            coords_exp = encoded_coords.unsqueeze(1).expand(-1, F, -1)
-        else:
-            coords_exp = encoded_coords
+        # Broadcast coords into each feature token: (B, F, coord_out_dim)
+        coords_exp = encoded_coords.unsqueeze(1).expand(-1, F, -1)
 
-        # Build tokens
-        parts = [coords_exp, encoded_features.unsqueeze(-1)]
+        # Build per-feature tokens: [coord, value_i, (mask_i)]
+        parts = [coords_exp,  # (B, F, coord_out_dim)
+                 encoded_features.unsqueeze(-1)]  # (B, F, 1)
         if self.cfg.use_masks:
-            parts.append(mask.unsqueeze(-1).float())
+            parts.append(mask.unsqueeze(-1).float())  # (B, F, 1)
 
         tokens = torch.cat(parts, dim=-1)  # (B, F, input_dim)
 
-        # Projection
+        # Project to d_model and add feature identity embedding
         x = self.input_projector(tokens)  # (B, F, d_model)
-
-        # Feature identity encoding
-        feature_ids = torch.arange(F, device=feat.device).unsqueeze(0).expand(B, F)
-        x = x + self.feature_embedding(feature_ids)
+        feat_ids = torch.arange(F, device=feat.device).unsqueeze(0).expand(B, F)
+        x = x + self.feature_embedding(feat_ids)  # (B, F, d_model)
 
         # Attention
         if self.cfg.attention_type == "transformer_encoder":
-            encoded = self.encoder_transformer(x)
+            encoded = self.encoder_transformer(x)  # (B, F, d_model)
 
         elif self.cfg.attention_type == "autoencoder":
-            memory = self.encoder_transformer(x)
-            encoded = self.decoder_transformer(tgt=memory, memory=memory)
+            # Encoder: Self-attention over all feature tokens
+            memory = self.encoder_transformer(x)  # (B, F, d_model)
+            # Decoder: feature tokens attend to encoded memory
+            # Refine "query" from encoded "context" (mirrors exp11/47)
+            encoded = self.decoder_transformer(tgt=x, memory=memory)  # (B, F, d_model)
 
         else:
             raise ValueError(f"single_feature mode does not support {self.cfg.attention_type}")
 
-        # # Pooling
-        # pooled = encoded.mean(dim=1)
-        #
-        # # Decoding
-        # pmean = self.mean_decoder(pooled)
-        # pvar = self.var_decoder(pooled)
-
-        # Decoding
+        # Decode per-feature token to scalar prediction
         pmean = self.mean_decoder(encoded).squeeze(-1)  # (B, F)
-        pvar = self.var_decoder(encoded).squeeze(-1)
+        pvar = self.var_decoder(encoded).squeeze(-1)  # (B, F)
 
         return pmean, pvar
-
+    #
+    # def _forward_single_feature(self, batch):
+    #     """ More ReMasker-style """
+    #     assert self.cfg.attention_type in ["transformer_encoder", "autoencoder"]
+    #
+    #     feat = batch["features"]  # (B, F)  IndexError: too many indices for tensor of dimension 3
+    #     mask = batch["mask"]
+    #     coords = batch["coords"]
+    #
+    #     B, F = feat.shape
+    #     C = coords.shape[1]
+    #
+    #     # Zero-fill masked positions
+    #     feat_filled = fill_feature_tensor(features=feat, mask=mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
+    #
+    #     # Coord tokens: one token per coordinate dimension ---
+    #     # Each coord scalar gets projected + a learned coord-position embedding
+    #     coord_ids = torch.arange(C, device=coords.device).unsqueeze(0).expand(B, C)
+    #     coord_tokens = self.coord_projector(coords.unsqueeze(-1))  # (B, C, d_model)
+    #     coord_tokens = coord_tokens + self.coord_embedding(coord_ids)  # (B, C, d_model)
+    #
+    #     # Feature tokens: [value, mask_bit] per feature ---
+    #     parts = [feat_filled.unsqueeze(-1)]  # (B, F, 1)
+    #     if self.cfg.use_masks:
+    #         parts.append(mask.unsqueeze(-1).float())  # (B, F, 1)
+    #     feat_tokens_raw = torch.cat(parts, dim=-1)  # (B, F, 1 or 2)
+    #
+    #     feat_ids = torch.arange(F, device=feat.device).unsqueeze(0).expand(B, F)
+    #     feat_tokens = self.feat_projector(feat_tokens_raw)  # (B, F, d_model)
+    #     feat_tokens = feat_tokens + self.feature_embedding(feat_ids)
+    #
+    #     # Concatenate: [coord tokens | feat tokens]
+    #     sequence = torch.cat([coord_tokens, feat_tokens], dim=1)  # (B, C+F, d_model)
+    #
+    #     # Attention
+    #     if self.cfg.attention_type == "transformer_encoder":
+    #         encoded = self.encoder_transformer(sequence)
+    #
+    #     elif self.cfg.attention_type == "autoencoder":
+    #         # Encoder sees full sequence as context
+    #         memory = self.encoder_transformer(sequence)
+    #
+    #         # Decoder: only feature tokens as tgt, full encoded sequence as memory
+    #         feat_tgt = sequence[:, C:, :]  # (B, F, d_model) — feature tokens only
+    #         encoded_feats = self.decoder_transformer(tgt=feat_tgt, memory=memory)
+    #
+    #         # Pad coord positions back so indexing stays consistent
+    #         encoded = torch.cat([memory[:, :C, :], encoded_feats], dim=1)
+    #
+    #     else:
+    #         raise ValueError(f"single_feature mode does not support {self.cfg.attention_type}")
+    #
+    #     # Decode only the feature part
+    #     pmean = self.mean_decoder(encoded[:, C:, :]).squeeze(-1)
+    #     pvar = self.var_decoder(encoded[:, C:, :]).squeeze(-1)
+    #     return pmean, pvar
 
     def forward(self, batch):
         if self.cfg.graph_mode == "single_feature":
@@ -443,7 +481,6 @@ class MaSTNeT(nn.Module):
             elif self.cfg.attention_type == "transformer_encoder":
                 sequence = torch.cat([query_token, n_tokens], dim=1)
                 sequence = self.input_projector(sequence)  # [B, K, d_model]
-
                 encoded = self.encoder_transformer(sequence)
 
             elif self.cfg.attention_type == "autoencoder":

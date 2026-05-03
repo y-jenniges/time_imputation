@@ -20,8 +20,8 @@ import config
 from utils.plotting import plot_loss, plot_simple_reconstruction_error
 from utils.tuning import set_seed, TuningResult
 from nn_utils.losses import build_loss, name_to_loss_spec
-from nn_utils.trainer import Trainer, NeighbourAdapter, PointwiseAdapter, GraphProvider, TimeSequenceAdapter, \
-    FeatureAdapter
+from nn_utils.trainer import Trainer, GraphProvider
+from nn_utils.model_adapters import NeighbourAdapter, PointwiseAdapter, TimeSequenceAdapter, FeatureAdapter
 from nn_utils.early_stopping import EarlyStopping
 from nn_utils.dataset import load_dataset, prepare_pointwise_loaders, \
     prepare_learned_neighbourhood_loaders, prepare_time_sequence_loaders

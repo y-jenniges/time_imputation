@@ -174,8 +174,7 @@ def prepare_time_sequence_loaders(coords: torch.Tensor,
                                   generator: torch.Generator,
                                   cyclic_time: bool = False,
                                   cfg=None,
-                                  graph_provider=None,
-                                  ) -> tuple[
+                                  graph_provider=None) -> tuple[
     DataLoader[Any], DataLoader[Any], DataLoader[Any], DataLoader[Any], dict | dict[
         Any, Any], int, int, None, Tensor, Tensor, Tensor]:
     """

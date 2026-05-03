@@ -2295,16 +2295,16 @@ ablation_study = {
             sphere_mask_radius=0.1,
         )},
 
-    "exp181": {
-        "description": "Exp73 - beta NLL loss",
-        "config": ModelConfig(
-            feature_mixer=True,
-            feature_mixer_input="feat",
-            use_masks=True,
-            attention_type="space_time_attention",
-
-            loss_name="beta_nll"
-        )},
+    # "exp181": {
+    #     "description": "Exp73 - beta NLL loss",
+    #     "config": ModelConfig(
+    #         feature_mixer=True,
+    #         feature_mixer_input="feat",
+    #         use_masks=True,
+    #         attention_type="space_time_attention",
+    #
+    #         loss_name="beta_nll"
+    #     )},
 
     ###################################################################################################################
     # --- Exp71 masking ablation

@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from nn_utils.dataset import PointwiseDataset
-from nn_utils.trainer import PointwiseAdapter
+from nn_utils.model_adapters import PointwiseAdapter
 
 
 class MLP(nn.Module):
