@@ -24,7 +24,7 @@ class ModelConfig:
 
     # Feature handling
     fill_strategy: str = "zero"  # "zero" | "mean"
-    feature_mixer: bool = "False"
+    feature_mixer: bool = False
     feature_mixer_input: str = "feat"  # "feat" | "feat_mask"
 
     # Attention
@@ -937,7 +937,6 @@ ablation_study = {
     "exp73": {
         "description": "Raw KNN, feature mixer (feat), space_time_attention, masks",
         "config": ModelConfig(
-
             feature_mixer=True,
             feature_mixer_input="feat",
 
