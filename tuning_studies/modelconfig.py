@@ -223,9 +223,7 @@ ablation_study = {
     "exp22": {
         "description": "Baseline, raw KNN, MHA, k=50",
         "config": ModelConfig(
-
             attention_type="mha",
-
             n_neighbours=50
         )},
 
@@ -940,25 +938,21 @@ ablation_study = {
             feature_mixer=True,
             feature_mixer_input="feat",
 
-            use_rel_pos=False,
             use_masks=True,
             attention_type="space_time_attention"
         )},
     "exp74": {
         "description": "Raw KNN, feature mixer (feat+mask), space_time_attention, masks",
         "config": ModelConfig(
-
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
-            use_rel_pos=False,
             use_masks=True,
             attention_type="space_time_attention"
         )},
     "exp75": {
         "description": "Raw KNN, feature mixer (feat+mask), space_time_attention, masks, rel_pos",
         "config": ModelConfig(
-
             feature_mixer=True,
             feature_mixer_input="feat_mask",
 
@@ -1096,11 +1090,9 @@ ablation_study = {
     "exp90": {
         "description": "Raw KNN, feature mixer (feat), time_space_attention, masks",
         "config": ModelConfig(
-
             feature_mixer=True,
             feature_mixer_input="feat",
 
-            use_rel_pos=False,
             use_masks=True,
             attention_type="time_space_attention"
         )},
@@ -3286,6 +3278,16 @@ ablation_study = {
         "config": ModelConfig(
             graph_mode="single_feature",
             attention_type="autoencoder",
+        )},
+
+    "exp255": {
+        "description": "Time_space_attention, feature mixer (feat+mask), attention masks",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+
+            use_masks=True,
+            attention_type="time_space_attention"
         )},
 
 }
