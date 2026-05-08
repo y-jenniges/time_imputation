@@ -91,48 +91,18 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "nhead": trial.suggest_categorical("nhead", [2, 4, 8]),
                 "nlayers": trial.suggest_int("nlayers", 2, 8),
                 "dim_feedforward": trial.suggest_categorical("dim_feedforward", [128, 256, 512, 1024]),
-                "dropout": trial.suggest_float("dropout", 0.0, 0.4),
-            }
-        }
-    elif model_name == "mastnet_finetune":
-        n_epochs = 20
-
-        # Test decreasing mask_ratio as well as higher mask ratios
-        use_decreasing = trial.suggest_categorical("use_decreasing", [True, False])
-        if use_decreasing:
-            start_ratio = trial.suggest_float("mask_start", 0.90, 1.0)
-            end_ratio = trial.suggest_float("mask_end", 0.80, 0.95)
-            mask_ratio = lambda epoch: start_ratio - (epoch / n_epochs) * (start_ratio - end_ratio)
-        else:
-            mask_ratio = trial.suggest_float("mask_ratio", 0.85, 1.0)
-
-        return {
-            "train": {
-                "batch_size": 128,
-                "learning_rate": 9.570854918884402e-05,
-                "patience": 5,
-                "n_epochs": n_epochs,
-                "mask_ratio": mask_ratio,
-                "loss": "hetero",
-                "optimizer": torch.optim.Adam
-            },
-            "model": {
-                "d_model": 128,
-                "nhead": 4,
-                "nlayers": 6,
-                "dim_feedforward": 128,
-                "dropout": 0.007883109330264194,
+                "dropout": trial.suggest_float("dropout", 0.1, 0.4),
             }
         }
     elif model_name == "mlp":
-        loss = "hetero"  # trial.suggest_categorical("loss", ["mse", "hetero"])
+        loss = "hetero"
         lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
         
         return {"train": {
                     "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
                     "learning_rate": trial.suggest_float("lr", 1e-5, 1e-2, log=True),
-                    "patience": 10,  # trial.suggest_int("patience", 3, 12),
-                    "n_epochs": 80,  # trial.suggest_int("epochs", 20, 80),
+                    "patience": 10,
+                    "n_epochs": 80,
                     "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
                     "loss":loss,
                     "lambda_smooth": lambda_smooth,
@@ -153,7 +123,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                         [256, 256, 128, 64],  # Wide first layers
                         [128, 128, 64, 32, 16],  # Very deep narrow
                     ]),
-                    "dropout": trial.suggest_float("dropout", 0.0, 0.4)
+                    "dropout": trial.suggest_float("dropout", 0.1, 0.4)
             }
                 }
     elif model_name == "ann-att":
