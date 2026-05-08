@@ -3290,4 +3290,822 @@ ablation_study = {
             attention_type="time_space_attention"
         )},
 
+
+    ###################################################################################################################
+    # --- Exp90 masking ablation
+    ###################################################################################################################
+
+    # Per-sample masking -------------------------------------------------------------------------------------------- #
+    "exp256": {
+        "description": "Exp90 - per-sample (mask_ratio=0.3) (=exp71)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat",
+            use_masks=True,
+            attention_type="time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random"],
+        )},
+    "exp257": {
+        "description": "Exp90 - per-sample (mask_ratio=0.4)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["random"],
+        )},
+    "exp258": {
+        "description": "Exp90 - per-sample (mask_ratio=0.5)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["random"],
+        )},
+    "exp259": {
+        "description": "Exp90 - per-sample (mask_ratio=0.7)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["random"],
+        )},
+    "exp260": {
+        "description": "Exp90 - per-sample (mask_ratio=0.9)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["random"],
+        )},
+
+    # Per-sample masking + spherical (r=0.1) ------------------------------------------------------------------------- #
+    "exp261": {
+        "description": "Exp90 - Spherical (r=0.1)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            masking_strategies=["sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp262": {
+        "description": "Exp90 - per-sample (mask_ratio=0.3) + spherical (r=0.1)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp263": {
+        "description": "Exp90 - per-sample (mask_ratio=0.4) + spherical (r=0.1)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp264": {
+        "description": "Exp90 - per-sample (mask_ratio=0.5) + spherical (r=0.1)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp265": {
+        "description": "Exp90 - per-sample (mask_ratio=0.7) + spherical (r=0.1)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+    "exp266": {
+        "description": "Exp90 - per-sample (mask_ratio=0.9) + spherical (r=0.1)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+
+    # Per-sample masking + spherical (r=0.3) ------------------------------------------------------------------------- #
+    "exp267": {
+        "description": "Exp90 - Spherical (r=0.3)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            masking_strategies=["sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp268": {
+        "description": "Exp90 - per-sample (mask_ratio=0.3) + spherical (r=0.3)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp269": {
+        "description": "Exp90 - per-sample (mask_ratio=0.4) + spherical (r=0.3)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp270": {
+        "description": "Exp90 - per-sample (mask_ratio=0.5) + spherical (r=0.3)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp271": {
+        "description": "Exp90 - per-sample (mask_ratio=0.7) + spherical (r=0.3)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+    "exp272": {
+        "description": "Exp90 - per-sample (mask_ratio=0.9) + spherical (r=0.3)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.3,
+        )},
+
+    # Per-sample masking + spherical (r=0.5) ------------------------------------------------------------------------- #
+    "exp273": {
+        "description": "Exp90 - Spherical (r=0.5)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            masking_strategies=["sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp274": {
+        "description": "Exp90 - per-sample (mask_ratio=0.3) + spherical (r=0.5)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp275": {
+        "description": "Exp90 - per-sample (mask_ratio=0.4) + spherical (r=0.5)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp276": {
+        "description": "Exp90 - per-sample (mask_ratio=0.5) + spherical (r=0.5)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp277": {
+        "description": "Exp90 - per-sample (mask_ratio=0.7) + spherical (r=0.5)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+    "exp278": {
+        "description": "Exp90 - per-sample (mask_ratio=0.9) + spherical (r=0.5)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.5,
+        )},
+
+    # Per-sample masking + spherical (r=0.7) ------------------------------------------------------------------------- #
+    "exp279": {
+        "description": "Exp90 - Spherical (r=0.7)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            masking_strategies=["sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp280": {
+        "description": "Exp90 - per-sample (mask_ratio=0.3) + spherical (r=0.7)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp281": {
+        "description": "Exp90 - per-sample (mask_ratio=0.4) + spherical (r=0.7)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp282": {
+        "description": "Exp90 - per-sample (mask_ratio=0.5) + spherical (r=0.7)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp283": {
+        "description": "Exp90 - per-sample (mask_ratio=0.7) + spherical (r=0.7)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+    "exp284": {
+        "description": "Exp90 - per-sample (mask_ratio=0.9) + spherical (r=0.7)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.7,
+        )},
+
+    # Per-sample masking + spherical (r=0.9) ------------------------------------------------------------------------- #
+    "exp285": {
+        "description": "Exp90 - Spherical (r=0.9)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            masking_strategies=["sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+    "exp286": {
+        "description": "Exp90 - per-sample (mask_ratio=0.3) + spherical (r=0.9)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+    "exp287": {
+        "description": "Exp90 - per-sample (mask_ratio=0.4) + spherical (r=0.9)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+    "exp288": {
+        "description": "Exp90 - per-sample (mask_ratio=0.5) + spherical (r=0.9)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+    "exp289": {
+        "description": "Exp90 - per-sample (mask_ratio=0.7) + spherical (r=0.9)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+    "exp290": {
+        "description": "Exp90 - per-sample (mask_ratio=0.9) + spherical (r=0.9)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["random", "sphere"],
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.9,
+        )},
+
+    # Per-sample masking + transect (w=0.02) ------------------------------------------------------------------------- #
+    "exp291": {
+        "description": "Exp90 - Transect (w=0.02)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            masking_strategies=["transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.02,
+        )},
+    "exp292": {
+        "description": "Exp90 - per-sample (mask_ratio=0.3) + transect (w=0.02)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.02,
+        )},
+    "exp293": {
+        "description": "Exp90 - per-sample (mask_ratio=0.4) + transect (w=0.02)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.02,
+        )},
+    "exp294": {
+        "description": "Exp90 - per-sample (mask_ratio=0.5) + transect (w=0.02)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.02,
+        )},
+    "exp295": {
+        "description": "Exp90 - per-sample (mask_ratio=0.7) + transect (w=0.02)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.02,
+        )},
+    "exp296": {
+        "description": "Exp90 - per-sample (mask_ratio=0.9) + transect (w=0.02)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.02,
+        )},
+
+    # Per-sample masking + transect (w=0.05) ------------------------------------------------------------------------- #
+    "exp297": {
+        "description": "Exp90 - Transect (w=0.05)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            masking_strategies=["transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+        )},
+    "exp298": {
+        "description": "Exp90 - per-sample (mask_ratio=0.3) + transect (w=0.05)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+        )},
+    "exp299": {
+        "description": "Exp90 - per-sample (mask_ratio=0.4) + transect (w=0.05)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+        )},
+    "exp300": {
+        "description": "Exp90 - per-sample (mask_ratio=0.5) + transect (w=0.05)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+        )},
+    "exp301": {
+        "description": "Exp90 - per-sample (mask_ratio=0.7) + transect (w=0.05)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+        )},
+    "exp302": {
+        "description": "Exp90 - per-sample (mask_ratio=0.9) + transect (w=0.05)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+        )},
+
+    # Per-sample masking + transect (w=0.05, aligned) ------------------------------------------------------------------------- #
+    "exp303": {
+        "description": "Exp90 - Transect (w=0.05, aligned))",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            masking_strategies=["transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0,
+        )},
+    "exp304": {
+        "description": "Exp90 - per-sample (mask_ratio=0.3) + transect (w=0.05, aligned))",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0,
+        )},
+    "exp305": {
+        "description": "Exp90 - per-sample (mask_ratio=0.4) + transect (w=0.05, aligned))",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0,
+        )},
+    "exp306": {
+        "description": "Exp90 - per-sample (mask_ratio=0.5) + transect (w=0.05, aligned))",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0,
+        )},
+    "exp307": {
+        "description": "Exp90 - per-sample (mask_ratio=0.7) + transect (w=0.05, aligned))",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0,
+        )},
+    "exp308": {
+        "description": "Exp90 - per-sample (mask_ratio=0.9) + transect (w=0.05, aligned))",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["random", "transect"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.05,
+            transect_mask_orientation=1.0,
+        )},
+
+    # Per-feature masking ------------------------------------------------------------------------------------------- #
+    "exp309": {
+        "description": "Exp90 - Per-feature masking (r=0.1)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.1,
+            masking_strategies=["per_feature"],
+        )},
+    "exp310": {
+        "description": "Exp90 - Per-feature masking (r=0.2)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.2,
+            masking_strategies=["per_feature"],
+        )},
+    "exp311": {
+        "description": "Exp90 - Per-feature masking (r=0.3)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["per_feature"],
+        )},
+    "exp312": {
+        "description": "Exp90 - Per-feature masking (r=0.4)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.4,
+            masking_strategies=["per_feature"],
+        )},
+    "exp313": {
+        "description": "Exp90 - Per-feature masking (r=0.5)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.5,
+            masking_strategies=["per_feature"],
+        )},
+    "exp314": {
+        "description": "Exp90 - Per-feature masking (r=0.6)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.6,
+            masking_strategies=["per_feature"],
+        )},
+    "exp315": {
+        "description": "Exp90 - Per-feature masking (r=0.7)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.7,
+            masking_strategies=["per_feature"],
+        )},
+    "exp316": {
+        "description": "Exp90 - Per-feature masking (r=0.8)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.8,
+            masking_strategies=["per_feature"],
+        )},
+    "exp317": {
+        "description": "Exp90 - Per-feature masking (r=0.9)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.9,
+            masking_strategies=["per_feature"],
+        )},
+
+    # Combined masking ---------------------------------------------------------------------------------------------- #
+    "exp318": {
+        "description": "Exp90 - Combination: per-sample (mask_ratio=0.3), spherical (r=0.1), transect (w=0.02)",
+        "config": ModelConfig(
+            feature_mixer = True,
+            feature_mixer_input = "feat",
+            use_masks = True,
+            attention_type = "time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["random", "transect", "sphere"],
+            transect_mask_p=1.0,
+            transect_mask_width=0.02,
+            sphere_mask_p=1.0,
+            sphere_mask_radius=0.1,
+        )},
+
 }
