@@ -467,7 +467,8 @@ def optuna_objective(trial, model_name, output_dir):
         val_idx = np.array(split["val_idx"])
 
         # Load basic architecture config
-        base_cfg = ablation_study["exp73"]["config"]
+        # base_cfg = ablation_study["exp73"]["config"]
+        base_cfg = ablation_study["exp90"]["config"]
 
         # Train
         results, _, _, _ = train_pytorch_single_split(
