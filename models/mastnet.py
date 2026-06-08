@@ -202,7 +202,7 @@ class MaSTNeT(nn.Module):
 
         elif self.cfg.attention_type == "mha_decoder":
             # Encoder
-            self. mha_layers = nn.ModuleList([
+            self.mha_layers = nn.ModuleList([
                 CrossAttentionBlock(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout)
                 for _ in range(nlayers)
             ])
