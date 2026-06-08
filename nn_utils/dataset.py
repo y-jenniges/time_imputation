@@ -4,7 +4,6 @@ from pandas import DataFrame
 from typing import Tuple, Any, Dict
 import numpy as np
 import torch
-from sklearn.neighbors import NearestNeighbors
 from torch import Tensor
 from torch.utils.data import Dataset, DataLoader, Subset
 import pandas as pd
@@ -21,7 +20,7 @@ class LearnedNeighbourDataset(Dataset):
     """
     PyTorch Dataset returning a query point and its k-NN neighbours per scope.
 
-    Used by MaSTNeT's graph-based attention modes.  Neighbours are retrieved
+    Used by MaSTNeT's graph-based attention modes. Neighbours are retrieved
     from a :class:`GraphProvider` at each ``__getitem__`` call.
 
     Parameters
@@ -39,7 +38,10 @@ class LearnedNeighbourDataset(Dataset):
         Defaults to ``['default']``.
     """
 
-    def __init__(self, coords: torch.Tensor, values: torch.Tensor, graph_provider: GraphProvider, query_indices: np.ndarray | None = None,
+    def __init__(self, coords: torch.Tensor,
+                 values: torch.Tensor,
+                 graph_provider: GraphProvider,
+                 query_indices: np.ndarray | None = None,
                  scopes=None):
         self.scopes = scopes if scopes is not None else ["default"]
 
@@ -79,7 +81,8 @@ class LearnedNeighbourDataset(Dataset):
 
         # Neighbours (global indices)
         for scope in self.scopes:
-            n_batch = self.graph_provider.get_neighbour_batch(idx=q_idx, coords=self.coords, values=self.values, feature_mask=self.feature_mask, scope=scope)
+            n_batch = self.graph_provider.get_neighbour_batch(idx=q_idx, coords=self.coords, values=self.values,
+                                                              feature_mask=self.feature_mask, scope=scope)
 
             # Relative positions
             rel_positions = n_batch["coords"] - q_coord
@@ -95,7 +98,7 @@ class LearnedNeighbourDataset(Dataset):
 
 
 class PointwiseDataset(Dataset):
-    """ Dataset returning pointwise data. """
+    """ PyTorch dataset returning pointwise data. """
 
     def __init__(self, coords: torch.Tensor, values: torch.Tensor):
         self.coords = coords
@@ -128,7 +131,7 @@ class TimeSequenceDataset(Dataset):
         Odd integer defining the temporal window size; defaults to the number of
         unique time steps in ``coords``.
     scopes : ignored
-        Accepted for API compatibility.
+        For API compatibility.
     """
 
     def __init__(self, coords: torch.Tensor, values: torch.Tensor, query_indices: np.ndarray | None = None,
@@ -691,7 +694,8 @@ def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
     return mask_block.unsqueeze(1).expand(B, feature_dim)
 
 
-def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu", orientation=0.0):
+def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu",
+                          orientation=0.0):
     """Create a great-circle transect mask; applied with probability ``p``.  ``orientation=0`` is fully random, ``1`` forces axis-aligned transects."""
     lonlats = batch["query_coords"][:, :3]  # [B, 3]
     B = lonlats.shape[0]
@@ -700,7 +704,7 @@ def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu", o
     if torch.rand(1, device=device) > p:
         return torch.zeros(B, feature_dim, dtype=torch.bool, device=device)
 
-    # Normalize lons and lats
+    # Normalise lons and lats
     lonlats = lonlats / torch.norm(lonlats, dim=1, keepdim=True)
 
     # Orientation probability
@@ -800,7 +804,8 @@ def get_availability_per_time(coords, values):
     return available / total.clamp(min=1)
 
 
-def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool = False, scaler_dict: dict = None, time_scaler_weights=None):
+def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool = False,
+               scaler_dict: dict = None):
     """
     Scale and encode coordinates and feature values.
 
@@ -866,9 +871,6 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool =
             scaled_time = scaler_dict["DATEANDTIME"].transform(coord_dict["DATEANDTIME"].reshape(-1, 1))
         else:
             scaler_time = MinMaxScaler()
-            # scaler_time =  MinMaxScaler(feature_range=(0, 0.5))
-            # time_scaler_weights = get_availability_per_time(coords, values)
-            # scaler_time = WeightedMinMaxScaler(weights=time_scaler_weights)
             scaled_time = scaler_time.fit_transform(coord_dict["DATEANDTIME"].reshape(-1, 1))
             scaler_dict["DATEANDTIME"] = scaler_time
 
@@ -906,7 +908,7 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool =
 
 def load_dataset(data_path: object = None) -> DataFrame:
     """
-    Load the COMFORT CSV dataset, convert timestamps to years, and drop unused columns.
+    Load the CSV dataset (based on COMFORT), convert timestamps to years, and drop unused columns.
 
     Parameters
     ----------
