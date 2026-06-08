@@ -102,10 +102,11 @@ class CoordEncoder(nn.Module):
 
 class PositionalEncoder(nn.Module):
     """
-    MLP that maps relative position vectors to positional embeddings (Point Transformer style).
+    MLP that maps relative position vectors to positional embeddings (Zhao et al. 2021).
 
-    Reference: Zhao et al., "Point Transformer," ICCV 2021.
-    doi: 10.1109/ICCV48922.2021.01595.
+    Reference:
+    Zhao, H., Jiang, L., Jia, J., Torr, P., & Koltun, V. (2021). Point Transformer. 2021 IEEE/CVF
+    International Conference on Computer Vision (ICCV), 16239–16248. https://www.doi.org/10.1109/ICCV48922.2021.01595
 
     Parameters
     ----------
