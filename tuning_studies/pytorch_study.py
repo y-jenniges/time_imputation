@@ -1,3 +1,5 @@
+"""Core PyTorch training loop for all neural imputation models across splits and hyperparameter combos."""
+
 import glob
 import platform
 from functools import partial
@@ -29,35 +31,36 @@ from utils.metrics import compute_metrics
 from utils.tuning import get_model_class
 from tuning_studies.modelconfig import ablation_study
 
-
 # Load data globally
 DATA = load_dataset()
 
 
 def ram():
-    return psutil.Process(os.getpid()).memory_info().rss / 1024**3
+    return psutil.Process(os.getpid()).memory_info().rss / 1024 ** 3
+
 
 print("RAM after loading DATA:", ram())
+
 
 def suggest_hyperparameters(trial, model_name="mae"):
     """ Suggest hyperparameters for the masked auto encoder. """
     if model_name == "unet":
         return {
-                "train": {
-                    "batch_size": 128,  # trial.suggest_categorical("batch_size", [128, 512, 1024]),
-                    "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
-                    "patience": 5,  # trial.suggest_int("patience", 3, 12),
-                    "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
-                    "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.9),
-                    "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
-                    "optimizer": torch.optim.Adam
-                },
-                "model": {
-                    "base_channels": trial.suggest_categorical("base_channels", [32, 64, 128, 256]),
-                    "num_blocks": trial.suggest_int("num_blocks", 2, 5),
-                    "dropout": trial.suggest_float("dropout", 0.0, 0.4)
-                }
+            "train": {
+                "batch_size": 128,  # trial.suggest_categorical("batch_size", [128, 512, 1024]),
+                "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
+                "patience": 5,  # trial.suggest_int("patience", 3, 12),
+                "n_epochs": 20,  # trial.suggest_int("epochs", 20, 80),
+                "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.9),
+                "loss": trial.suggest_categorical("loss", ["mse", "hetero"]),
+                "optimizer": torch.optim.Adam
+            },
+            "model": {
+                "base_channels": trial.suggest_categorical("base_channels", [32, 64, 128, 256]),
+                "num_blocks": trial.suggest_int("num_blocks", 2, 5),
+                "dropout": trial.suggest_float("dropout", 0.0, 0.4)
             }
+        }
     elif model_name == "mastnet":
         loss = "hetero"  # trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
         lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
@@ -84,7 +87,8 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "loss": loss,
                 "lambda_smooth": lambda_smooth,
                 "optimizer": torch.optim.Adam,
-                "masking": {"sphere_mask_radius": radius, "transect_mask_width": width, "masking_strategies": masking_strategies},
+                "masking": {"sphere_mask_radius": radius, "transect_mask_width": width,
+                            "masking_strategies": masking_strategies},
             },
             "model": {
                 "d_model": trial.suggest_categorical("d_model", [32, 64, 128, 256, 512]),
@@ -97,35 +101,35 @@ def suggest_hyperparameters(trial, model_name="mae"):
     elif model_name == "mlp":
         loss = "hetero"
         lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
-        
-        return {"train": {
-                    "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
-                    "learning_rate": trial.suggest_float("lr", 1e-5, 1e-2, log=True),
-                    "patience": 10,
-                    "n_epochs": 80,
-                    "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
-                    "loss":loss,
-                    "lambda_smooth": lambda_smooth,
-                    "optimizer": torch.optim.Adam
-                },
-                "model": {
-                    "hidden_dims": trial.suggest_categorical("hidden_dims", [
-                        [64, 64],  # Narrow and shallow
-                        [128, 64],  # Moderate
-                        [256, 128],  # Wider
-                        [128, 64, 32],  # Deeper and narrow
-                        [256, 128, 64],  # Deeper and wider
 
-                        # Slightly larger / deeper options
-                        [256, 128, 64, 32],  # Deeper
-                        [512, 256, 128],  # Wider
-                        [512, 256, 128, 64],  # Deep + wide
-                        [256, 256, 128, 64],  # Wide first layers
-                        [128, 128, 64, 32, 16],  # Very deep narrow
-                    ]),
-                    "dropout": trial.suggest_float("dropout", 0.1, 0.4)
+        return {"train": {
+            "batch_size": trial.suggest_categorical("batch_size", [128, 256, 512]),
+            "learning_rate": trial.suggest_float("lr", 1e-5, 1e-2, log=True),
+            "patience": 10,
+            "n_epochs": 80,
+            "mask_ratio": trial.suggest_float("mask_ratio", 0.0, 0.99),
+            "loss": loss,
+            "lambda_smooth": lambda_smooth,
+            "optimizer": torch.optim.Adam
+        },
+            "model": {
+                "hidden_dims": trial.suggest_categorical("hidden_dims", [
+                    [64, 64],  # Narrow and shallow
+                    [128, 64],  # Moderate
+                    [256, 128],  # Wider
+                    [128, 64, 32],  # Deeper and narrow
+                    [256, 128, 64],  # Deeper and wider
+
+                    # Slightly larger / deeper options
+                    [256, 128, 64, 32],  # Deeper
+                    [512, 256, 128],  # Wider
+                    [512, 256, 128, 64],  # Deep + wide
+                    [256, 256, 128, 64],  # Wide first layers
+                    [128, 128, 64, 32, 16],  # Very deep narrow
+                ]),
+                "dropout": trial.suggest_float("dropout", 0.1, 0.4)
             }
-                }
+        }
     elif model_name == "ann-att":
         return {
             "train": {
@@ -218,20 +222,20 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         temp_mastnet_adapter = FeatureAdapter
         temp_mastnet_loader = prepare_pointwise_loaders
 
-    model_adapters = {"mastnet": temp_mastnet_adapter, "mlp": PointwiseAdapter, "ann_att": PointwiseAdapter}
-    loader_funcs = {"mastnet": temp_mastnet_loader, "mlp": prepare_pointwise_loaders, "ann_att": prepare_pointwise_loaders}
+    model_adapters = {"mastnet": temp_mastnet_adapter, "mlp": PointwiseAdapter}
+    loader_funcs = {"mastnet": temp_mastnet_loader, "mlp": prepare_pointwise_loaders}
 
     if model_name not in model_adapters.keys():
         raise ValueError(f"Unknown model_name {model_name}")
 
     # Hyps for data loader
     loader_kwargs = dict(coords=coords_raw,
-            values=values_raw,
-            train_idx=train_idx,
-            val_idx=val_idx,
-            test_idx=test_idx,
-            batch_size=batch_size,
-            generator=generator)
+                         values=values_raw,
+                         train_idx=train_idx,
+                         val_idx=val_idx,
+                         test_idx=test_idx,
+                         batch_size=batch_size,
+                         generator=generator)
     if model_name == "mastnet":
         graph_provider = GraphProvider(n_neighbours=n_neighbours,
                                        update_every=cfg.graph_update_frequency,
@@ -298,7 +302,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         early_stopping=early_stopper,
         mask_ratio=mask_ratio,
         optuna_callback=optuna_callback,
-        full_metrics=True, # not tuning_mode   @todo maybe remove arg?
+        full_metrics=True,  # not tuning_mode
     )
     train_time = time() - strain
 
@@ -328,7 +332,9 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
             # Prediction
             sval = time()
-            full_pred, full_var, avg_miss_ratio = trainer.reconstruct_full_dataset(loader=full_loader, do_dropout=do_dropout, show_progress=(i==0))
+            full_pred, full_var, avg_miss_ratio = trainer.reconstruct_full_dataset(loader=full_loader,
+                                                                                   do_dropout=do_dropout,
+                                                                                   show_progress=(i == 0))
             pred_time = time() - sval
 
             all_preds.append(full_pred.unsqueeze(0))
@@ -355,7 +361,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         time_std = np.std(all_times)
 
         # True values
-        if model_name == "mlp" or model_name == "ann_att" or cfg.graph_mode == "single_feature":
+        if model_name == "mlp" or cfg.graph_mode == "single_feature":
             all_values = torch.cat([batch["features"] for batch in full_loader], dim=0)
         elif model_name == "mastnet":
             all_values = torch.cat([batch["query_features"] for batch in full_loader], dim=0)
@@ -402,8 +408,10 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
         results.mean_epistemic_uncertainty = float(epistemic_uncertainty.mean())
         results.std_epistemic_uncertainty = float(epistemic_uncertainty.std())
-        results.mean_aleatoric_uncertainty = float(aleatoric_uncertainty.mean()) if aleatoric_uncertainty is not None else None
-        results.std_aleatoric_uncertainty = float(aleatoric_uncertainty.std()) if aleatoric_uncertainty is not None else None
+        results.mean_aleatoric_uncertainty = float(
+            aleatoric_uncertainty.mean()) if aleatoric_uncertainty is not None else None
+        results.std_aleatoric_uncertainty = float(
+            aleatoric_uncertainty.std()) if aleatoric_uncertainty is not None else None
         results.mean_total_uncertainty = float(total_uncertainty.mean())
         results.std_total_uncertainty = float(total_uncertainty.std())
 
@@ -415,7 +423,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     results.train_time = train_time + def_time
     results.stop_epoch = early_stopper.epoch
     results.metrics_all = history["metrics"]
-    results.metrics_last = history["metrics"][max(history["metrics"].keys())] if "metrics" in history and history["metrics"] else {}
+    results.metrics_last = history["metrics"][max(history["metrics"].keys())] if "metrics" in history and history[
+        "metrics"] else {}
 
     if graph_provider is not None:
         results.graph_history = graph_provider.history
@@ -551,4 +560,3 @@ if __name__ == "__main__":
     # df_trials.to_csv(f"optuna_trials_{model_name}.csv", index=False)
 
     # logging.info("Best trial:", study.best_trial.params)
-
