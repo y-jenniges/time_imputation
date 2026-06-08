@@ -1,7 +1,10 @@
 """
-Following code (adapted) from:
-Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1).
-Zenodo. https://doi.org/10.5281/zenodo.15827777
+COMFORT database preparation: quality filtering, unit conversion, and spatial gridding.
+
+Adapted from:
+    Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation:
+    Biogeochemical Ocean Regions - Code Base (v1.0.1).
+    Zenodo. https://doi.org/10.5281/zenodo.15827777
 """
 
 import sqlite3
@@ -17,11 +20,16 @@ def __copy_and_filter_tables(conn, tables, quality_flags, source_db_path):
     """
     Copy tables from a database to another database (if it does not yet exist there) and filter for quality.
 
-    Args:
-        conn (sqlite3.connection): Connection to database.
-        tables (list<str>): Table names to copy.
-        quality_flags (list<list<str>>): Specification for PQF1, PQF2 and SQF used to filter the data for quality.
-        source_db_path (str): Cursor of the source database.
+    Parameters
+    ----------
+    conn : sqlite3.Connection
+        Connection to database.
+    tables : list[str]
+        Table names to copy.
+    quality_flags : list[list[str]]
+        Specification for PQF1, PQF2 and SQF used to filter the data for quality.
+    source_db_path : str
+        Cursor of the source database.
     """
     logging.info("  Copying tables to new database...")
 
@@ -58,9 +66,12 @@ def __add_location_time(conn, tables):
     """
     Add latitude, longitude and dateandtime information to tables (if they do not have these columns yet).
 
-    Args:
-        conn (sqlite3.connection): Connection to database.
-        tables (list<str>): Names of tables to add the location and time information to.
+    Parameters
+    ----------
+    conn : sqlite3.Connection
+        Connection to database.
+    tables : list[str]
+        Names of tables to add the location and time information to.
     """
     logging.info("  Adding location and time...")
 
@@ -103,9 +114,12 @@ def __average_over_location_time(conn, tables):
     """
     Average VAL column of a table over LATITUDE, LONGITUDE and DATEANDTIME columns.
 
-    Args:
-        conn (sqlite3.connection): Connection to database.
-        tables (list<str>): Names of tables to process.
+    Parameters
+    ----------
+    conn : sqlite3.Connection
+        Connection to database.
+    tables : list[str]
+        Names of tables to process.
     """
     logging.info("  Averaging over location and time...")
     for table in tables:
@@ -143,9 +157,12 @@ def __add_temperature_salinity(conn, tables):
     """
     Joining temperature and salinity information to given tables.
 
-    Args:
-        conn (sqlite3.connection): Connection to database.
-        tables (list<str>): Tables to add temperature and salinity to.
+    Parameters
+    ----------
+    conn : sqlite3.Connection
+        Connection to database.
+    tables : list[str]
+        Tables to add temperature and salinity to.
     """
     logging.info("  Adding temperature/salinity information...")
 
@@ -199,9 +216,12 @@ def __convert_units(conn, tables):
     """
     Converting units of given tables to default units.
 
-    Args:
-        conn (sqlite3.connection): Connection to database.
-        tables (list<str>): Names of tables to add the location and time information to.
+    Parameters
+    ----------
+    conn : sqlite3.Connection
+        Connection to database.
+    tables : list[str]
+        Names of tables to add the location and time information to.
     """
     logging.info("  Converting units...")
 
@@ -223,8 +243,10 @@ def __t_to_pot_t(conn):
     """
     Convert temperature to potential temperature.
 
-    Args:
-        conn (sqlite3.connection): Connection to database.
+    Parameters
+    ----------
+    conn : sqlite3.Connection
+        Connection to database.
     """
     logging.info("  Convert temperature to potential temperature...")
     t_table = "P_TEMPERATURE"
@@ -232,7 +254,7 @@ def __t_to_pot_t(conn):
 
     # Get temperature table
     df_t = get_table_as_df(conn, t_table,
-                           columns=["ID", "LATITUDE", "LONGITUDE", "LEV_M", "LEV_DBAR", "VAL", "salinity"]).\
+                           columns=["ID", "LATITUDE", "LONGITUDE", "LEV_M", "LEV_DBAR", "VAL", "salinity"]). \
         rename(columns={"VAL": "conservative_val"})
 
     # Apply conversion and drop values that could not be converted and lead to NaN entries
@@ -290,12 +312,18 @@ def prepare_database(parameters, quality_flags, temperature_to_potential=True,
     Store data of interest in new database and prepare it for further processing. Operations are executed in the
     database, except for unit conversions.
 
-    Args:
-        parameters (list<str>): Parameter tables of interest.
-        quality_flags (list<str>): List of quality flags to filter for.
-        temperature_to_potential (boolean): Whether to convert temperature to potential temperature.
-        source_db_path (str): Path to source database.
-        dest_db_path (str): Path to destination database.
+    Parameters
+    ----------
+    parameters : list[str]
+        Parameter tables of interest.
+    quality_flags : list[str]
+        List of quality flags to filter for.
+    temperature_to_potential : bool, default=True
+        Whether to convert temperature to potential temperature.
+    source_db_path : str, default='../../data/comfort.sqlite'
+        Path to source database.
+    dest_db_path : str, default='output/custom.db'
+        Path to destination database.
     """
     logging.info("Start database preparation...")
 
@@ -321,7 +349,7 @@ def prepare_database(parameters, quality_flags, temperature_to_potential=True,
     logging.info(f"Number of samples (TS with space/time): {get_num_samples(conn=dest_conn, table_names=parameters)}")
 
     # Average temperature and salinity values at the same time and location
-    __average_over_location_time(tables=["P_TEMPERATURE",  "P_SALINITY"], conn=dest_conn)
+    __average_over_location_time(tables=["P_TEMPERATURE", "P_SALINITY"], conn=dest_conn)
     logging.info(
         f"Number of samples (TS averaged over space/time): "
         f"{get_num_samples(conn=dest_conn, table_names=parameters)}")
@@ -331,9 +359,10 @@ def prepare_database(parameters, quality_flags, temperature_to_potential=True,
     logging.info(f"Number of samples (params with TS): {get_num_samples(conn=dest_conn, table_names=parameters)}")
 
     # Add latitude, longitude, dateandtime information to other tables
-    __add_location_time(tables=[p for p in parameters if p not in ["P_TEMPERATURE",  "P_SALINITY"]],
+    __add_location_time(tables=[p for p in parameters if p not in ["P_TEMPERATURE", "P_SALINITY"]],
                         conn=dest_conn)
-    logging.info(f"Number of samples (params with space/time): {get_num_samples(conn=dest_conn, table_names=parameters)}")
+    logging.info(
+        f"Number of samples (params with space/time): {get_num_samples(conn=dest_conn, table_names=parameters)}")
 
     # Unit conversions
     __convert_units(tables=parameters, conn=dest_conn)
@@ -357,14 +386,23 @@ def prepare_database(parameters, quality_flags, temperature_to_potential=True,
 
 def grid_data_as_df(db_path, grid_config, bathymetry_path, parameters, output_dir="output/"):
     """
-    Args:
-        db_path (str): Path to database.
-        grid_config (dict): Configuration for the spatio-temporal grid.
-        bathymetry_path (str): Path to bathymetry information.
-        parameters (list<str>): Parameter table names to map to the grid.
-        output_dir (str): Path to directory where to store the mapped and later the imputed data.
-    Returns:
-        df (pandas.DataFrame): Imputed wide table.
+    Parameters
+    ----------
+    db_path : str
+        Path to database.
+    grid_config : dict
+        Configuration for the spatio-temporal grid.
+    bathymetry_path : str
+        Path to bathymetry information.
+    parameters : list[str]
+        Parameter table names to map to the grid.
+    output_dir : str, default='output/'
+        Path to directory where to store the mapped and later the imputed data.
+
+    Returns
+    -------
+    DataFrame
+        Imputed wide table.
     """
     # Connect to database
     conn = sqlite3.connect(db_path)
@@ -377,31 +415,3 @@ def grid_data_as_df(db_path, grid_config, bathymetry_path, parameters, output_di
     df = pd.read_csv(wide_table_path)
 
     return df, wide_table_path
-
-# def grid_and_impute_data(db_path, grid_config, bathymetry_path, parameters, output_dir="output/"):
-#     """
-#     Args:
-#         db_path (str): Path to database.
-#         grid_config (dict): Configuration for the spatio-temporal grid.
-#         bathymetry_path (str): Path to bathymetry information.
-#         parameters (list<str>): Parameter table names to map to the grid.
-#         output_dir (str): Path to directory where to store the mapped and later the imputed data.
-#     Returns:
-#         df (pandas.DataFrame): Imputed wide table.
-#     """
-#     # Connect to database
-#     conn = sqlite3.connect(db_path)
-#
-#     # Map parameters to grid
-#     wide_table_path = grid_data(conn=conn, grid_config=grid_config, bathymetry_path=bathymetry_path,
-#                                 parameters=parameters, output_dir=output_dir)
-#
-#     # Impute missing values
-#     imputed_table_path = impute_data(csv_path=wide_table_path, parameters=parameters,
-#                                      drop_columns=["DATEANDTIME", "idx"],
-#                                      output_dir=output_dir)
-#
-#     # Load imputed table
-#     df = pd.read_csv(imputed_table_path)
-#
-#     return df

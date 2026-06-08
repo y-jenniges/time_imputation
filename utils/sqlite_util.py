@@ -1,4 +1,9 @@
-# TAKEN FROM PRREVIOUS PAPER
+"""SQLite utility helpers adapted from a prior publication:
+    Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation:
+    Biogeochemical Ocean Regions - Code Base (v1.0.1).
+    Zenodo. https://doi.org/10.5281/zenodo.15827777
+"""
+
 import numpy as np
 
 

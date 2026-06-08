@@ -1,9 +1,10 @@
 """
-Module to deal with the units of the measured values.
+Unit conversion utilities for COMFORT ocean database parameters.
 
-Following code from:
-Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1).
-Zenodo. https://doi.org/10.5281/zenodo.15827777
+Adapted from:
+    Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation:
+    Biogeochemical Ocean Regions - Code Base (v1.0.1).
+    Zenodo. https://doi.org/10.5281/zenodo.15827777
 """
 import logging
 import numpy as np
@@ -12,17 +13,22 @@ import gsw
 
 
 class UnitsConverter:
-    """ Converts units of parameters in the sqlite database to default units. """
+    """
+    Converts units of parameters in the sqlite database to default units.
+
+    Parameters
+    ----------
+    connection : sqlite3.Connection
+    default_units : DataFrame
+        Table containing default units for every parameter. Required columns are
+        NAME_TABLE, UNITS_ID_DEFAULT. For COMFORT, pass the table DATABASE_TABLES.
+    units : DataFrame
+        Table containing all available units. Required column is ID. For COMFORT, pass
+        the table UNITS.
+    value_column : str, default='VAL'
+    """
 
     def __init__(self, connection, default_units, units, value_column="VAL"):
-        """ Init the converter.
-
-        Args:
-            default_units (pandas.DataFrame): Table containing default units for every parameter. Required columns are
-                                              NAME_TABLE, UNITS_ID_DEFAULT. For COMFORT, pass the table DATABASE_TABLES.
-            units (pandas.DataFrame):   Table containing all available units. Required column is ID. For COMFORT, pass
-                                        the table UNITS.
-        """
         self.connection = connection
         self.value_column = value_column
         self.df_default_units = default_units
@@ -90,16 +96,19 @@ class UnitsConverter:
 
 
 class ConversionFormulas:
-    """ Defines a matrix [#units]x[#units] containing formulas to convert a unit to another. Based on the report on
-    the COMFORT dataset v3 appendix C."""
+    """
+    Defines a matrix [#units]x[#units] containing formulas to convert a unit to another.
+
+    Based on the report on the COMFORT dataset v3 appendix C.
+
+    Parameters
+    ----------
+    df_units : DataFrame
+        Table containing all possible units.
+        as SQL statement. Default is 'dataframe' (computations are executed on a DataFrame).
+    """
 
     def __init__(self, df_units):
-        """ Init the conversion formulas.
-
-            Args:
-                df_units (pandas.DataFrame): Table containing all possible units.
-                as SQL statement. Default is 'dataframe' (computations are executed on a DataFrame).
-        """
         self.molar_masses = pd.DataFrame(
             {"NAME_TABLE": ["P_BARIUM", "P_NITRATE", "P_NITRATENITRITE", "P_NITRITE", "P_PHOSPHATE", "P_SILICATE"],
              "ELEMENT": ["BARIUM", "NITROGEN", "NITROGEN", "NITROGEN", "PHOSPHORUS", "SILICON"],
@@ -226,12 +235,18 @@ def oxygen_saturation(salinity, temperature):
     """
     Oxygen saturation formula from Benson & Krause (Limnology & Oceanography, 29, 620-632, 1984), equation 31. Usable
     for 0 < T < 40°C and 0 < S < 40.
-    Args:
-        salinity (double): Salinity [psu]
-        temperature (double): Temperature [°C]
 
-    Returns:
-        oxygen_sat (double): Oxygen saturation
+    Parameters
+    ----------
+    salinity : float
+        Salinity [psu]
+    temperature : float
+        Temperature [°C]
+
+    Returns
+    -------
+    float
+        Oxygen saturation
     """
     oxygen_sat = None
     if salinity is not None and temperature is not None:
@@ -273,13 +288,19 @@ def atg(salinity, temperature, pressure):
     Adiabatic temperature gradient [°C/dbar].
     See also https://www.rdocumentation.org/packages/marelac/versions/2.1.10/topics/sw_adtgrad.
 
-    Args:
-        salinity (double or numpy array): Salinity [psu]
-        temperature (double or numpy array): Temperature [°C]
-        pressure(double or numpy array): Pressure [bar]
+    Parameters
+    ----------
+    salinity : float or ndarray
+        Salinity [psu]
+    temperature : float or ndarray
+        Temperature [°C]
+    pressure : float or ndarray
+        Pressure [bar]
 
-    Returns:
-        atg (double or numpy array): Adiabatic temperature gradient
+    Returns
+    -------
+    float or ndarray
+        Adiabatic temperature gradient
     """
     # Constants
     a0 = 0.000035803
@@ -313,14 +334,22 @@ def compute_theta(salinity, temperature, pressure, reference_pressure=0):
     """
     Potential temperature referred to a given pressure.
     See also https://www.rdocumentation.org/packages/marelac/versions/2.1.10/topics/sw_tpot
-    Args:
-        salinity (double or pandas.Series): Salinity [psu]
-        temperature (double or pandas.Series): In situ temperature [°C], ITS-68
-        pressure (double or pandas Series): In situ pressure [bar]
-        reference_pressure (double or pandas Series): Reference pressure [bar]. Default is 0.
 
-    Returns:
-        Theta (double or pandas Series): Potential temperature [°C]
+    Parameters
+    ----------
+    salinity : float or Series
+        Salinity [psu]
+    temperature : float or Series
+        In situ temperature [°C], ITS-68
+    pressure : float or Series
+        In situ pressure [bar]
+    reference_pressure : float or Series, default=0
+        Reference pressure [bar].
+
+    Returns
+    -------
+    Series
+        Potential temperature [°C]
     """
     # For the computations, convert to numpy arrays
     # (pandas can mess up with the indexes in multiplications and produce NaN values)

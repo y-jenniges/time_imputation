@@ -1,3 +1,5 @@
+"""Tuning utilities: TuningResult dataclass, seed setting, result aggregation, and model registry."""
+
 import joblib
 import optuna
 import pandas as pd
@@ -20,14 +22,30 @@ from hyperimpute.plugins.imputers import Imputers
 
 import config
 from models.mastnet import MaSTNeT
-from models.unet import OceanUNet
 from models.mlp import MLP
 from remasker.remasker_impute import ReMasker
-from models.ann_att import ann_att
 
 
 @dataclass
 class TuningResult:
+    """
+    Container for the outputs of a single tuning run (one split × seed × hyperparameter combo).
+
+    Stores evaluation metrics, uncertainty estimates, model/scaler paths, and graph
+    diagnostics.  Can be serialised to JSON via :meth:`save`.
+
+    Parameters
+    ----------
+    split : str
+        Path to the split JSON file used for this run.
+    seed : int
+    model : str
+        Model name (e.g. ``'mastnet'``, ``'mlp'``).
+    hyp_combo_id : int
+        Index of the hyperparameter combination.
+    hyps : dict
+        Hyperparameter values for this run.
+    """
     # Meta data
     split: str
     seed: int
@@ -71,6 +89,7 @@ class TuningResult:
     graph_history:dict = field(default_factory=dict)
 
     def save(self, fname: Path, model=None):
+        """Serialise this result to ``fname`` (JSON); optionally save the model weights alongside."""
         # Store model if given
         if model is not None:
             self.save_model(model=model, model_dir=fname.parent)
@@ -87,6 +106,7 @@ class TuningResult:
             json.dump(data, f, indent=2)
 
     def save_model(self, model, model_dir:Path):
+        """Save model weights to ``model_dir`` (``pytorch.pt`` for nn.Module, ``sklearn.joblib`` otherwise)."""
         model_dir.mkdir(parents=True, exist_ok=True)
 
         if isinstance(model, BaseEstimator):
@@ -111,6 +131,7 @@ class TuningResult:
         self.model_path = str(path)
 
     def save_scalers(self, out_dir: Path):
+        """Dump the scaler dict to ``out_dir/scalers.joblib`` via joblib."""
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / "scalers.joblib"
         print("Stored scalers in {}".format(path))
@@ -118,6 +139,7 @@ class TuningResult:
         self.scalers_path = str(path)
 
     def make_json_safe(self):
+        """Convert the dataclass to a JSON-serialisable dict (handles Tensors, ndarrays, NaN, dtypes)."""
         # Serialize nested dicts as JSON
         data = asdict(self)
         data = self.make_obj_json_safe(data)
@@ -147,6 +169,7 @@ class TuningResult:
 
 
 def set_seed(seed):
+    """Set all random seeds for reproducibility; returns a seeded :class:`torch.Generator`."""
     np.random.seed(seed)
     torch.manual_seed(seed)  # CPU
     torch.cuda.manual_seed(seed)  # current GPU
@@ -160,6 +183,25 @@ def set_seed(seed):
 
 
 def combine_resfiles(dir_path, file_ending=".csv", out_name="combined.csv", remove_files=False):
+    """
+    Concatenate all result files in ``dir_path`` into a single CSV.
+
+    Parameters
+    ----------
+    dir_path : str
+        Directory containing the per-run result files.
+    file_ending : str, default='.csv'
+        Extension to glob for (``'.csv'`` or ``'.json'``).
+    out_name : str, default='combined.csv'
+        Output filename written into ``dir_path``.
+    remove_files : bool, default=False
+        Delete individual files after combining.
+
+    Returns
+    -------
+    DataFrame
+        Combined results; empty DataFrame if no files found.
+    """
     # Remove file if exists
     if Path.exists(Path(dir_path + out_name)):
         Path(dir_path + out_name).unlink()
@@ -199,6 +241,7 @@ def combine_resfiles(dir_path, file_ending=".csv", out_name="combined.csv", remo
 
 
 def make_optuna_callback(trial, split_i, n_epochs):
+    """Return an Optuna pruning callback that reports the running-mean validation loss."""
     def callback(epoch, val_losses):
         running_mean = np.nanmean(val_losses)
         global_step = split_i * n_epochs + epoch
@@ -209,7 +252,7 @@ def make_optuna_callback(trial, split_i, n_epochs):
 
 
 def get_model_class(model_name):
-    """ Get model class by name. """
+    """Return the model class or factory callable for ``model_name``."""
     imputers = Imputers()
 
     name_class_map = {
@@ -218,10 +261,8 @@ def get_model_class(model_name):
         "missforest": MissForest,
         "mice": IterativeImputer,
         "mastnet": MaSTNeT,
-        "unet": OceanUNet,
         "remasker": ReMasker,
         "mlp": MLP,
-        "ann_att": ann_att,
 
         "hyperimpute": lambda **kwargs: imputers.get("hyperimpute", **kwargs),
         "gain_hyperimpute": lambda **kwargs:imputers.get("gain", **kwargs),
@@ -245,6 +286,7 @@ def get_model_class(model_name):
 
 
 def load_optuna_study(model_name):
+    """Load an existing Optuna study from a SQLite ``.db`` or journal ``.log`` file."""
     # Load Optuna study
     base_name = f"{config.output_dir_tuning}{model_name}/{model_name}_tuning"
 
