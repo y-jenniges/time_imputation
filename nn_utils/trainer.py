@@ -1,3 +1,5 @@
+"""Trainer class orchestrating training, evaluation, graph updates, and early stopping for MaSTNeT."""
+
 import logging
 from typing import Union, Callable, Tuple
 import torch
@@ -15,21 +17,52 @@ from utils.metrics import compute_metrics
 
 
 class Trainer:
-    """ Trainer class for OceanMAE, which handles training and evaluation loops."""
+    """
+    Training loop for MaSTNeT and related models.
+
+    Handles forward/backward passes, graph updates (static / dynamic / frozen),
+    early stopping via best-model checkpointing, and TensorBoard metric logging.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        The model to train (e.g. :class:`models.mastnet.MaSTNeT`).
+    adapter : ModelAdapter
+        Adapter that prepares batches, generates masks, calls forward, and
+        extracts outputs for the specific model/mode combination.
+    optimizer : torch.optim.Optimizer
+        Optimiser (typically Adam).
+    full_coords : Tensor
+        Preprocessed coordinates for the entire dataset — used for graph updates
+        and full-dataset reconstruction.
+    full_values : Tensor
+        Preprocessed feature values for the entire dataset.
+    full_mask : Tensor
+        Boolean observation mask for the entire dataset.
+    graph_provider : GraphProvider or None, default=None
+        Manages k-NN graph construction and updates.  Pass None for models that
+        do not use a neighbourhood graph.
+    device : str or torch.device, default='cpu'
+        Compute device.
+    loss_fn : BaseLoss, default=MaskedMSELoss()
+        Loss function instance.
+    global_means : Tensor or None, default=None
+        Per-feature training means; forwarded to the graph provider for
+        ``fill_strategy='mean'``.
+    cfg : ModelConfig or None, default=None
+        Experiment configuration object.
+    var_names : list[str] or None, default=None
+        Variable names for metric logging; defaults to ``config.parameters``.
+    """
+
     def __init__(self, model: torch.nn.Module, adapter: ModelAdapter, optimizer: torch.optim.Optimizer,
                  full_coords: torch.Tensor, full_values: torch.Tensor, full_mask: torch.Tensor,
                  graph_provider: GraphProvider = None,
                  device: torch.cuda.device = "cpu",
                  loss_fn: BaseLoss = MaskedMSELoss(),
                  global_means: torch.Tensor = None,
-                 cfg=None):
-        """
-        Args:
-            model: MAE model
-            optimizer: Optimizer for training
-            device:  'cpu' or 'cuda' device
-            loss_fn: Loss function class (default: MaskedMSELoss)
-        """
+                 cfg=None,
+                 var_names=None):
         self.model = model
         self.adapter = adapter
         self.optimizer = optimizer
@@ -51,24 +84,42 @@ class Trainer:
 
         self.cfg = cfg
         self.global_means = global_means
+        self.var_names = var_names if var_names is not None else config.parameters
 
         # Init summary writer
         self.writer = SummaryWriter(log_dir=f"/tmp/{self.model.__class__.__name__}_{int(time())}")
 
     def train_one_epoch(self, loader: DataLoader, mask_ratio: float = 0.5) -> Tuple[float, float]:
+        """
+        Run one training epoch over ``loader``.
+
+        Parameters
+        ----------
+        loader : DataLoader
+            Training data loader.
+        mask_ratio : float, default=0.5
+            Fraction of observed values randomly hidden per step.
+
+        Returns
+        -------
+        avg_loss : float
+        avg_miss_ratio : float
+        """
         self.model.train()
         total_loss, total_miss_ratio, n_samples = 0.0, 0.0, 0
 
         for batch in tqdm(loader, desc="Train", leave=False):
             batch = self.adapter.prepare_batch(batch=batch, device=self.device)
 
-            masks, miss_ratio = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="train", device=self.device, cfg=self.cfg)
+            masks, miss_ratio = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="train",
+                                                        device=self.device, cfg=self.cfg)
 
             # Predict
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
 
             # Compute loss
-            loss_input = self.adapter.loss_inputs(batch=batch, outputs=outputs, masks=masks, anisotropic_weights=self.model.anisotropic_weights)
+            loss_input = self.adapter.loss_inputs(batch=batch, outputs=outputs, masks=masks,
+                                                  anisotropic_weights=self.model.anisotropic_weights)
             loss = self.loss_fn(**loss_input)
             if loss is None:
                 continue
@@ -86,6 +137,7 @@ class Trainer:
         return total_loss / max(1, n_samples), total_miss_ratio / max(1, n_samples)
 
     def _enable_dropout(self, enable=True):
+        """Switch the model between train mode (dropout on) and eval mode (dropout off)."""
         if enable:
             self.model.train()
         else:
@@ -98,19 +150,40 @@ class Trainer:
 
     @torch.no_grad()
     def evaluate(self, loader: DataLoader, mask_ratio: float, metrics_key: str = "Metrics", full_metrics: bool = True):
+        """
+        Evaluate the model on ``loader`` without gradient updates.
+
+        Parameters
+        ----------
+        loader : DataLoader
+        mask_ratio : float
+            Fraction of observed values randomly hidden (mirrors training masking).
+        metrics_key : str, default='Metrics'
+            TensorBoard prefix for logged metrics.
+        full_metrics : bool, default=True
+            When True, compute and return RMSE/MAE/R² metrics; when False, only loss.
+
+        Returns
+        -------
+        avg_loss : float
+        metrics : dict
+        avg_miss_ratio : float
+        """
         self.model.eval()  # Disables dropout
         total_loss, total_miss_ratio, n_samples = 0.0, 0.0, 0
         all_true, all_pred = [], []
 
         for batch in tqdm(loader, desc="Val", leave=False):
             batch = self.adapter.prepare_batch(batch, self.device)
-            masks, miss_ratio = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="eval", device=self.device, cfg=self.cfg)
+            masks, miss_ratio = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="eval",
+                                                        device=self.device, cfg=self.cfg)
 
             # Predict
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
 
             # Compute loss
-            loss_inputs = self.adapter.loss_inputs(batch=batch, outputs=outputs, masks=masks, anisotropic_weights=self.model.anisotropic_weights)
+            loss_inputs = self.adapter.loss_inputs(batch=batch, outputs=outputs, masks=masks,
+                                                   anisotropic_weights=self.model.anisotropic_weights)
             loss = self.loss_fn(**loss_inputs)
             if loss is None:
                 continue
@@ -143,7 +216,7 @@ class Trainer:
             y_pred = np.concatenate(all_pred, axis=0)
 
             # Compute and log metrics
-            metrics = compute_metrics(y_true=y_true, y_pred=y_pred, var_names=config.parameters)
+            metrics = compute_metrics(y_true=y_true, y_pred=y_pred, var_names=self.var_names)
             self.log_metrics(metrics_key, metrics)
         else:
             metrics = {}
@@ -151,6 +224,7 @@ class Trainer:
         return total_loss / max(1, n_samples), metrics, total_miss_ratio / max(1, n_samples)
 
     def update_graph(self):
+        """Recompute the k-NN graph via the graph provider using the current encoder."""
         if self.graph_provider is None:
             return
 
@@ -164,9 +238,10 @@ class Trainer:
         self.graph_provider.update(encoder=self.model.coord_encoder, coords=self.full_coords, values=self.full_values,
                                    mask=self.full_mask, mean_values=self.global_means,
                                    anisotropic_weights=self.model.anisotropic_weights)
-        logging.info("Updated graph in %.0f minutes." % ((time() - st) / 60 ))
+        logging.info("Updated graph in %.0f minutes." % ((time() - st) / 60))
 
     def log_metrics(self, prefix, d):
+        """Recursively write all scalar entries in ``d`` to TensorBoard under ``prefix``."""
         # Recursively log all scalar metrics
         for k, v in d.items():
             if isinstance(v, dict):
@@ -178,7 +253,7 @@ class Trainer:
         """ Save model state if current validation loss is the best so far. """
         if val_loss < self.best_val_loss:
             self.best_val_loss = val_loss
-            self.best_model_state = { k: v.cpu() for k, v in self.model.state_dict().items()}
+            self.best_model_state = {k: v.cpu() for k, v in self.model.state_dict().items()}
 
     def load_best_model(self):
         """ Restore the best model state. """
@@ -187,6 +262,26 @@ class Trainer:
 
     @torch.no_grad()
     def reconstruct_full_dataset(self, loader: DataLoader, do_dropout: bool = False, show_progress: bool = True):
+        """
+        Run full reconstruction over ``loader`` without artificial masking.
+
+        Parameters
+        ----------
+        loader : DataLoader
+            Typically the full-dataset loader (all splits).
+        do_dropout : bool, default=False
+            When True, keeps dropout active for MC-Dropout uncertainty estimation.
+        show_progress : bool, default=True
+
+        Returns
+        -------
+        preds : Tensor (n, F)
+            Predicted means for every point.
+        pred_vars : Tensor (n, F) or None
+            Predicted log-variances, or None for models without a variance head.
+        avg_miss_ratio : float
+            Mean fraction of missing values across the dataset.
+        """
         self.model.eval()
         all_preds = []
         all_vars = []
@@ -204,7 +299,8 @@ class Trainer:
             batch = self.adapter.prepare_batch(batch, self.device)
 
             # In reconstruction, everything becomes input (truly missing features are predicted, no artificial masking)
-            masks, _ = self.adapter.make_masks(batch, mask_ratio=0.0, mode="reconstruct", device=self.device, cfg=self.cfg)
+            masks, _ = self.adapter.make_masks(batch, mask_ratio=0.0, mode="reconstruct", device=self.device,
+                                               cfg=self.cfg)
 
             # Predict all nan-values (true in feature mask means observed)
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
@@ -238,15 +334,37 @@ class Trainer:
 
         return torch.cat(all_preds), torch.cat(all_vars) if all_vars else None, avg_miss_ratio
 
-
     def fit(self,
-            train_loader:DataLoader,
+            train_loader: DataLoader,
             val_loader: DataLoader,
             max_epochs,
             early_stopping=None,
             mask_ratio: Union[float, Callable[[int], float]] = 0.5,
             optuna_callback=None,
             full_metrics: bool = False):
+        """
+        Train the model for up to ``max_epochs`` epochs with optional early stopping.
+
+        Parameters
+        ----------
+        train_loader : DataLoader
+        val_loader : DataLoader
+        max_epochs : int
+        early_stopping : callable or None
+            Called with the current validation loss; returns True to stop training.
+        mask_ratio : float or callable, default=0.5
+            Fixed masking fraction or a schedule ``mask_ratio(epoch) -> float``.
+        optuna_callback : callable or None
+            Optuna pruning callback; called with ``(epoch, val_losses)``.
+        full_metrics : bool, default=False
+            When True, compute full validation metrics (RMSE, MAE, etc.) each epoch.
+
+        Returns
+        -------
+        history : dict
+            Keys: ``'train'``, ``'val'``, ``'metrics'``, ``'train_miss_ratio'``,
+            ``'val_miss_ratio'``, each mapping epoch index → value.
+        """
         history = {"train": {}, "val": {}, "metrics": {}, "train_miss_ratio": {}, "val_miss_ratio": {}}
 
         # Iterate over epochs
@@ -275,7 +393,7 @@ class Trainer:
                         logging.info(f"Graph frozen at epoch {self.cfg.graph_freeze_epoch}")
 
                     # Update the graph
-                    if(not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
+                    if (not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
                         self.update_graph()
 
             # Train and compute losses
