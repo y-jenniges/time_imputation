@@ -1,4 +1,4 @@
-"""Single-split test script for MaSTNeT — used for ablation studies, quick iteration and debugging."""
+﻿"""Single-split test script for MaSTNeT â€” used for ablation studies, quick iteration and debugging."""
 
 from pathlib import Path
 import torch
@@ -12,10 +12,11 @@ from permetrics import RegressionMetric
 import config
 from utils.data import load_dataset
 from prepare_and_split.generate_splits import generate_test_set
-from tuning_studies.pytorch_study import train_pytorch_single_split
+from experiments.pytorch_study import train_pytorch_single_split
 from utils.plotting import generate_animation
-from utils.tuning import get_model_class, set_seed
-from tuning_studies.modelconfig import ablation_study
+from utils.tuning import set_seed
+from models.registry import get_model_class
+from experiments.modelconfig import ablation_study
 
 
 def load_unstructured_data():
@@ -68,7 +69,7 @@ if __name__ == "__main__":
         # split = json.load(open(f"{config.output_dir_splits}/test_train_split.json"))  # Test-train
         # test_idx = np.array(split["test_idx"], dtype=int)
 
-        # Load train-val split (15° blocks)
+        # Load train-val split (15Â° blocks)
         split = json.load(open(f"{config.output_dir_splits}/selected_splits/fold_block_15.json"))
         test_idx = np.array(split["val_idx"], dtype=int)
         train_idx = np.array(split["train_idx"], dtype=int)

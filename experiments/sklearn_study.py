@@ -21,7 +21,8 @@ import config
 from utils.data import load_dataset
 from nn_utils.loaders import prepare_sklearn_data
 from nn_utils.trainer import compute_metrics
-from utils.tuning import set_seed, TuningResult, get_model_class
+from utils.tuning import set_seed, TuningResult
+from models.registry import get_model_class
 
 
 def suggest_hyperparameters(trial, model_name):
