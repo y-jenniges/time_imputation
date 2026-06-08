@@ -1,4 +1,5 @@
-import logging
+"""Plotting utilities for ocean data: maps, time series, reconstruction panels, and WOA/CMIP comparisons."""
+
 import gsw
 import glasbey
 import pandas as pd
@@ -12,8 +13,11 @@ from cartopy.io import shapereader
 import matplotlib.animation as animation
 import seaborn as sns
 from scipy.interpolate import griddata
+import xarray as xr
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+
 import plotly.graph_objects as go
 import plotly.io as pio
 pio.renderers.default = "browser"
@@ -22,33 +26,6 @@ import config
 from utils.gridding import df_to_gridded_da
 
 
-# def init_logger(logger_name, log_file, level=logging.INFO):
-#     """ Set up a logger with output to commandline and a file. """
-#     formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
-#
-#     # File handler
-#     fh = logging.FileHandler(log_file)
-#     fh.setFormatter(formatter)
-#
-#     # Command line handler
-#     ch = logging.StreamHandler()
-#     ch.setFormatter(formatter)
-#
-#     # Set logging level
-#     logger = logging.getLogger(logger_name)
-#     logger.setLevel(level)
-#
-#     # Avoid duplicate handlers if reinitializing
-#     if not logger.handlers:
-#         logger.addHandler(fh)
-#         logger.addHandler(ch)
-#
-#     # Prevent duplicate output if there is a root logger
-#     logger.propagate = False
-#
-#     return logger
-#
-#
 # def geo_to_cartesian(lat, lon, depth, R=6371000.0):
 #     """
 #     Convert geographic coordinates to 3D Cartesian.
@@ -87,7 +64,7 @@ def plot_time_series_for_location(df, y, y_imputed, var_pred, observed_mask, var
     # find candidate location index set
     if auto_pick:
         # group by location and count non-NaN months
-        grp = df.groupby(['LATITUDE','LONGITUDE','LEV_M']).size().reset_index(name='count')
+        grp = df.groupby(['LATITUDE', 'LONGITUDE', 'LEV_M']).size().reset_index(name='count')
         best = grp.sort_values('count', ascending=False).iloc[0]
         lat0, lon0, lev0 = best['LATITUDE'], best['LONGITUDE'], best['LEV_M']
     else:
@@ -111,7 +88,7 @@ def plot_time_series_for_location(df, y, y_imputed, var_pred, observed_mask, var
     std = np.sqrt(var_pred[idxs, var_idx])
     obs_mask_loc = observed_mask[idxs, var_idx].astype(bool)
 
-    plt.figure(figsize=(8,4))
+    plt.figure(figsize=(8, 4))
     # plot imputed mean line
     plt.plot(months, imp, label='Imputed mean', color='C0', marker='o')
 
@@ -129,7 +106,7 @@ def plot_time_series_for_location(df, y, y_imputed, var_pred, observed_mask, var
     plt.xlabel('Month')
     plt.ylabel(var_names[var_idx])
     plt.title(f"Location time series at lat={lat0}, lon={lon0}, lev={lev0} — var={var_names[var_idx]}")
-    plt.xticks(np.arange(1,13))
+    plt.xticks(np.arange(1, 13))
     plt.grid(alpha=0.3)
     plt.legend()
     plt.tight_layout()
@@ -142,7 +119,7 @@ def plot_regional_monthly_mean(df, y_imputed, var_pred, var_names, var_idx=0):
     Plots monthly mean of imputed values and mean predicted std.
     """
     months = df['DATEANDTIME'].astype(int).values
-    month_order = np.arange(1,13)
+    month_order = np.arange(1, 13)
 
     mean_imps = []
     mean_stds = []
@@ -158,7 +135,7 @@ def plot_regional_monthly_mean(df, y_imputed, var_pred, var_names, var_idx=0):
     mean_imps = np.array(mean_imps)
     mean_stds = np.array(mean_stds)
 
-    plt.figure(figsize=(8,4))
+    plt.figure(figsize=(8, 4))
     plt.plot(month_order, mean_imps, marker='o', label='Regional mean (imputed)')
     plt.fill_between(month_order, mean_imps - mean_stds, mean_imps + mean_stds, alpha=0.25, label='Mean ± mean std')
     plt.xlabel('Month')
@@ -298,7 +275,8 @@ def plot_loss(loss_dict, close_plot=False, save_as=None):
         plt.show()
 
 
-def plot_reconstruction_error(pred_all, values, test_mask, total_unc, parameter_list, cbar_label="Aleatoric uncertainty"):
+def plot_reconstruction_error(pred_all, values, test_mask, total_unc, parameter_list,
+                              cbar_label="Aleatoric uncertainty"):
     """
     3x2 grid of true vs reconstructed values with Pearson correlation and uncertainty as color.
     Colorbar placed outside the plots on the right.
@@ -416,19 +394,163 @@ def plot_simple_reconstruction_error(y_true, y_pred, save_as=None, close=False):
         plt.show()
 
 
+def plot_geo_panels(
+        get_data,
+        row_items,
+        col_items,
+        plot_config=None,
+        shared_colorbar=True,
+        colorbar_label=None,
+        figsize=None,
+        output_path=None,
+        filename=None,
+        dpi=300,
+):
+    """
+    Generic geographic panel grid.
+
+    Parameters
+    ----------
+    get_data : callable(row_key, col_key) -> xr.DataArray
+        Must return a 2D DataArray with 'lat' and 'lon' dimensions.
+        Return None to leave a cell blank.
+    row_items : list of (key, label)
+        One entry per row; key is forwarded to get_data, label shown on left.
+    col_items : list of (key, label)
+        One entry per column; key is forwarded to get_data, label shown as title.
+    plot_config : dict, optional
+        Keys: 'cmap', 'norm', 'vmin', 'vmax'.
+        vmin/vmax=None --> auto-derived from all panel data.
+    shared_colorbar : bool
+    colorbar_label : str, optional
+    figsize : tuple, optional  (defaults to (ncols*3.2, nrows*2))
+    output_path : str, optional
+    filename : str, optional
+    dpi : int
+    """
+
+    def _normalise(items):
+        """Accept dict, list-of-2-tuples, or plain list."""
+        if isinstance(items, dict):
+            return list(items.items())
+        items = list(items)
+        if items and not isinstance(items[0], (tuple, list)):
+            return [(v, str(v)) for v in items]
+        return items
+
+    row_items = _normalise(row_items)
+    col_items = _normalise(col_items)
+
+    nrows, ncols = len(row_items), len(col_items)
+    cfg = plot_config or {}
+    cmap_use = cfg.get("cmap", "inferno")
+    norm_use = cfg.get("norm", None)
+    vmin_cfg = cfg.get("vmin", None)
+    vmax_cfg = cfg.get("vmax", None)
+
+    if figsize is None:
+        figsize = (ncols * 3.2, nrows * 2)
+
+    fig, axs = plt.subplots(
+        nrows=nrows, ncols=ncols, figsize=figsize,
+        subplot_kw={"projection": ccrs.PlateCarree()},
+    )
+
+    # Normalise axs to a 2-D array regardless of shape
+    axs = np.atleast_2d(axs) if nrows == 1 else np.array(axs)
+    if ncols == 1:
+        axs = axs.reshape(nrows, 1)
+
+    # Pre-fetch all data so we can derive a shared colour range
+    data_grid = {}
+    for ri, (rk, _) in enumerate(row_items):
+        for ci, (ck, _) in enumerate(col_items):
+            try:
+                data_grid[(ri, ci)] = get_data(rk, ck)
+            except Exception:
+                data_grid[(ri, ci)] = None
+
+    valid = [da for da in data_grid.values() if da is not None]
+    vmin_use = vmin_cfg if vmin_cfg is not None else (float(min(float(da.min()) for da in valid)) if valid else 0)
+    vmax_use = vmax_cfg if vmax_cfg is not None else (float(max(float(da.max()) for da in valid)) if valid else 1)
+
+    pcm_list = []
+
+    for ri, (_, row_label) in enumerate(row_items):
+        for ci, (_, col_label) in enumerate(col_items):
+            ax = axs[ri, ci]
+            da2d = data_grid[(ri, ci)]
+
+            if da2d is None:
+                ax.set_visible(False)
+                continue
+
+            ax.set_extent(
+                [float(da2d.lon.min()), float(da2d.lon.max()),
+                 float(da2d.lat.min()), float(da2d.lat.max())],
+                crs=ccrs.PlateCarree(),
+            )
+            ax.set_aspect("auto")
+            ax.add_feature(cfeature.LAND, facecolor="lightgrey", zorder=0)
+            ax.coastlines(linewidth=0.5)
+            ax.add_feature(cfeature.BORDERS, linewidth=0.3)
+
+            if norm_use is not None:
+                pcm = ax.pcolormesh(da2d.lon, da2d.lat, da2d,
+                                    cmap=cmap_use, norm=norm_use,
+                                    transform=ccrs.PlateCarree())
+            else:
+                pcm = ax.pcolormesh(da2d.lon, da2d.lat, da2d,
+                                    cmap=cmap_use, vmin=vmin_use, vmax=vmax_use,
+                                    transform=ccrs.PlateCarree())
+            pcm_list.append(pcm)
+
+            gl = ax.gridlines(draw_labels=True, linewidth=0.3, linestyle="--", alpha=0.5)
+            gl.top_labels = False
+            gl.right_labels = False
+            gl.xformatter = LONGITUDE_FORMATTER
+            gl.yformatter = LATITUDE_FORMATTER
+            gl.xlabel_style = {"size": 8}
+            gl.ylabel_style = {"size": 8}
+            gl.left_labels = (ci == 0)
+            gl.bottom_labels = (ri == nrows - 1)
+
+            if ci == 0 and row_label:
+                ax.set_ylabel(row_label, labelpad=25)
+                ax.set_yticks([])
+                ax.yaxis.set_visible(True)
+
+            if ri == 0 and col_label:
+                ax.set_title(col_label)
+
+    if shared_colorbar and pcm_list:
+        cbar = fig.colorbar(pcm_list[0], ax=axs, orientation="vertical",
+                            shrink=0.9, aspect=30, pad=0.02)
+        if colorbar_label:
+            cbar.set_label(colorbar_label)
+
+    if output_path and filename:
+        import os
+        os.makedirs(output_path, exist_ok=True)
+        plt.savefig(f"{output_path}/{filename}", dpi=dpi, bbox_inches="tight")
+        print(f"Saved: {output_path}/{filename}")
+
+    plt.show()
+
+
 def plot_depth_panels(
-    data,
-    depth_dim="depth",
-    cmap="inferno",
-    vmin=None,
-    vmax=None,
-    norm=None,
-    ncols=4,
-    interval=400,
-    save_as=None,
-    coast_color="lightgrey",
-    dpi=150
-    ):
+        data,
+        depth_dim="depth",
+        cmap="inferno",
+        vmin=None,
+        vmax=None,
+        norm=None,
+        ncols=4,
+        interval=400,
+        save_as=None,
+        coast_color="lightgrey",
+        dpi=150
+):
     """
     Plot multiple depth-level panels for a 3D DataArray (depth × lat × lon).
     Each subplot corresponds to one depth level.
@@ -502,18 +624,17 @@ def plot_depth_panels(
         plt.savefig(save_as, dpi=dpi)
 
 
-
 def animate_depth_panels(
-    data,
-    depth_dim="depth",
-    cmap="inferno",
-    vmin=None,
-    vmax=None,
-    norm=None,
-    ncols=4,
-    interval=400,
-    save_as=None,
-    coast_color="lightgrey"):
+        data,
+        depth_dim="depth",
+        cmap="inferno",
+        vmin=None,
+        vmax=None,
+        norm=None,
+        ncols=4,
+        interval=400,
+        save_as=None,
+        coast_color="lightgrey"):
     """
     Animate multiple depth-level panels for a 4D DataArray (time × depth × lat × lon).
     Each subplot corresponds to one depth level, and all update together per frame.
@@ -624,7 +745,8 @@ def animate_depth_panels(
         plt.show()
 
 
-def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", save_as=None, cmap="inferno", norm=None):
+def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", save_as=None, cmap="inferno",
+                       norm=None):
     temp = df_imputed.copy()
 
     # Undo scaling
@@ -738,7 +860,7 @@ def plot_missingness_over_column(df, config, col="DATEANDTIME", figsize=(8, 6), 
 
 
 """
-Following function (adapted) from:
+Following functions (adapted) from:
 Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1). 
 Zenodo. https://doi.org/10.5281/zenodo.15827777
 """
@@ -768,13 +890,19 @@ def plot_correlations(df, config, save_as=None, dpi=300):
     # Compute correlations
     temp = df[config.parameters].rename(columns=config.parameter_name_map)
     corr = temp.corr().reset_index()
-    corr = pd.melt(corr, id_vars='index')  # Unpivot the dataframe, so we can get pair of arrays for x and y
+    corr = pd.melt(corr, id_vars='index')  # Unpivot the dataframe, so we can get a pair of arrays for x and y
     corr.columns = ['x', 'y', 'value']
 
     # Indexes for display
-    idxs = [0, 6, 12, 18, 24, 30,
-            10, 16, 22, 28, 34,
-            7, 13, 19, 31,
+    # idxs = [0, 6, 12, 18, 24, 30,
+    #         10, 16, 22, 28, 34,
+    #         7, 13, 19, 31,
+    #         17, 23, 35,
+    #         14, 20,
+    #         21]
+    idxs = [0, 12, 18, 30,
+            4, 10, 16, 22, 28, 34,
+            1, 7, 13, 19, 31,
             17, 23, 35,
             14, 20,
             21]
@@ -791,7 +919,7 @@ def plot_correlations(df, config, save_as=None, dpi=300):
 
         def value_to_color(val):
             val_position = float((val - color_min)) / (
-                        color_max - color_min)  # Position of value in the input range, relative to the length of the input range
+                    color_max - color_min)  # Position of value in the input range, relative to the length of the input range
             ind = int(val_position * (n_colors - 1))  # Target index in the color palette
             return palette[ind]
 
@@ -876,7 +1004,7 @@ def plot_correlations(df, config, save_as=None, dpi=300):
     plt.tight_layout()
 
     if save_as:
-     plt.savefig(save_as, dpi=dpi)
+        plt.savefig(save_as, dpi=dpi)
 
 
 def plot_ts(df, figsize=(4, 4), dpi=None, ncols=5, xlim=None, ylim=None,
@@ -952,7 +1080,8 @@ def plot_ts(df, figsize=(4, 4), dpi=None, ncols=5, xlim=None, ylim=None,
     plt.show()
 
 
-def plot_interactive_geo(df, column="label", color_label="color", color_scale="Inferno", scatter_size=3, margin=5, save_as=None):
+def plot_interactive_geo(df, column="label", color_label="color", color_scale="Inferno", scatter_size=3, margin=5,
+                         save_as=None):
     """ Interactive 3d geographic scatter plot. """
     df_display = df.copy()
 
@@ -1084,7 +1213,7 @@ def plot_each_depth_level(df, color_label="P_TEMPERATURE", cmap="inferno", vmin=
         ax.set_title(f"{d} m", fontsize=10)
 
     # Hide empty panels if fewer depths than subplots
-    for j in range(i+1, len(axs)):
+    for j in range(i + 1, len(axs)):
         axs[j].axis("off")
 
     # Shared vertical colorbar on the right
@@ -1195,4 +1324,3 @@ def plot_geo(df, color_label="color", save_as=None, figsize=(6, 6),
     if save_as:
         plt.savefig(save_as, dpi=dpi)
     # plt.show()
-
