@@ -4,6 +4,7 @@ presentations/
 fieldformer/
 remasker/
 temp_files/
+logs/
 
 # Python cache
 __pycache__/
