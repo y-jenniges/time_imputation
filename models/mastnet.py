@@ -1,10 +1,10 @@
-"""MaSTNeT model — Masked Spatiotemporal Neighbourhood Transformer for ocean data imputation."""
+﻿"""MaSTNeT model — Masked Spatiotemporal Neighbourhood Transformer for ocean data imputation."""
 
 import torch
 import torch.nn as nn
 
 from models.encoders import PositionalEncoder, CoordEncoder
-from tuning_studies.modelconfig import ModelConfig
+from experiments.modelconfig import ModelConfig
 from utils.preprocessing import fill_feature_tensor, get_scopes
 
 
