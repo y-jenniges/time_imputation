@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
+    """ Class to define model properties, including architecture choices, masking strategies and loss function. """
     dropout: float = 0.05
 
     # Graph
@@ -308,10 +309,8 @@ ablation_study = {
             n_time_layers = 1
         )},
     # "exp33": {
-    #     "description": "Raw KNN, MHA, weighted time???????????????? todo",
-    #     "config": ModelConfig(
-    #         attention_type="mha",
-    #     )},
+    #
+    # }
     "exp34": {
         "description": "Dynamic KNN, MHA, update every 10 epochs (until epoch 50)",
         "config": ModelConfig(
