@@ -1,9 +1,9 @@
 # Folders
 output/
 presentations/
-
-# Scripts
-slurm_tune.sh
+fieldformer/
+remasker/
+temp_files/
 
 # Python cache
 __pycache__/
@@ -13,3 +13,8 @@ __pycache__/
 
 # SLURM jobs
 jobs/
+
+# Output files
+*.csv
+*.pt
+*.png
