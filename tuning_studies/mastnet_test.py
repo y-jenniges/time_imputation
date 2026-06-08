@@ -1,20 +1,40 @@
+"""Single-split test script for MaSTNeT — used for ablation studies, quick iteration and debugging."""
+
 from pathlib import Path
 import torch
 import json
 import numpy as np
-import config
 import pandas as pd
 import logging
 import argparse
 from permetrics import RegressionMetric
 
 import config
-from nn_utils.dataset import load_dataset, preprocess
+from nn_utils.dataset import load_dataset
 from prepare_and_split.generate_splits import generate_test_set
 from tuning_studies.pytorch_study import train_pytorch_single_split
 from utils.plotting import generate_animation
-from utils.tuning import get_model_class, load_optuna_study, set_seed
+from utils.tuning import get_model_class, set_seed
 from tuning_studies.modelconfig import ablation_study
+
+
+def load_unstructured_data():
+    # Testing unstructured data
+
+    # Load un-gridded data
+    df = pd.read_parquet("../comfort_bench_factory/data/cache/wide_north_atlantic_station.parquet")
+    df = df.drop(columns=['depth_dbar', 'station_id', 'profile_number', 'instrument_id'])
+    df = df.rename(columns={"lat": "LATITUDE", "lon": "LONGITUDE", "depth_m": "LEV_M", "datetime": "DATEANDTIME",
+                            "temperature": "P_TEMPERATURE", "salinity": "P_SALINITY", "oxygen": "P_OXYGEN",
+                            "nitrate": "P_NITRATE", "phosphate": "P_PHOSPHATE", "silicate": "P_SILICATE"})
+    df["DATEANDTIME"] = pd.to_datetime(df["DATEANDTIME"]).dt.year
+    df = df[(df.LONGITUDE >= 0) & (df.LATITUDE <= 30)].reset_index(drop=True)
+
+    # Generate simple split
+    train_idx = df.sample(frac=config.test_fraction, random_state=42).index.to_numpy()
+    test_idx = df.drop(train_idx).index.to_numpy()
+
+    return df, test_idx, train_idx
 
 
 if __name__ == "__main__":
@@ -69,32 +89,32 @@ if __name__ == "__main__":
     # Set up logging
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s [%(levelname)s] %(message)s",
-                        handlers=[logging.StreamHandler(), logging.FileHandler(f"{output_dir}/{model_name}_{exp_id}.log")])
-
+                        handlers=[logging.StreamHandler(),
+                                  logging.FileHandler(f"{output_dir}/{model_name}_{exp_id}.log")])
 
     hyps = {"train": {
-                "n_neighbours": cfg.n_neighbours,
-                "batch_size": 128,
-                "learning_rate": 1e-4,
-                "patience": 10,
-                "n_epochs": 100,
-                "mask_ratio": cfg.mask_ratio,
-                "loss": cfg.loss_name,
-                "optimizer": torch.optim.Adam,
-                "masking": {"sphere_mask_radius": cfg.sphere_mask_radius, "sphere_mask_p": cfg.sphere_mask_p,
-                            "transect_mask_width": cfg.transect_mask_width, "transect_mask_p": cfg.transect_mask_p,
-                            "transect_mask_orientation": cfg.transect_mask_orientation,
-                            "masking_strategies": cfg.masking_strategies,
-                            },
-            },
-            "model": {
-                "d_model": 64,
-                "nhead": 4,
-                "nlayers": 3,
-                "dim_feedforward": 256,
-                "dropout": cfg.dropout,
-            }
+        "n_neighbours": cfg.n_neighbours,
+        "batch_size": 128,
+        "learning_rate": 1e-4,
+        "patience": 10,
+        "n_epochs": 100,
+        "mask_ratio": cfg.mask_ratio,
+        "loss": cfg.loss_name,
+        "optimizer": torch.optim.Adam,
+        "masking": {"sphere_mask_radius": cfg.sphere_mask_radius, "sphere_mask_p": cfg.sphere_mask_p,
+                    "transect_mask_width": cfg.transect_mask_width, "transect_mask_p": cfg.transect_mask_p,
+                    "transect_mask_orientation": cfg.transect_mask_orientation,
+                    "masking_strategies": cfg.masking_strategies,
+                    },
+    },
+        "model": {
+            "d_model": 64,
+            "nhead": 4,
+            "nlayers": 3,
+            "dim_feedforward": 256,
+            "dropout": cfg.dropout,
         }
+    }
 
     logging.info(f"device: {device}")
     logging.info(f"hyps: {hyps}")
@@ -181,67 +201,3 @@ if __name__ == "__main__":
         # # Epistemic uncertainty animations
         # generate_animation(df_epistemic, scaler_dict=None, parameter=param,
         #                    save_as=f"{output_dir}/{model_name}_test_model{model_name}_{param}_epistemic_{model_name}.mp4")
-
-
-    #
-    #
-    # # Inference on global data --------------------------------------
-    # # Load model
-    # model = model_class(**hyps["model"])
-    # model.load_state_dict(torch.load(f"output/tuning/{model_name}/pytorch.pt", map_location=device, weights_only=True))
-    # model.to(device)
-    # model.eval()
-    # # Load global train/test idxs (to compute metrics on)
-    # split_global = json.load(open(f"{config.output_dir_splits}/GLOBAL_test_train_split.json"))
-    # test_idx_global = np.array(split_global["test_idx"], dtype=int)
-    # train_idx_global = np.array(split_global["train_idx"], dtype=int)
-    # # Load global data
-    # df_global = load_dataset("output/gridding/df_20y_global.csv")
-    # coords_raw = torch.from_numpy(df_global[config.coordinates].astype(float).to_numpy())
-    # values_raw = torch.from_numpy(df_global[config.parameters].astype(float).to_numpy())
-    # # Scale global data
-    # coords_full, values_full, _ = preprocess(
-    #     coords=coords_raw,
-    #     values=values_raw,
-    #     coord_names=config.coordinates,
-    #     parameter_names=config.parameters,
-    #     cyclic_time=False,
-    #     scaler_dict=scaler_dict
-    # )
-    # x_scaled = coords_full
-    # y_scaled = values_full
-    # yglob, yglob_var = model.predict(x=x_scaled,y=y_scaled, n_neighbours=hyps["train"]["n_neighbours"],
-    #                                  batch_size=hyps["train"]["batch_size"], device=device)
-    #
-    # np.nanmean((values_full[test_idx_global, :] - yglob[test_idx_global, :]) ** 2)
-    # np.nanstd((values_full[test_idx_global, :] - yglob[test_idx_global, :]) ** 2)
-    #
-    # param = "P_TEMPERATURE"
-    # df_rec_global = pd.DataFrame(yglob, columns=config.parameters)
-    # df_rec_global[config.coordinates] = df_global[config.coordinates]
-    # generate_animation(df_rec_global, scaler_dict=scaler_dict, parameter=param,
-    #                    save_as=f"output/tuning/{model_name}/GLOBAL_model{model_name}_{param}_reconstruction_{model_name}.mp4")
-    #
-    #
-    #
-    #
-    # # Map NA indices to global ones ----------------------------------------
-    # df_global = load_dataset("output/gridding/df_20y_global.csv")
-    # split_global = json.load(open(f"{config.output_dir_splits}/GLOBAL_test_train_split.json"))
-    # test_idx_global = np.array(split_global["test_idx"], dtype=int)
-    # train_idx_global = np.array(split_global["train_idx"], dtype=int)
-    #
-    # df_na = load_dataset()
-    # split_na = json.load(open(f"{config.output_dir_splits}/test_train_split.json"))
-    # test_idx_na = np.array(split_na["test_idx"], dtype=int)
-    # train_idx_na = np.array(split_na["train_idx"], dtype=int)
-    #
-    # # Evaluate global prediction on NA test data
-    # df_na_test_coords = df_na.iloc[test_idx_na][config.coordinates].reset_index(drop=True)
-    # matching_indexes = df_global.index[df_global[config.coordinates].apply(tuple, axis=1).isin(df_na_test_coords[config.coordinates].apply(tuple, axis=1))].tolist()
-    # print(np.nanmean((values_full[matching_indexes, :] - yglob[matching_indexes, :]) ** 2))
-    # print(np.nanstd((values_full[matching_indexes, :] - yglob[matching_indexes, :]) ** 2))
-    #
-    # print(np.nanmean((y_true[matching_indexes, :] - y_pred[matching_indexes, :]) ** 2))
-    # print(np.nanstd((y_true[matching_indexes, :] - y_pred[matching_indexes, :]) ** 2))
-
