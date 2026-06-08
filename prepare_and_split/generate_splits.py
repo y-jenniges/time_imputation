@@ -1,7 +1,10 @@
+"""Generate stratified train/val/test splits for the COMFORT ocean dataset."""
+
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
+
 matplotlib.use('Qt5Agg')
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
@@ -20,8 +23,8 @@ def assign_blocks(df, latlon_step, depth_edges):
     temp = df.copy()
 
     # Assign blocks to samples
-    temp["LAT_BIN"] = np.floor((temp["LATITUDE"] + 90)/ latlon_step).astype(int)
-    temp["LON_BIN"] = np.floor((temp["LONGITUDE"] + 180)/ latlon_step).astype(int)
+    temp["LAT_BIN"] = np.floor((temp["LATITUDE"] + 90) / latlon_step).astype(int)
+    temp["LON_BIN"] = np.floor((temp["LONGITUDE"] + 180) / latlon_step).astype(int)
     temp["DEPTH_BIN"] = pd.cut(temp["LEV_M"], bins=depth_edges, labels=range(len(depth_edges) - 1), right=False)
     temp["TIME_BIN"] = temp["DATEANDTIME"]
 
@@ -32,7 +35,8 @@ def assign_blocks(df, latlon_step, depth_edges):
     return temp["BLOCK_ID"]
 
 
-def generate_block_folds(df, parameters, latlon_steps, depths_steps, val_fractions, n_splits, train_idx, seed, out_dir, tolerance=0.05, max_iter=100):
+def generate_block_folds(df, parameters, latlon_steps, depths_steps, val_fractions, n_splits, train_idx, seed, out_dir,
+                         tolerance=0.05, max_iter=100):
     scheme = "block"
 
     # Use only training subset
@@ -56,7 +60,7 @@ def generate_block_folds(df, parameters, latlon_steps, depths_steps, val_fractio
 
             for split_no in range(n_splits):
                 # Set seed
-                rng = np.random.default_rng(seed + 1000 * ll_step + 100 * split_no + 10 * int(val_size*100))
+                rng = np.random.default_rng(seed + 1000 * ll_step + 100 * split_no + 10 * int(val_size * 100))
 
                 found = False
                 for i in range(max_iter):
@@ -96,7 +100,8 @@ def generate_block_folds(df, parameters, latlon_steps, depths_steps, val_fractio
 
                         # Store folds by lat/lon step
                         fold_records.append(
-                            {"scheme": scheme, "fold_id": fold_id, "split_no": split_no, "val_size": val_size, "n_splits": n_splits,
+                            {"scheme": scheme, "fold_id": fold_id, "split_no": split_no, "val_size": val_size,
+                             "n_splits": n_splits,
                              "latlon_step": ll_step, "filepath": fname})
 
                         fold_id += 1
@@ -105,7 +110,8 @@ def generate_block_folds(df, parameters, latlon_steps, depths_steps, val_fractio
 
                 # Raise error, if no valid split was found after max_iter
                 if not found:
-                    raise RuntimeError(f"Could not generate fold {fold_id} for val_frac={val_size} at ll_step={ll_step}")
+                    raise RuntimeError(
+                        f"Could not generate fold {fold_id} for val_frac={val_size} at ll_step={ll_step}")
 
     return pd.DataFrame(fold_records)
 
@@ -138,16 +144,19 @@ def generate_random_folds(df, train_idx, n_splits, val_fractions, seed, out_dir)
             with open(fname, "w") as f:
                 json.dump(fold, f, indent=2)
 
-            random_splits.append({"scheme": scheme, "fold_id": fold_id, "split_no": split_no, "n_splits": n_splits, "val_size": val_size, "filepath": fname})
+            random_splits.append(
+                {"scheme": scheme, "fold_id": fold_id, "split_no": split_no, "n_splits": n_splits, "val_size": val_size,
+                 "filepath": fname})
 
             fold_id += 1
 
     return pd.DataFrame(random_splits)
 
 
-def generate_test_set(df, latlon_step, depths_steps, test_fraction, parameters, tolerance=0.05, max_iter=100, seed=42, save_as=None):
-    """ Generate a test-train split so that the test set contains at least test_fraction rows and the
-    parameter coverages resemble those of the original data set with a tolerance. """
+def generate_test_set(df, latlon_step, depths_steps, test_fraction, parameters, tolerance=0.05,
+                      max_iter=100, seed=42, save_as=None):
+    """Generate a test-train split so that the test set contains at least test_fraction rows and the
+    parameter coverages resemble those of the original data set with a tolerance."""
     df_tmp = df.copy()
 
     # Set seed
@@ -214,7 +223,16 @@ if __name__ == "__main__":
     seed = 42
 
     # Generate test set
-    test_idx, train_idx, df["BLOCK_ID"], test_coverages, global_coverages = generate_test_set(df, latlon_step=latlons[1], depths=depths, test_fraction=config.test_fraction, parameters=config.parameters, tolerance=0.05, max_iter=100, seed=seed, save_as=Path(config.output_dir_splits) / "test_train_split.json")
+    test_idx, train_idx, df["BLOCK_ID"], test_coverages, global_coverages = (
+        generate_test_set(df,
+                          latlon_step=latlons[1],
+                          depths_steps=depths,
+                          test_fraction=config.test_fraction,
+                          parameters=config.parameters,
+                          tolerance=0.05,
+                          max_iter=100, seed=seed,
+                          save_as=Path(
+                              config.output_dir_splits) / "test_train_split.json"))
     df_train = df.iloc[train_idx].copy().drop(columns=["BLOCK_ID"], axis=1)
 
     # Visualize test set
@@ -227,16 +245,16 @@ if __name__ == "__main__":
                                       seed=seed,
                                       out_dir=config.output_dir_splits)
     df_block = generate_block_folds(df=df_train,
-                                      parameters=config.parameters,
-                                      latlon_steps=latlons,
-                                      depths_steps=depths,
-                                      val_fractions=config.val_fractions,
-                                      n_splits=config.n_splits_per_scheme,
-                                      train_idx=train_idx,
-                                      seed=seed,
-                                      out_dir=config.output_dir_splits,
-                                      tolerance=0.05,
-                                      max_iter=100)
+                                    parameters=config.parameters,
+                                    latlon_steps=latlons,
+                                    depths_steps=depths,
+                                    val_fractions=config.val_fractions,
+                                    n_splits=config.n_splits_per_scheme,
+                                    train_idx=train_idx,
+                                    seed=seed,
+                                    out_dir=config.output_dir_splits,
+                                    tolerance=0.05,
+                                    max_iter=100)
 
     # Save metadata
     pd.concat([df_random, df_block]).to_csv(os.path.join(config.output_dir_splits, "split_metadata.csv"), index=False)
@@ -280,8 +298,8 @@ if __name__ == "__main__":
         # Assign test/train/validation categories to dataframe
         temp["SPLIT"] = "unassigned"
         temp.loc[train_idx, "SPLIT"] = "train"
-        temp.loc[val_idx, "SPLIT"]   = "validation"
-        temp.loc[test_idx, "SPLIT"]  = "test"
+        temp.loc[val_idx, "SPLIT"] = "validation"
+        temp.loc[test_idx, "SPLIT"] = "test"
         temp.loc[temp.P_TEMPERATURE.isna(), "SPLIT"] = "unobserved"
         print(temp["SPLIT"].value_counts())
 
