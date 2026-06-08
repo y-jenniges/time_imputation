@@ -1,9 +1,10 @@
 """
-Classes and functions to grid parameter values.
+Grid management and parameter mapping for COMFORT ocean data.
 
-Following code (adapted) from:
-Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1).
-Zenodo. https://doi.org/10.5281/zenodo.15827777
+Adapted from:
+    Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation:
+    Biogeochemical Ocean Regions - Code Base (v1.0.1).
+    Zenodo. https://doi.org/10.5281/zenodo.15827777
 """
 import logging
 import os
@@ -22,7 +23,15 @@ from utils.database import get_table_as_df, does_table_exist, remove_tables_like
 
 
 class GridManager:
-    """ Class to manage grids in the database. """
+    """
+    Manage spatio-temporal grids stored in the database.
+
+    Parameters
+    ----------
+    connection : sqlite3.Connection
+    grid_info_table : str, default='grid_info'
+    """
+
     def __init__(self, connection, grid_info_table="grid_info"):
         self.connection = connection
         self.grid_info_table = grid_info_table
@@ -102,12 +111,18 @@ class GridManager:
         """
         Load existing spatio-temporal grid.
 
-        Args:
-            grid_id (int): ID of the grid to load.
-            bathymetry_grid_path (str): Path to bathymetry information.
-            lat_variable (str): Name of latitude variable in bathymetry data.
-            lon_variable (str): Name of longitude variable in bathymetry data.
-            depth_variable (str): Name of depth variable in bathymetry data.
+        Parameters
+        ----------
+        grid_id : int
+            ID of the grid to load.
+        bathymetry_grid_path : str
+            Path to bathymetry information.
+        lat_variable : str
+            Name of latitude variable in bathymetry data.
+        lon_variable : str
+            Name of longitude variable in bathymetry data.
+        depth_variable : str
+            Name of depth variable in bathymetry data.
         """
         # Check if grid exists
         grid_exists = self.does_grid_exist(grid_id)
@@ -158,29 +173,49 @@ class GridManager:
         """
         Create a new grid (or load it if it already exists).
 
-        Args:
-            lat_min (float): Minimum latitude.
-            lat_max (float): Maximum latitude.
-            dlat (float): Latitude step size.
-            lon_min (float): Minimum longitude.
-            lon_max(float): Maximum longitude.
-            dlon (float): Longitude step size.
-            z_min (float): Minimum depth.
-            z_max (float): Maximum depth.
-            dz (float): Depth step size.
-            z_array (numpy.array<float>): Array specifying depth levels (if depth steps are irregular, use this instead
+        Parameters
+        ----------
+        lat_min : float
+            Minimum latitude.
+        lat_max : float
+            Maximum latitude.
+        dlat : float
+            Latitude step size.
+        lon_min : float
+            Minimum longitude.
+        lon_max : float
+            Maximum longitude.
+        dlon : float
+            Longitude step size.
+        z_min : float, optional
+            Minimum depth.
+        z_max : float, optional
+            Maximum depth.
+        dz : float, optional
+            Depth step size.
+        z_array : ndarray of float, optional
+            Array specifying depth levels (if depth steps are irregular, use this instead
             of z_min, z_max and dz).
-            time_min (str): Minimum time.
-            time_max (str): Maximum time.
-            mode (str): Time mode/general time frame of interest (either "Y" (year), "YM" (year-month), "YD" (year-day),
+        time_min : str, optional
+            Minimum time.
+        time_max : str, optional
+            Maximum time.
+        mode : str, optional
+            Time mode/general time frame of interest (either "Y" (year), "YM" (year-month), "YD" (year-day),
             "M" (month), "MD" (month-day) or "D" (day)).
-            dtime (str): Time step size (in units specified by mode).
-            selection (numpy.ndarray<boolean>): Boolean array as mask for the time array to (de)select specific times
+        dtime : str, optional
+            Time step size (in units specified by mode).
+        selection : ndarray of bool, optional
+            Boolean array as mask for the time array to (de)select specific times
             from the time grid.
-            bathymetry_grid_path (str): Path to bathymetry data.
-            lat_variable (str): Name of latitude variable in bathymetry data.
-            lon_variable (str): Name of longitude variable in bathymetry data.
-            depth_variable (str): Name of depth variable in bathymetry data.
+        bathymetry_grid_path : str, optional
+            Path to bathymetry data.
+        lat_variable : str, default='lat'
+            Name of latitude variable in bathymetry data.
+        lon_variable : str, default='lon'
+            Name of longitude variable in bathymetry data.
+        depth_variable : str, default='elevation'
+            Name of depth variable in bathymetry data.
         """
         # Determine grid_id
         grid_id = self.get_grid_id_from_params(lat_min, lat_max, dlat, lon_min, lon_max, dlon,
@@ -210,24 +245,40 @@ class GridManager:
         """
         Infer grid_id from given grid parameters.
 
-        Args:
-            lat_min (float): Minimum latitude.
-            lat_max (float): Maximum latitude.
-            dlat (float): Latitude step size.
-            lon_min (float): Minimum longitude.
-            lon_max(float): Maximum longitude.
-            dlon (float): Longitude step size.
-            z_min (float): Minimum depth.
-            z_max (float): Maximum depth.
-            dz (float): Depth step size.
-            z_array (numpy.array<float>): Array specifying depth levels (if depth steps are irregular, use this instead
+        Parameters
+        ----------
+        lat_min : float
+            Minimum latitude.
+        lat_max : float
+            Maximum latitude.
+        dlat : float
+            Latitude step size.
+        lon_min : float
+            Minimum longitude.
+        lon_max : float
+            Maximum longitude.
+        dlon : float
+            Longitude step size.
+        z_min : float, optional
+            Minimum depth.
+        z_max : float, optional
+            Maximum depth.
+        dz : float, optional
+            Depth step size.
+        z_array : ndarray of float, optional
+            Array specifying depth levels (if depth steps are irregular, use this instead
             of z_min, z_max and dz).
-            time_min (str): Minimum time.
-            time_max (str): Maximum time.
-            mode (str): Time mode/general time frame of interest (either "Y" (year), "YM" (year-month), "YD" (year-day),
+        time_min : str, optional
+            Minimum time.
+        time_max : str, optional
+            Maximum time.
+        mode : str, optional
+            Time mode/general time frame of interest (either "Y" (year), "YM" (year-month), "YD" (year-day),
             "M" (month), "MD" (month-day) or "D" (day)).
-            dtime (str): Time step size (in units specified by mode).
-            selection (numpy.ndarray<boolean>): Boolean array as mask for the time array to (de)select specific times
+        dtime : str, optional
+            Time step size (in units specified by mode).
+        selection : ndarray of bool, optional
+            Boolean array as mask for the time array to (de)select specific times
             from the time grid."""
 
         # Determine whether z_array or z_min/z_max/dz was used
@@ -262,6 +313,56 @@ class GridManager:
 
 
 class Grid:
+    """
+    Create spatio-temporal grids. Latitude/longitude are cell-centered, time/depth are node-centered.
+
+    Parameters
+    ----------
+    lat_min : float, optional
+        Minimum latitude.
+    lat_max : float, optional
+        Maximum latitude.
+    dlat : float, optional
+        Latitude step size.
+    lon_min : float, optional
+        Minimum longitude.
+    lon_max : float, optional
+        Maximum longitude.
+    dlon : float, optional
+        Longitude step size.
+    z_min : float, optional
+        Minimum depth.
+    z_max : float, optional
+        Maximum depth.
+    dz : float, optional
+        Depth step size.
+    z_array : ndarray of float, optional
+        Array specifying depth levels (if depth steps are irregular, use this instead
+        of z_min, z_max and dz).
+    time_min : str, optional
+        Minimum time.
+    time_max : str, optional
+        Maximum time.
+    mode : str, optional
+        Time mode/general time frame of interest (either "Y" (year), "YM" (year-month), "YD" (year-day),
+        "M" (month), "MD" (month-day) or "D" (day)).
+    dtime : str, optional
+        Time step size (in units specified by mode).
+    selection : ndarray of bool, optional
+        Boolean array as mask for the time array to (de)select specific times
+        from the time grid.
+    bathymetry_grid_path : str
+        Path to bathymetry data.
+    lat_variable : str, default='lat'
+        Name of latitude variable in bathymetry data.
+    lon_variable : str, default='lon'
+        Name of longitude variable in bathymetry data.
+    depth_variable : str, default='elevation'
+        Name of depth variable in bathymetry data.
+    grid_id : int, optional
+        ID for the grid to create. If None, a new ID will be created.
+    """
+
     def __init__(self,
                  lat_min=None, lat_max=None, dlat=None,
                  lon_min=None, lon_max=None, dlon=None,
@@ -270,34 +371,6 @@ class Grid:
                  bathymetry_grid_path="../../data/bathymetry/gebco_2022_sub_ice_topo/gebco_2022_sub_ice_topo.nc",
                  lat_variable="lat", lon_variable="lon", depth_variable="elevation",
                  grid_id=None):
-        """
-        Class to create spatio-temporal grids. Latitude/longitude are cell-centered, time/depth are node-centered.
-
-        Args:
-            lat_min (float): Minimum latitude.
-            lat_max (float): Maximum latitude.
-            dlat (float): Latitude step size.
-            lon_min (float): Minimum longitude.
-            lon_max(float): Maximum longitude.
-            dlon (float): Longitude step size.
-            z_min (float): Minimum depth.
-            z_max (float): Maximum depth.
-            dz (float): Depth step size.
-            z_array (numpy.array<float>): Array specifying depth levels (if depth steps are irregular, use this instead
-            of z_min, z_max and dz).
-            time_min (str): Minimum time.
-            time_max (str): Maximum time.
-            mode (str): Time mode/general time frame of interest (either "Y" (year), "YM" (year-month), "YD" (year-day),
-            "M" (month), "MD" (month-day) or "D" (day)).
-            dtime (str): Time step size (in units specified by mode).
-            selection (numpy.ndarray<boolean>): Boolean array as mask for the time array to (de)select specific times
-            from the time grid.
-            bathymetry_grid_path (str): Path to bathymetry data.
-            lat_variable (str): Name of latitude variable in bathymetry data.
-            lon_variable (str): Name of longitude variable in bathymetry data.
-            depth_variable (str): Name of depth variable in bathymetry data.
-            grid_id (int): ID for the grid to create. If None, a new ID will be created.
-        """
 
         # Use given grid_id or generate one if none was given
         if grid_id:
@@ -369,7 +442,7 @@ class Grid:
         assert (self.dtime >= 1)
 
         if self.selection is not None:
-            assert(isinstance(self.selection, np.ndarray) or isinstance(self.selection, list))
+            assert (isinstance(self.selection, np.ndarray) or isinstance(self.selection, list))
 
         # Check for all possible time modes
         single_modes = ["Y", "M", "D"]  # not yet implemented: , "H", "m", "S"]
@@ -386,7 +459,7 @@ class Grid:
         assert (os.path.isfile(self.bathymetry_grid_path))
 
     def generate_grid_id(self):
-        """ Generate a grid_id from current timestamp-  """
+        """ Generate a grid_id from current timestamp. """
         grid_id = round(time.time())  # Use current timestamp in seconds
         return grid_id
 
@@ -427,10 +500,14 @@ class Grid:
         Bases on: https://github.com/willirath/geomar-open-hacky-hour-2021-04/blob/main/2022-06-23/etopo05_to_grid.ipynb
         Bathymetry data must be an nc file that includes latitude, longitude and depth information.
 
-        Args:
-            lat_variable (str): Name of latitude variable in bathymetry data.
-            lon_variable (str): Name of longitude variable in bathymetry data.
-            depth_variable (str): Name of depth variable in bathymetry data.
+        Parameters
+        ----------
+        lat_variable : str
+            Name of latitude variable in bathymetry data.
+        lon_variable : str
+            Name of longitude variable in bathymetry data.
+        depth_variable : str
+            Name of depth variable in bathymetry data.
         """
 
         grid_dataset = xr.open_dataset(self.bathymetry_grid_path)
@@ -491,14 +568,23 @@ class Grid:
     def map_tables(self, conn, param_tables=None, using_database=True, include_z_max=True):
         """
         Mapping given parameter tables to grid.
-        Args:
-            conn (sqlite3.connection): Connection to database.
-            param_tables (list<str>): Parameter table names to map to the grid.
-            using_database (boolean): Whether to store mapped tables in the database or return them in-memory.
-            include_z_max (boolean): Whether to include depth values at the end of the interval.
-        Returns:
-            mapped_tables (list<str> or list<pandas.DataFrame): Names of mapped parameter tables in database (if
-            using_database) or list of mapped tables (if using_database=False).
+
+        Parameters
+        ----------
+        conn : sqlite3.Connection
+            Connection to database.
+        param_tables : list[str], optional
+            Parameter table names to map to the grid.
+        using_database : bool, default=True
+            Whether to store mapped tables in the database or return them in-memory.
+        include_z_max : bool, default=True
+            Whether to include depth values at the end of the interval.
+
+        Returns
+        -------
+        list[str] or list[DataFrame]
+            Names of mapped parameter tables in database (if using_database) or list of mapped tables
+            (if using_database=False).
         """
         logging.info("Mapping tables to grid...")
         conn.create_aggregate('median', 1, sqlite_util.Median)
@@ -644,10 +730,15 @@ def __drop_land_cells(df_wide):
     """
     Dropping land cells from a given table if that land cell does not contain any measurement value.
 
-    Args:
-        df_wide (pandas.DataFrame): Table where to remove land cells.
-    Returns:
-        df_wide (pandas.DataFrame): Table where land cells are removed.
+    Parameters
+    ----------
+    df_wide : DataFrame
+        Table where to remove land cells.
+
+    Returns
+    -------
+    DataFrame
+        Table where land cells are removed.
     """
     # Get parameter columns
     param_tables = [x for x in df_wide.columns if x.startswith("P_")]
@@ -670,49 +761,27 @@ def __drop_land_cells(df_wide):
     return df_wide
 
 
-# def create_wide_table_offline(mapped_tables, dropping_land_cells=True):
-#     # get parameter columns
-#     param_tables = []
-#     for df in mapped_tables:
-#         param_tables.append([x for x in df.columns if x.startswith("P_")][0])
-#
-#     # get dataframes
-#     param_idx = []
-#     for idx, mt in enumerate(mapped_tables):
-#         for col in mt.columns:
-#             if col in param_tables:
-#                 # print(idx, mt.columns)
-#                 param_idx.append([col, idx])
-#
-#     idxs = [pai[1] for pai in param_idx]
-#     params = [pai[0] for pai in param_idx]
-#
-#     # merge params and grid into one wide table
-#     df_wide = mapped_tables[idxs[0]][["LATITUDE", "LONGITUDE", "LEV_M", "DATEANDTIME", "water", param_tables[0]]]
-#     for i in range(1, len(idxs)):
-#         df_wide = df_wide.merge(mapped_tables[idxs[i]][["LATITUDE", "LONGITUDE", "LEV_M", "DATEANDTIME", params[i]]],
-#                                 how="left", on=["LATITUDE", "LONGITUDE", "LEV_M", "DATEANDTIME"])
-#
-#     if dropping_land_cells:
-#         df_wide = __drop_land_cells(df_wide)
-#
-#     return df_wide
-
-
 def create_wide_table_online(connection, grid_id, param_tables=None):
     """
     Creates step-wise a wide table with the columns:
     latitude, longitude, dateandtime, lev_m, param_0, ..., param_n (where n=[0, #param_tables - 1]).
     Given parameter tables need to be mapped already and stored in the database as paramTableName_gridId.
 
-    Args:
-        connection (sqlite.Connection): Connection to the database.
-        grid_id (int): ID of the grid based on which to join the parameter tables.
-        param_tables (list<str>): Names of the parameter tables to merge. If None, all parameters will be used.
-        Default is None.
-    Returns:
-        new_path (str): Path to the new database.
-        table_name (str): Name of the created wide table.
+    Parameters
+    ----------
+    connection : sqlite3.Connection
+        Connection to the database.
+    grid_id : int
+        ID of the grid based on which to join the parameter tables.
+    param_tables : list[str], optional
+        Names of the parameter tables to merge. If None, all parameters will be used.
+
+    Returns
+    -------
+    new_path : str
+        Path to the new database.
+    table_name : str
+        Name of the created wide table.
     """
     # If no parameter tables are specified, use all
     if not param_tables:
@@ -736,12 +805,19 @@ def load_wide_table(conn, wide_table_name, dropping_land_cells=True):
     """
     Loads wide table from database and drops the land cells from that table.
 
-    Args:
-        conn (sqlite3.connection): Connection to database.
-        wide_table_name (str): Name of the wide table in the database.
-        dropping_land_cells (boolean): Whether to remove land cells or not.
-    Returns:
-        df_wide (pandas.DataFrame): Loaded table.
+    Parameters
+    ----------
+    conn : sqlite3.Connection
+        Connection to database.
+    wide_table_name : str
+        Name of the wide table in the database.
+    dropping_land_cells : bool, default=True
+        Whether to remove land cells or not.
+
+    Returns
+    -------
+    DataFrame
+        Loaded table.
     """
     df_wide = get_table_as_df(conn=conn, table_name=wide_table_name)
     if dropping_land_cells:
@@ -752,10 +828,16 @@ def load_wide_table(conn, wide_table_name, dropping_land_cells=True):
 def get_missing_value_info_offline(df_wide):
     """
     Compute the absolute and relative number of missing values per parameter.
-    Args:
-        df_wide (pandas.DataFrame): Table to investigate.
-    Returns:
-        num_nulls (pandas.DataFrame): Table containing missing value information.
+
+    Parameters
+    ----------
+    df_wide : DataFrame
+        Table to investigate.
+
+    Returns
+    -------
+    DataFrame
+        Table containing missing value information.
     """
     # Get parameter columns
     param_tables = [x for x in df_wide.columns if x.startswith("P_")]
@@ -785,13 +867,24 @@ def get_missing_value_info_offline(df_wide):
 def grid_data(conn, grid_config, bathymetry_path, parameters, output_dir):
     """
     Map given parameters to a specified grid in a database and store resulting table as CSV.
-        conn (sqlite3.connection): Connection to database.
-        grid_config (dict): Configuration of the grid.
-        bathymetry_path (str): Path to bathymetry data.
-        parameters (list<str>): List of parameter table names to map to the grid.
-        output_dir (str): Directory where the CSV file will be stored.
-    Returns:
-        wide_table_path (str): Path to the CSV file of the gridded parameters.
+
+    Parameters
+    ----------
+    conn : sqlite3.Connection
+        Connection to database.
+    grid_config : dict
+        Configuration of the grid.
+    bathymetry_path : str
+        Path to bathymetry data.
+    parameters : list[str]
+        List of parameter table names to map to the grid.
+    output_dir : str
+        Directory where the CSV file will be stored.
+
+    Returns
+    -------
+    str
+        Path to the CSV file of the gridded parameters.
     """
     logging.info("Create grid...")
 
@@ -852,8 +945,16 @@ def grid_data(conn, grid_config, bathymetry_path, parameters, output_dir):
 
 def df_to_gridded_da(df, value_col="P_TEMPERATURE"):
     """
-    Convert a DataFrame to a 4D xarray.DataArray (time, depth, lat, lon)
-    with integer years as time coordinate.
+    Convert a DataFrame to a 4D xarray.DataArray (time, depth, lat, lon) with integer years as time coordinate.
+
+    Parameters
+    ----------
+    df : DataFrame
+    value_col : str, default='P_TEMPERATURE'
+
+    Returns
+    -------
+    DataArray
     """
     df = df.copy()
 
@@ -915,4 +1016,3 @@ def df_to_gridded_da(df, value_col="P_TEMPERATURE"):
             name=value_col,
         )
     return da
-
