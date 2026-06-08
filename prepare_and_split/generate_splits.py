@@ -15,7 +15,7 @@ import glob
 import config
 from utils.gridding import df_to_gridded_da
 from utils.plotting import animate_depth_panels
-from nn_utils.dataset import load_dataset
+from utils.data import load_dataset
 from utils.plotting import plot_geo
 
 

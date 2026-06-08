@@ -10,7 +10,7 @@ import argparse
 from permetrics import RegressionMetric
 
 import config
-from nn_utils.dataset import load_dataset
+from utils.data import load_dataset
 from prepare_and_split.generate_splits import generate_test_set
 from tuning_studies.pytorch_study import train_pytorch_single_split
 from utils.plotting import generate_animation

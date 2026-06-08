@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 import torch
 
-from nn_utils.dataset import random_feature_mask, transect_feature_mask, spherical_feature_mask, \
+from nn_utils.masking import random_feature_mask, transect_feature_mask, spherical_feature_mask, \
     random_per_feature_mask, random_token_mask
 
 

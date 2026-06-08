@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from nn_utils.dataset import PointwiseDataset
+from nn_utils.datasets import PointwiseDataset
 from nn_utils.model_adapters import PointwiseAdapter
 
 

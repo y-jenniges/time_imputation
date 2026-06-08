@@ -26,8 +26,9 @@ from nn_utils.trainer import Trainer
 from nn_utils.graph import GraphProvider
 from nn_utils.model_adapters import NeighbourAdapter, PointwiseAdapter, TimeSequenceAdapter, FeatureAdapter
 from nn_utils.early_stopping import EarlyStopping
-from nn_utils.dataset import load_dataset, prepare_pointwise_loaders, \
-    prepare_learned_neighbourhood_loaders, prepare_time_sequence_loaders
+from utils.data import load_dataset
+from nn_utils.loaders import prepare_pointwise_loaders, prepare_learned_neighbourhood_loaders, \
+    prepare_time_sequence_loaders
 from utils.metrics import compute_metrics
 from utils.tuning import get_model_class
 from tuning_studies.modelconfig import ablation_study

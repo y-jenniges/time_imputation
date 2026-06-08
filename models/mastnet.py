@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 
-from nn_utils.embed import PositionalEncoder, CoordEncoder
+from models.encoders import PositionalEncoder, CoordEncoder
 from tuning_studies.modelconfig import ModelConfig
 from utils.preprocessing import fill_feature_tensor, get_scopes
 
@@ -404,7 +404,7 @@ class MaSTNeT(nn.Module):
         Parameters
         ----------
         batch : dict
-            Output of :class:`nn_utils.dataset.LearnedNeighbourDataset`; keys include
+            Output of :class:`nn_utils.datasets.LearnedNeighbourDataset`; keys include
             ``query_features`` (B, F), ``query_mask`` (B, F), ``query_coords`` (B, C),
             and one sub-dict per scope (e.g. ``space``, ``time``, ``depth``) with keys
             ``features`` (B, K, F), ``mask`` (B, K, F), ``coords`` (B, K, C),

@@ -18,7 +18,8 @@ from sklearn.linear_model import BayesianRidge
 from hyperimpute.plugins.imputers.plugin_hyperimpute import plugin as base_model
 
 import config
-from nn_utils.dataset import load_dataset, prepare_sklearn_data
+from utils.data import load_dataset
+from nn_utils.loaders import prepare_sklearn_data
 from nn_utils.trainer import compute_metrics
 from utils.tuning import set_seed, TuningResult, get_model_class
 
