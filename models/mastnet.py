@@ -1,16 +1,16 @@
+"""MaSTNeT model — Masked Spatiotemporal Neighbourhood Transformer for ocean data imputation."""
+
 import torch
 import torch.nn as nn
-from sklearn.neighbors import NearestNeighbors
-from torch.utils.data import DataLoader
 
-#from nn_utils.dataset import NeighbourDataset
-#from nn_utils.trainer import NeighbourAdapter
 from nn_utils.embed import PositionalEncoder, CoordEncoder
 from tuning_studies.modelconfig import ModelConfig
 from utils.preprocessing import fill_feature_tensor, get_scopes
 
 
 class CrossAttentionBlock(nn.Module):
+    """Single cross-attention layer: query attends to a k-NN neighbourhood."""
+
     def __init__(self, d_model, nhead, dim_feedforward, dropout):
         super().__init__()
 
@@ -32,6 +32,7 @@ class CrossAttentionBlock(nn.Module):
         )
 
     def forward(self, q, n):
+        """Apply cross-attention from ``q`` to ``n``, then feedforward."""
         attn_out, attn_weights = self.attn(q, n, n)
         q = self.norm1(q + attn_out)
 
@@ -41,6 +42,44 @@ class CrossAttentionBlock(nn.Module):
         return q
 
 class MaSTNeT(nn.Module):
+    """
+    Masked Spatiotemporal Neighbourhood Transformer.
+
+    Reconstructs missing values in spatio-temporal ocean point-cloud data by attending
+    to k-nearest neighbours. Supports multiple attention modes (factorised space-time,
+    space-time-depth, transformer encoder, autoencoder) as well as a per-feature
+    single_feature mode — all controlled by a :class:`ModelConfig`.
+
+    The model outputs a per-point mean **and** log-variance for every feature,
+    supporting heteroscedastic uncertainty quantification.
+
+    Parameters
+    ----------
+    cfg : ModelConfig
+        Experiment configuration controlling graph mode, attention type, encoders,
+        masking strategy, and other ablation flags.
+    coord_dim : int, default=5
+        Dimensionality of the (preprocessed) coordinate vector.  5 for linear time
+        encoding (x, y, z, depth, time), 6 for cyclic time encoding.
+    value_dim : int, default=6
+        Number of ocean variables to impute (T, S, O₂, NO₃, SiO₂, PO₄).
+    pos_hidden_dim : int, default=64
+        Hidden dimension of the optional positional encoder MLP.
+    d_model : int, default=64
+        Transformer embedding dimension.
+    nhead : int, default=4
+        Number of attention heads (must divide ``d_model``).
+    nlayers : int, default=3
+        Number of cross-attention layers (also used for encoder/decoder layers).
+    dropout : float, default=0.1
+        Dropout rate (active during training only).
+    dim_feedforward : int, default=128
+        Feedforward sublayer width inside each attention block.
+    global_means : list[float] or None, default=None
+        Per-feature means for ``fill_strategy='mean'``.  Registered as a buffer
+        so they are automatically moved to the correct device.
+    """
+
     def __init__(self,
                  cfg: ModelConfig,
                  coord_dim=5, value_dim=6, pos_hidden_dim=64,
@@ -62,7 +101,6 @@ class MaSTNeT(nn.Module):
         # Optional learnable anisotropic graph weights
         if self.cfg.learn_anisotropic_weights:
             self.anisotropic_weights = nn.Parameter(torch.ones(coord_dim))
-            print("Weights in mastnet: ", self.anisotropic_weights)
         else:
             self.anisotropic_weights = None
 
@@ -228,6 +266,7 @@ class MaSTNeT(nn.Module):
         self.var_decoder = nn.Linear(d_model, output_dim)  # Variance head (for heteroscedastic uncertainty)
 
     def compute_input_dim(self):
+        """Compute the raw token dimensionality before the input projector."""
         if self.cfg.graph_mode == "single_feature":
             dim = self.coord_dim
             dim += 1  # single feature value instead of value_dim
@@ -263,6 +302,7 @@ class MaSTNeT(nn.Module):
         return dim
 
     def construct_token(self, encoded_coords, encoded_features, mask, rel_positions):
+        """Concatenate relative positions, coordinates, features, and optionally the observation mask into a token."""
         token_input = []
 
         if self.cfg.use_rel_pos:
@@ -277,6 +317,7 @@ class MaSTNeT(nn.Module):
         return torch.cat(token_input, dim=-1)
 
     def encode_features(self, features, mask):
+        """Apply optional feature mixer MLP; returns features unchanged when no mixer is configured."""
         if self.feature_mixer is not None and self.cfg.feature_mixer_input in ["feat", "feat_mask"]:
             if self.cfg.feature_mixer_input == "feat":
                 return self.feature_mixer(features)
@@ -286,6 +327,7 @@ class MaSTNeT(nn.Module):
         return features
 
     def encode_coordinates(self, coords, features, mask):
+        """Apply optional coordinate encoder; returns raw coords when encoder scope is 'none' or 'graph'."""
         if self.coord_encoder is not None and self.cfg.encoder_scope in ["model", "both"]:
             if coords.dim() == 2:
                 # Query coords
@@ -297,6 +339,7 @@ class MaSTNeT(nn.Module):
         return coords
 
     def positional_encoding(self, rel_positions):
+        """Embed relative positions via the positional encoder MLP, or return them as-is."""
         if self.cfg.positional_encoding:
             if self.cfg.positional_encoding_time_only:
                 return self.pos_encoder(rel_positions=rel_positions[:, -1])
@@ -305,6 +348,7 @@ class MaSTNeT(nn.Module):
         return rel_positions
 
     def _forward_single_feature(self, batch):
+        """Forward pass for single_feature graph mode: self-attention over per-feature tokens."""
         feat = batch["features"]  # (B, F)
         mask = batch["mask"]  # (B, F) bool
         coords = batch["coords"]  # (B, coord_dim)
@@ -322,7 +366,7 @@ class MaSTNeT(nn.Module):
         # Broadcast coords into each feature token: (B, F, coord_out_dim)
         coords_exp = encoded_coords.unsqueeze(1).expand(-1, F, -1)
 
-        # Build per-feature tokens: [coord, value_i, (mask_i)]
+        # Build per-feature tokens: [coord, value_i] optionally (mask_i)
         parts = [coords_exp,  # (B, F, coord_out_dim)
                  encoded_features.unsqueeze(-1)]  # (B, F, 1)
         if self.cfg.use_masks:
@@ -354,64 +398,25 @@ class MaSTNeT(nn.Module):
         pvar = self.var_decoder(encoded).squeeze(-1)  # (B, F)
 
         return pmean, pvar
-    #
-    # def _forward_single_feature(self, batch):
-    #     """ More ReMasker-style """
-    #     assert self.cfg.attention_type in ["transformer_encoder", "autoencoder"]
-    #
-    #     feat = batch["features"]  # (B, F)  IndexError: too many indices for tensor of dimension 3
-    #     mask = batch["mask"]
-    #     coords = batch["coords"]
-    #
-    #     B, F = feat.shape
-    #     C = coords.shape[1]
-    #
-    #     # Zero-fill masked positions
-    #     feat_filled = fill_feature_tensor(features=feat, mask=mask, fill_strategy=self.cfg.fill_strategy, mean_values=self.global_means)
-    #
-    #     # Coord tokens: one token per coordinate dimension ---
-    #     # Each coord scalar gets projected + a learned coord-position embedding
-    #     coord_ids = torch.arange(C, device=coords.device).unsqueeze(0).expand(B, C)
-    #     coord_tokens = self.coord_projector(coords.unsqueeze(-1))  # (B, C, d_model)
-    #     coord_tokens = coord_tokens + self.coord_embedding(coord_ids)  # (B, C, d_model)
-    #
-    #     # Feature tokens: [value, mask_bit] per feature ---
-    #     parts = [feat_filled.unsqueeze(-1)]  # (B, F, 1)
-    #     if self.cfg.use_masks:
-    #         parts.append(mask.unsqueeze(-1).float())  # (B, F, 1)
-    #     feat_tokens_raw = torch.cat(parts, dim=-1)  # (B, F, 1 or 2)
-    #
-    #     feat_ids = torch.arange(F, device=feat.device).unsqueeze(0).expand(B, F)
-    #     feat_tokens = self.feat_projector(feat_tokens_raw)  # (B, F, d_model)
-    #     feat_tokens = feat_tokens + self.feature_embedding(feat_ids)
-    #
-    #     # Concatenate: [coord tokens | feat tokens]
-    #     sequence = torch.cat([coord_tokens, feat_tokens], dim=1)  # (B, C+F, d_model)
-    #
-    #     # Attention
-    #     if self.cfg.attention_type == "transformer_encoder":
-    #         encoded = self.encoder_transformer(sequence)
-    #
-    #     elif self.cfg.attention_type == "autoencoder":
-    #         # Encoder sees full sequence as context
-    #         memory = self.encoder_transformer(sequence)
-    #
-    #         # Decoder: only feature tokens as tgt, full encoded sequence as memory
-    #         feat_tgt = sequence[:, C:, :]  # (B, F, d_model) — feature tokens only
-    #         encoded_feats = self.decoder_transformer(tgt=feat_tgt, memory=memory)
-    #
-    #         # Pad coord positions back so indexing stays consistent
-    #         encoded = torch.cat([memory[:, :C, :], encoded_feats], dim=1)
-    #
-    #     else:
-    #         raise ValueError(f"single_feature mode does not support {self.cfg.attention_type}")
-    #
-    #     # Decode only the feature part
-    #     pmean = self.mean_decoder(encoded[:, C:, :]).squeeze(-1)
-    #     pvar = self.var_decoder(encoded[:, C:, :]).squeeze(-1)
-    #     return pmean, pvar
 
     def forward(self, batch):
+        """
+        Parameters
+        ----------
+        batch : dict
+            Output of :class:`nn_utils.dataset.LearnedNeighbourDataset`; keys include
+            ``query_features`` (B, F), ``query_mask`` (B, F), ``query_coords`` (B, C),
+            and one sub-dict per scope (e.g. ``space``, ``time``, ``depth``) with keys
+            ``features`` (B, K, F), ``mask`` (B, K, F), ``coords`` (B, K, C),
+            ``rel_positions`` (B, K, C).
+
+        Returns
+        -------
+        pmean : Tensor (B, F)
+            Predicted feature means.
+        pvar : Tensor (B, F)
+            Predicted log-variance for heteroscedastic uncertainty.
+        """
         if self.cfg.graph_mode == "single_feature":
             return self._forward_single_feature(batch)
 
