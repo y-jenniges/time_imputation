@@ -22,7 +22,8 @@ import config
 from utils.plotting import plot_loss, plot_simple_reconstruction_error
 from utils.tuning import set_seed, TuningResult
 from nn_utils.losses import build_loss, name_to_loss_spec
-from nn_utils.trainer import Trainer, GraphProvider
+from nn_utils.trainer import Trainer
+from nn_utils.graph import GraphProvider
 from nn_utils.model_adapters import NeighbourAdapter, PointwiseAdapter, TimeSequenceAdapter, FeatureAdapter
 from nn_utils.early_stopping import EarlyStopping
 from nn_utils.dataset import load_dataset, prepare_pointwise_loaders, \
@@ -352,7 +353,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         # Compute uncertainties
         y_pred_mean = all_preds.mean(dim=0)  # Mean prediction
         epistemic_uncertainty = all_preds.var(dim=0, unbiased=False)
-        aleatoric_uncertainty = all_vars.mean(dim=0) if all_vars != [] else None
+        aleatoric_uncertainty = all_vars.mean(dim=0) if all_vars is not None else None
         total_uncertainty = epistemic_uncertainty + aleatoric_uncertainty if aleatoric_uncertainty is not None else epistemic_uncertainty
         total_uncertainty = total_uncertainty.detach().cpu().numpy()
 
@@ -379,7 +380,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         epistemic_uncertainty = epistemic_uncertainty.detach().cpu().numpy()
         aleatoric_uncertainty = aleatoric_uncertainty.detach().cpu().numpy() if aleatoric_uncertainty is not None else None
         all_preds_np = all_preds.cpu().numpy()
-        all_vars_np = all_vars.cpu().numpy() if all_vars != [] else None
+        all_vars_np = all_vars.cpu().numpy() if all_vars is not None else None
 
         # Store inferences
         np.save(main_path.with_name(main_path.name + "_all_preds.npy"), all_preds_np)
