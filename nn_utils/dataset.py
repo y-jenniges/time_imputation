@@ -1,3 +1,6 @@
+"""Datasets, data loaders, masking utilities, and preprocessing for ocean imputation training."""
+
+from pandas import DataFrame
 from typing import Tuple, Any, Dict
 import numpy as np
 import torch
@@ -15,6 +18,27 @@ from utils.preprocessing import get_scopes
 
 
 class LearnedNeighbourDataset(Dataset):
+    """
+    PyTorch Dataset returning a query point and its k-NN neighbours per scope.
+
+    Used by MaSTNeT's graph-based attention modes.  Neighbours are retrieved
+    from a :class:`GraphProvider` at each ``__getitem__`` call.
+
+    Parameters
+    ----------
+    coords : Tensor, shape (N, coord_dim)
+        Preprocessed (scaled) coordinate matrix for the full dataset.
+    values : Tensor, shape (N, n_features)
+        Preprocessed feature matrix; ``NaN`` marks missing values.
+    graph_provider : GraphProvider
+        Provides neighbour index look-ups for each scope.
+    query_indices : ndarray or None, default=None
+        Subset of rows to use as queries; None uses all rows.
+    scopes : list[str] or None, default=None
+        Neighbourhood scopes to include (e.g. ``['space', 'time']``).
+        Defaults to ``['default']``.
+    """
+
     def __init__(self, coords: torch.Tensor, values: torch.Tensor, graph_provider: GraphProvider, query_indices: np.ndarray | None = None,
                  scopes=None):
         self.scopes = scopes if scopes is not None else ["default"]
@@ -86,6 +110,27 @@ class PointwiseDataset(Dataset):
 
 
 class TimeSequenceDataset(Dataset):
+    """
+    PyTorch Dataset returning a centred temporal window around each query point.
+
+    Data are sorted by time; each sample contains a fixed-length sequence centred
+    on the query point, padded at boundaries by repeating the last row.
+
+    Parameters
+    ----------
+    coords : Tensor, shape (N, coord_dim)
+        Preprocessed coordinate matrix; last column is the (scaled) time dimension.
+    values : Tensor, shape (N, n_features)
+        Preprocessed feature matrix; ``NaN`` marks missing values.
+    query_indices : ndarray or None, default=None
+        Subset of rows to use as query centres; None uses all rows.
+    sequence_length : int or None, default=None
+        Odd integer defining the temporal window size; defaults to the number of
+        unique time steps in ``coords``.
+    scopes : ignored
+        Accepted for API compatibility.
+    """
+
     def __init__(self, coords: torch.Tensor, values: torch.Tensor, query_indices: np.ndarray | None = None,
                  sequence_length: int = None,
                  scopes=None):
@@ -178,28 +223,43 @@ def prepare_time_sequence_loaders(coords: torch.Tensor,
     DataLoader[Any], DataLoader[Any], DataLoader[Any], DataLoader[Any], dict | dict[
         Any, Any], int, int, None, Tensor, Tensor, Tensor]:
     """
-    Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
-    return query and spatio-temporally neighbouring tokens.
+    Preprocess data and build DataLoaders returning centred temporal windows.
 
-    :param coords: Latitude, longitude, depth and time data
-    :param values: Variable data (torch.tensor)
-    :param train_idx: Rows meant for training
-    :param val_idx: Rows meant for validation
-    :param test_idx: Rows meant for testing
-    :param batch_size: Batch size
-    :param generator: Random number generator
-    :param graph_provider: GraphProvider object
-    :param cyclic_time: Whether to encode time cyclically (e.g. for monthly data) or not (e.g. for yearly data)
-    :param cfg: Configuration object
-    :return:
-        - full_loader
-        - train_loader
-        - val_loader
-        - test_loader
-        - train_scaler_dict
-        - n_coords
-        - n_values
-        - dists
+    Scalers are fit on training rows only and then applied to the full dataset.
+
+    Parameters
+    ----------
+    coords : Tensor
+        Raw coordinate matrix (lat, lon, depth, time).
+    values : Tensor
+        Raw feature matrix; ``NaN`` marks missing values.
+    train_idx : ndarray
+        Row indices for the training split.
+    val_idx : ndarray
+        Row indices for the validation split.
+    test_idx : ndarray
+        Row indices for the test split.
+    batch_size : int
+    sequence_length : int
+        Odd temporal window size passed to :class:`TimeSequenceDataset`.
+    generator : torch.Generator
+        Seeded RNG for reproducible shuffling.
+    cyclic_time : bool, default=False
+        Encode time cyclically (sine/cosine) for monthly data.
+    cfg : ModelConfig or None, default=None
+    graph_provider : ignored
+        Accepted for interface compatibility.
+
+    Returns
+    -------
+    full_loader, train_loader, val_loader, test_loader : DataLoader
+    train_scaler_dict : dict
+    n_coords : int
+    n_values : int
+    dists : None
+    coords_full : Tensor
+    values_full : Tensor
+    mask_full : Tensor
     """
     # Split raw data
     coords_train_raw = coords[train_idx]
@@ -230,8 +290,6 @@ def prepare_time_sequence_loaders(coords: torch.Tensor,
     test_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=test_idx, sequence_length=sequence_length)
     full_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=None, sequence_length=sequence_length)
 
-    print(f"Lenghts of train, val, test datasets: {len(train_dataset), len(val_dataset), len(test_dataset)}")
-    print("NaNs values_full:", torch.isnan(values_full).sum())
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -259,28 +317,42 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     DataLoader[Any], DataLoader[Any], DataLoader[Any], DataLoader[Any], dict | dict[
         Any, Any], int, int, None, Tensor, Tensor, Tensor]:
     """
-    Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
-    return query and spatio-temporally neighbouring tokens.
+    Preprocess data and build DataLoaders returning query + k-NN neighbour tokens.
 
-    :param coords: Latitude, longitude, depth and time data
-    :param values: Variable data (torch.tensor)
-    :param train_idx: Rows meant for training
-    :param val_idx: Rows meant for validation
-    :param test_idx: Rows meant for testing
-    :param batch_size: Batch size
-    :param generator: Random number generator
-    :param graph_provider: GraphProvider object
-    :param cyclic_time: Whether to encode time cyclically (e.g. for monthly data) or not (e.g. for yearly data)
-    :param cfg: Configuration object
-    :return:
-        - full_loader
-        - train_loader
-        - val_loader
-        - test_loader
-        - train_scaler_dict
-        - n_coords
-        - n_values
-        - dists
+    Scalers are fit on training rows only and then applied to the full dataset.
+    The graph is initialised once from raw coordinate space after preprocessing.
+
+    Parameters
+    ----------
+    coords : Tensor
+        Raw coordinate matrix (lat, lon, depth, time).
+    values : Tensor
+        Raw feature matrix; ``NaN`` marks missing values.
+    train_idx : ndarray
+        Row indices for the training split.
+    val_idx : ndarray
+        Row indices for the validation split.
+    test_idx : ndarray
+        Row indices for the test split.
+    batch_size : int
+    generator : torch.Generator
+        Seeded RNG for reproducible shuffling.
+    graph_provider : GraphProvider
+        Manages k-NN neighbour look-ups; initialised inside this function.
+    cyclic_time : bool, default=False
+        Encode time cyclically (sine/cosine) for monthly data.
+    cfg : ModelConfig or None, default=None
+
+    Returns
+    -------
+    full_loader, train_loader, val_loader, test_loader : DataLoader
+    train_scaler_dict : dict
+    n_coords : int
+    n_values : int
+    dists : None
+    coords_full : Tensor
+    values_full : Tensor
+    mask_full : Tensor
     """
     # Split raw data
     coords_train_raw = coords[train_idx]
@@ -309,16 +381,12 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     init_encoder = lambda coords, times, values, mask: coords_full
     graph_provider.update(encoder=init_encoder, coords=coords_full, values=values_full, mask=mask_full)
 
-    print("dataset graph provider updated")
-
     # Define datasets
     scopes = get_scopes(cfg=cfg)
     train_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, graph_provider=graph_provider, scopes=scopes)
     val_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, graph_provider=graph_provider, scopes=scopes)
     test_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, graph_provider=graph_provider, scopes=scopes)
     full_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=None, graph_provider=graph_provider, scopes=scopes)
-
-    print(len(train_dataset), len(val_dataset), len(test_dataset))
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -327,7 +395,6 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
     full_loader = DataLoader(full_dataset, batch_size=batch_size, shuffle=False)
 
     dists_train = None
-    # print(f"Median distance of training data: {np.nanmedian(dists_train)}")
 
     return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1), dists_train, coords_full, values_full, mask_full
 
@@ -343,26 +410,35 @@ def prepare_pointwise_loaders(coords: torch.Tensor,
                               cfg=None,
                               ):
     """
-    Preprocess data (use training scalers to scale validation and test sets) and create respective data loaders that
-    return data pointwise.
+    Preprocess data and build DataLoaders returning individual points (for MLP / pointwise models).
 
-    :param coords: Latitude, longitude, depth and time data
-    :param values: Variable data (torch.tensor)
-    :param train_idx: Rows meant for training
-    :param val_idx: Rows meant for validation
-    :param test_idx: Rows meant for testing
-    :param batch_size: Batch size
-    :param generator: Random number generator
-    :param cyclic_time: Whether to encode time cyclically (e.g. for monthly data) or not (e.g. for yearly data)
-    :return:
-        - full_loader
-        - train_loader
-        - val_loader
-        - test_loader
-        - train_scaler_dict
-        - n_coords
-        - n_values
-        - None (for compatibility)
+    Scalers are fit on training rows only and then applied to the full dataset.
+
+    Parameters
+    ----------
+    coords : Tensor
+        Raw coordinate matrix (lat, lon, depth, time).
+    values : Tensor
+        Raw feature matrix; ``NaN`` marks missing values.
+    train_idx : ndarray
+    val_idx : ndarray
+    test_idx : ndarray
+    batch_size : int
+    generator : torch.Generator
+    cyclic_time : bool, default=False
+    cfg : ignored
+
+    Returns
+    -------
+    full_loader, train_loader, val_loader, test_loader : DataLoader
+    train_scaler_dict : dict
+    n_coords : int
+    n_values : int
+    None
+        Placeholder for compatibility with other prepare functions.
+    coords_full : Tensor
+    values_full : Tensor
+    mask_full : Tensor
     """
     # Split raw data
     coords_train_raw = coords[train_idx]
@@ -407,18 +483,25 @@ def prepare_pointwise_loaders(coords: torch.Tensor,
 
 def prepare_sklearn_data(df, train_idx, val_idx, test_idx):
     """
-    Prepare data for sklearn model training.
+    Prepare scaled arrays for sklearn-based imputation models.
 
-    :param df: Input pandas.DataFrame
-    :param train_idx: Rows meant for training
-    :param val_idx: Rows meant for validation
-    :param test_idx: Rows meant for testing
-    :return:
-        - x_train
-        - y_true_scaled
-        - scaler_dict
-        - coord_dim
-        - values_dim
+    Parameters
+    ----------
+    df : DataFrame
+        Full dataset with coordinate and feature columns as defined in ``config``.
+    train_idx : ndarray
+    val_idx : ndarray
+    test_idx : ndarray
+
+    Returns
+    -------
+    x_train : ndarray, shape (N, coord_dim + n_features)
+        Coordinate + feature matrix; features for val/test rows are set to NaN.
+    y_true_scaled : ndarray, shape (N, n_features)
+        Scaled ground-truth features for all rows (used for evaluation).
+    scaler_dict : dict
+    coord_dim : int
+    values_dim : int
     """
     values_raw = df[config.parameters].to_numpy().astype(float)
     coords_raw = df[config.coordinates].to_numpy().astype(float)
@@ -488,11 +571,11 @@ def random_per_feature_mask(batch_size,
                             mask_neighbours: bool = False
                             ):
     """
-    Masks a proportion of samples per feature (column-wise masking).
-    Each feature has mask_ratio * batch_size samples masked.
-    Note: With gridded data, it can happen that only missing entries are masked... @todo
-    Returns:
-        mask: [B, F] boolean tensor
+    Column-wise masking: each feature has ``mask_ratio * batch_size`` samples masked.
+
+    Returns
+    -------
+    mask : Tensor, shape (B, F), dtype bool
     """
     # Init mask
     mask = torch.zeros(batch_size, feature_dim, dtype=torch.bool, device=device)
@@ -517,6 +600,7 @@ def random_per_feature_mask(batch_size,
 
 
 def random_token_mask(batch_size, feature_dim, mask_ratio, device):
+    """Return an elementwise random boolean mask of shape (B, F) with approximately ``mask_ratio`` True entries."""
     return torch.rand(batch_size, feature_dim, device=device) < mask_ratio
 
 
@@ -529,18 +613,26 @@ def random_feature_mask(batch_size: int,
                         mask_neighbours: bool = False
                         ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Generates masks that hide a given proportion of each sample randomly.
+    Generate row-wise masks that hide a fixed proportion of features per sample.
 
-    :param batch_size: Batch size
-    :param feature_dim: Number of features
-    :param mask_ratio: Proportion to hide
-    :param n_neighbours: Number of neighbours
-    :param device: Device to use
-    :param mask_query: Whether to mask the query points
-    :param mask_neighbours: Whether to mask the neighbour points
-    :return:
-        - query_mask
-        - neighbour_mask
+    Parameters
+    ----------
+    batch_size : int
+    feature_dim : int
+    mask_ratio : float, default=0.5
+        Fraction of features to hide per sample.
+    n_neighbours : int, default=24
+        Used only when ``mask_neighbours=True``.
+    device : str, default='cpu'
+    mask_query : bool, default=True
+        Apply masking to query points.
+    mask_neighbours : bool, default=False
+        Apply independent masking to neighbour tokens.
+
+    Returns
+    -------
+    query_mask : Tensor, shape (B, F), dtype bool
+    neighbour_mask : Tensor, shape (B, K, F), dtype bool
     """
     # Query mask
     if mask_query:
@@ -578,7 +670,7 @@ def random_feature_mask(batch_size: int,
 
 
 def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
-    """ Creates single spherical mask. """
+    """Create a spherical block mask centred on a random query point; applied with probability ``p``."""
     lonlats = batch["query_coords"][:, :3]  # [B, 3]
     B = lonlats.shape[0]
 
@@ -600,7 +692,7 @@ def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
 
 
 def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu", orientation=0.0):
-    """ Creates single transect mask. Orientation: 0 random orientation and 1 horizontal or vertical"""
+    """Create a great-circle transect mask; applied with probability ``p``.  ``orientation=0`` is fully random, ``1`` forces axis-aligned transects."""
     lonlats = batch["query_coords"][:, :3]  # [B, 3]
     B = lonlats.shape[0]
 
@@ -710,19 +802,35 @@ def get_availability_per_time(coords, values):
 
 def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool = False, scaler_dict: dict = None, time_scaler_weights=None):
     """
-    Preprocess coordinates and values of the inputa data by scaling and/or encoding them. Most variables are
-    transformed using MinMax scaling. Latitude and longitude are mapped to Cartesian coordinates on a unit sphere.
+    Scale and encode coordinates and feature values.
 
-    :param coords: Input coordinates
-    :param values: Input values
-    :param coord_names: Names of the coordinates
-    :param parameter_names: Names of the parameters
-    :param cyclic_time: Whether to encode time cyclically. Default is False.
-    :param scaler_dict: Optional dict of scalers to use instead of creating new ones. Default is None.
-    :return:
-        - x_scaled - Scaled coordinates
-        - y_scaled - Scaled values
-        - scaler_dict - Dictionary of used scalers
+    Latitude and longitude are mapped to Cartesian (x, y, z) on the unit sphere.
+    Depth and time use MinMax scaling (or cyclic sin/cos encoding for time).
+    Features are independently MinMax-scaled on observed values only.
+
+    Parameters
+    ----------
+    coords : Tensor, shape (N, 4)
+        Raw coordinates: [lat, lon, depth, time].
+    values : Tensor, shape (N, F)
+        Raw feature values; ``NaN`` marks missing positions.
+    coord_names : list[str]
+        Names of the coordinate columns (e.g. ``config.coordinates``).
+    parameter_names : list[str]
+        Names of the feature columns (e.g. ``config.parameters``).
+    cyclic_time : bool, default=False
+        Encode time as (cos, sin) pair for periodic monthly data.
+    scaler_dict : dict or None, default=None
+        Pre-fitted scalers to apply; new scalers are created and added when None.
+
+    Returns
+    -------
+    x_scaled : Tensor, shape (N, coord_dim)
+        Preprocessed coordinate matrix (coord_dim=5 for linear, 6 for cyclic time).
+    y_scaled : Tensor, shape (N, F)
+        Preprocessed feature matrix; ``NaN`` preserved at missing positions.
+    scaler_dict : dict
+        Fitted scalers keyed by coordinate/feature name.
     """
     if scaler_dict is None:
         scaler_dict = {}
@@ -796,12 +904,19 @@ def preprocess(coords, values, coord_names, parameter_names, cyclic_time: bool =
     return x_scaled, y_scaled, scaler_dict
 
 
-def load_dataset(data_path=None):
+def load_dataset(data_path: object = None) -> DataFrame:
     """
-    Load the dataset. It converts the DATEANDTIME column to years and drops 'idx' and 'water' columns.
+    Load the COMFORT CSV dataset, convert timestamps to years, and drop unused columns.
 
-    :param data_path: Optional path to the dataset. If None, config.data_path is used.
-    :return: Dataset as pandas.DataFrame
+    Parameters
+    ----------
+    data_path : str or Path or None, default=None
+        Path to the CSV file.  Uses ``config.data_path`` when None.
+
+    Returns
+    -------
+    DataFrame
+        Dataset with DATEANDTIME converted to integer years and 'idx'/'water' dropped.
     """
     if data_path is None:
         data_path = config.data_path
