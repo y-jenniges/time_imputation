@@ -1,3 +1,5 @@
+"""Sklearn baseline study script — runs mean, KNN, MICE, and MissForest across all splits."""
+
 import argparse
 import logging
 from functools import partial
@@ -9,12 +11,11 @@ import numpy as np
 import glob
 import os
 import platform
-from hyperimpute.plugins.imputers.plugin_hyperimpute import plugin as base_model
-
 import pandas as pd
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from sklearn.linear_model import BayesianRidge
+from hyperimpute.plugins.imputers.plugin_hyperimpute import plugin as base_model
 
 import config
 from nn_utils.dataset import load_dataset, prepare_sklearn_data
@@ -32,7 +33,8 @@ def suggest_hyperparameters(trial, model_name):
     elif model_name == "mice":
         return {"estimator": BayesianRidge(),
                 "initial_strategy": trial.suggest_categorical("initial_strategy", ["mean", "median"]),
-                "imputation_order": trial.suggest_categorical("imputation_order", ["ascending", "descending", "random"]),
+                "imputation_order": trial.suggest_categorical("imputation_order",
+                                                              ["ascending", "descending", "random"]),
                 "sample_posterior": True}
     elif model_name == "missforest":
         return {"n_estimators": trial.suggest_int("n_estimators", 50, 200),
@@ -66,7 +68,7 @@ def suggest_hyperparameters(trial, model_name):
     elif model_name == "gain_hyperimpute":
         return {
             "batch_size": trial.suggest_categorical("batch_size", [64, 128, 256, 512]),
-            "n_epochs": 100, # trial.suggest_int("n_epochs", 50, 200),
+            "n_epochs": 100,  # trial.suggest_int("n_epochs", 50, 200),
             "hint_rate": trial.suggest_float("hint_rate", 0.5, 0.95),
             "loss_alpha": trial.suggest_float("loss_alpha", 1, 100),
             "random_state": 42
@@ -92,8 +94,10 @@ def suggest_hyperparameters(trial, model_name):
         return {
             "max_iter": trial.suggest_categorical("max_iter", [100, 300, 1000]),
             "tol": trial.suggest_categorical("tol", [1e-4, 1e-3, 1e-2]),
-            "initial_strategy": trial.suggest_int("initial_strategy", 0, 3), # ["mean", "median", "most_frequent", "constant"]),
-            "imputation_order": trial.suggest_int("imputation_order", 0, 4), #["ascending", "descending", "roman", "arabic", "random"]),
+            "initial_strategy": trial.suggest_int("initial_strategy", 0, 3),
+            # ["mean", "median", "most_frequent", "constant"]),
+            "imputation_order": trial.suggest_int("imputation_order", 0, 4),
+            # ["ascending", "descending", "roman", "arabic", "random"]),
             "random_state": 42,
         }
     elif model_name == "nop_hyperimpute":
@@ -109,8 +113,10 @@ def suggest_hyperparameters(trial, model_name):
             "max_iter": trial.suggest_categorical("max_iter", [100, 300, 1000]),
             "tol": trial.suggest_categorical("tol", [1e-4, 1e-3, 1e-2]),
             "n_imputations": trial.suggest_categorical("n_imputations", [1, 3, 5]),
-            "initial_strategy": trial.suggest_int("initial_strategy", 0, 3), # ["mean", "median", "most_frequent", "constant"]),
-            "imputation_order": trial.suggest_int("imputation_order", 0, 4), #["ascending", "descending", "roman", "arabic", "random"]),
+            "initial_strategy": trial.suggest_int("initial_strategy", 0, 3),
+            # ["mean", "median", "most_frequent", "constant"]),
+            "imputation_order": trial.suggest_int("imputation_order", 0, 4),
+            # ["ascending", "descending", "roman", "arabic", "random"]),
             "random_state": 42,
         }
     elif model_name == "softimpute_hyperimpute":
@@ -125,8 +131,10 @@ def suggest_hyperparameters(trial, model_name):
     elif model_name == "ice_hyperimpute":
         return {
             "max_iter": trial.suggest_categorical("max_iter", [100, 300, 1000]),
-            "initial_strategy": trial.suggest_int("initial_strategy", 0, len(base_model.initial_strategy_vals)-1),  # ["mean", "median", "most_frequent", "constant"]),
-            "imputation_order": trial.suggest_int("imputation_order", 0, len(base_model.imputation_order_vals)-1),  # ["ascending", "descending", "roman", "arabic", "random"]),
+            "initial_strategy": trial.suggest_int("initial_strategy", 0, len(base_model.initial_strategy_vals) - 1),
+            # ["mean", "median", "most_frequent", "constant"]),
+            "imputation_order": trial.suggest_int("imputation_order", 0, len(base_model.imputation_order_vals) - 1),
+            # ["ascending", "descending", "roman", "arabic", "random"]),
             "random_state": 42,
         }
     elif model_name == "missforest_hyperimpute":
@@ -185,8 +193,9 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     results = TuningResult(split=split_fname, seed=seed, model=model_name, hyp_combo_id=trial_id, hyps=hyps)
 
     # Prepare data
-    x_train, y_true, scaler_dict, coord_dim, value_dim = prepare_sklearn_data(df=df, train_idx=train_idx, val_idx=val_idx,
-                                                                          test_idx=test_idx)
+    x_train, y_true, scaler_dict, coord_dim, value_dim = prepare_sklearn_data(df=df, train_idx=train_idx,
+                                                                              val_idx=val_idx,
+                                                                              test_idx=test_idx)
     # Fit model
     st = time()
     imputer = model_class(**hyps)
@@ -205,7 +214,8 @@ def train_sklearn_single_split(df, model_class, hyps, test_idx, train_idx, val_i
     val_rmse = np.sqrt(np.nanmean((y_true[val_idx] - y_pred[:, coord_dim:][val_idx]) ** 2))
 
     # Compute other metrics
-    metrics = compute_metrics(y_true=y_true[val_idx], y_pred=y_pred[:, coord_dim:][val_idx], var_names=config.parameters)
+    metrics = compute_metrics(y_true=y_true[val_idx], y_pred=y_pred[:, coord_dim:][val_idx],
+                              var_names=config.parameters)
 
     # Store results
     results.train_time = train_time
@@ -259,7 +269,7 @@ def optuna_objective(trial, model_name):
             trial_id=trial.number,
             optuna_callback=None,
             tuning_mode=True,
-            seed=42+trial.number)
+            seed=42 + trial.number)
 
         val_rmses.append(results["val_rmse"])
 
