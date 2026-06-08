@@ -1,3 +1,5 @@
+"""Model adapter classes bridging the Trainer loop to specific model/dataset combinations."""
+
 from abc import ABC, abstractmethod
 import torch
 
@@ -6,36 +8,67 @@ from nn_utils.dataset import random_feature_mask, transect_feature_mask, spheric
 
 
 class ModelAdapter(ABC):
+    """
+    Abstract adapter interface between the :class:`nn_utils.trainer.Trainer` and a specific model.
+
+    Each concrete subclass handles one model/dataset combination by implementing
+    batch preparation, masking, forward calls, and loss input construction.
+    """
+
     @abstractmethod
     def batch_size(self, batch):
+        """Return the number of samples in ``batch``."""
         pass
 
     @abstractmethod
     def prepare_batch(self, batch, device):
+        """Move all tensors in ``batch`` to ``device`` and return the result."""
         pass
 
     @abstractmethod
     def make_masks(self, batch, mask_ratio, mode="train", device:torch.device = torch.device("cpu"), cfg=None):
+        """
+        Generate input and loss masks for the current batch.
+
+        Parameters
+        ----------
+        batch : dict
+        mask_ratio : float
+        mode : str
+            ``'train'``, ``'eval'``, or ``'reconstruct'``.
+        device : torch.device
+        cfg : ModelConfig or None
+
+        Returns
+        -------
+        masks : dict
+        miss_ratio : Tensor
+        """
         pass
 
     @abstractmethod
     def forward(self, model, batch, masks):
+        """Apply masks to ``batch`` and call ``model``; return raw model outputs."""
         pass
 
     @abstractmethod
     def loss_inputs(self, batch, outputs, masks, **kwargs):
+        """Build the keyword-argument dict expected by the loss function."""
         pass
 
     @abstractmethod
     def outputs_to_cpu(self, batch, outputs, to_numpy: bool = True):
+        """Extract ground-truth and predictions from a batch and move them to CPU."""
         pass
 
     @abstractmethod
     def get_query_mask(self, batch):
+        """Return the boolean observation mask for the query features in ``batch``."""
         pass
 
 
 class NeighbourAdapter(ModelAdapter):
+    """Adapter for MaSTNeT in graph-based attention modes (k-NN neighbourhood batches)."""
     def batch_size(self, batch):
         return batch["query_features"].shape[0]
 
@@ -207,6 +240,8 @@ class NeighbourAdapter(ModelAdapter):
 
 
 class TimeSequenceAdapter(ModelAdapter):
+    """Adapter for MaSTNeT in time_sequence graph mode (centred temporal window batches)."""
+
     def batch_size(self, batch):
         return batch["query_features"].shape[0]
 
@@ -339,6 +374,8 @@ class TimeSequenceAdapter(ModelAdapter):
 
 
 class FeatureAdapter(ModelAdapter):
+    """Adapter for MaSTNeT in single_feature mode (per-feature token self-attention)."""
+
     def batch_size(self, batch):
         return batch["features"].shape[0]
 
@@ -381,9 +418,6 @@ class FeatureAdapter(ModelAdapter):
 
         return dict(input_mask=input_mask, loss_mask=loss_mask), miss_ratio
 
-    # def forward(self, model, batch, masks):
-    #     return model(batch)
-
     def forward(self, model, batch, masks):
         batch["mask"] = masks["input_mask"]
         return model(batch)
@@ -415,6 +449,8 @@ class FeatureAdapter(ModelAdapter):
 
 
 class PointwiseAdapter(ModelAdapter):
+    """Adapter for the MLP baseline: concatenates coordinates and (filled) features into a flat vector."""
+
     def batch_size(self, batch):
         return batch["features"].shape[0]
 
