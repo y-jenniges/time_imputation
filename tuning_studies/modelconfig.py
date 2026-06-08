@@ -1,9 +1,85 @@
+"""ModelConfig dataclass and ablation study dictionary for MaSTNeT experiments."""
+
 from dataclasses import dataclass
 
 
 @dataclass
 class ModelConfig:
-    """ Class to define model properties, including architecture choices, masking strategies and loss function. """
+    """
+    Configuration dataclass for a single MaSTNeT ablation experiment.
+
+    Controls various aspects of the model: graph construction, attention type, input
+    encoders, masking strategy, and training loss.  Instances are defined in the
+    ``ablation_study`` dict below (exp0 … exp90+).
+
+    Parameters
+    ----------
+    dropout : float, default=0.05
+    graph_mode : str, default='static'
+        ``'static'`` | ``'dynamic'`` | ``'random'`` | ``'time_sequence'`` |
+        ``'single_feature'``.
+    graph_space : str, default='raw'
+        Space in which the k-NN graph is built: ``'raw'`` (coordinate space) or
+        ``'encoded'`` (encoder output space).
+    graph_metric : str, default='isotropic'
+        ``'isotropic'`` (Euclidean distance) or ``'anisotropic'`` (coordinate +
+        feature distance).
+    n_neighbours : int, default=30
+    graph_update_frequency : int, default=5
+        Epochs between graph recomputations (dynamic mode only).
+    graph_warmup : int, default=0
+        Epochs before the first graph update.
+    graph_freeze_epoch : int, default=20
+        Epoch at which the dynamic graph is frozen.
+    learn_anisotropic_weights : bool, default=False
+        If True, per-dimension graph weights are learnable parameters.
+    encoder_scope : str, default='none'
+        ``'none'`` | ``'graph'`` | ``'model'`` | ``'both'``.
+    encoder_input : str, default='coords'
+        Input to the coordinate encoder: ``'coords'`` | ``'coords_feat'`` |
+        ``'coords_feat_mask'``.
+    encoder_output_dim : int, default=3
+    encoder_hidden_dim : int, default=64
+    fill_strategy : str, default='zero'
+        How to fill unobserved features before attention: ``'zero'`` or ``'mean'``.
+    feature_mixer : bool, default=False
+        If True, apply a small MLP to mix features before token construction.
+    feature_mixer_input : str, default='feat'
+        Input to the feature mixer: ``'feat'`` or ``'feat_mask'``.
+    use_rel_pos : bool, default=False
+        Include relative positions in the token.
+    use_masks : bool, default=False
+        Append the binary observation mask to each token.
+    attention_type : str, default='mha'
+        ``'mha'`` | ``'transformer_encoder'`` | ``'autoencoder'`` |
+        ``'space_time_attention'`` | ``'time_space_attention'`` |
+        ``'space_time_depth_attention'`` | ``'weighted_space_time_depth_attention'``.
+    n_time_layers : int, default=3
+        Number of temporal cross-attention layers (space_time modes only).
+    global_context : bool, default=False
+        Add a gated global context vector to each encoded token.
+    masking_strategies : list[str] or None, default=None
+        Active masking strategies: ``'random'`` | ``'transect'`` | ``'sphere'`` |
+        ``'per_feature'``.
+    sphere_mask_radius : float, default=0.1
+    sphere_mask_p : float, default=0.3
+        Probability of applying the spherical mask per batch.
+    transect_mask_width : float, default=0.05
+    transect_mask_p : float, default=0.3
+        Probability of applying the transect mask per batch.
+    transect_mask_orientation : float, default=0.0
+        0 = fully random orientation; 1 = axis-aligned (lat/lon) only.
+    mask_ratio : float, default=0.3
+        Fraction of observed values hidden during training.
+    positional_encoding : bool, default=False
+        Use the :class:`nn_utils.embed.PositionalEncoder` for relative positions.
+    positional_encoding_time_only : bool, default=False
+        If True, encode only the time component of relative positions.
+    loss_name : str, default='hetero'
+        Training loss: ``'mse'`` | ``'hetero'`` | ``'physics_hetero'`` |
+        ``'hetero_fourier'``.
+    """
+
     dropout: float = 0.05
 
     # Graph
