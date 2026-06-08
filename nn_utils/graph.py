@@ -9,20 +9,6 @@ from sklearn.neighbors import NearestNeighbors
 from utils.preprocessing import fill_feature_tensor, get_scopes
 
 
-def set_seed(seed):
-    """Set all random seeds for reproducibility; returns a seeded :class:`torch.Generator`."""
-    np.random.seed(seed)
-    torch.manual_seed(seed)  # CPU
-    torch.cuda.manual_seed(seed)  # current GPU
-    torch.cuda.manual_seed_all(seed)  # all GPUs, if multiple
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-    generator = torch.Generator()
-    generator.manual_seed(seed)
-    return generator
-
-
 def knn_feature_variance(values, mask, knn_idx, scope="default"):
     """Return mean squared feature difference between each point and its k-NN neighbours (lower = more similar)."""
     knn_idx = knn_idx[scope]
