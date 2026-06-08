@@ -288,11 +288,14 @@ def prepare_time_sequence_loaders(coords: torch.Tensor,
     mask_full = ~torch.isnan(values_full)
 
     # Define datasets
-    train_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=train_idx, sequence_length=sequence_length)
-    val_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=val_idx, sequence_length=sequence_length)
-    test_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=test_idx, sequence_length=sequence_length)
-    full_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=None, sequence_length=sequence_length)
-
+    train_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=train_idx,
+                                        sequence_length=sequence_length)
+    val_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=val_idx,
+                                      sequence_length=sequence_length)
+    test_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=test_idx,
+                                       sequence_length=sequence_length)
+    full_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=None,
+                                       sequence_length=sequence_length)
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -303,7 +306,8 @@ def prepare_time_sequence_loaders(coords: torch.Tensor,
     dists_train = None
     # print(f"Median distance of training data: {np.nanmedian(dists_train)}")
 
-    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1), dists_train, coords_full, values_full, mask_full
+    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(
+        1), values_train.size(1), dists_train, coords_full, values_full, mask_full
 
 
 def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
@@ -386,10 +390,14 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
 
     # Define datasets
     scopes = get_scopes(cfg=cfg)
-    train_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx, graph_provider=graph_provider, scopes=scopes)
-    val_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx, graph_provider=graph_provider, scopes=scopes)
-    test_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx, graph_provider=graph_provider, scopes=scopes)
-    full_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=None, graph_provider=graph_provider, scopes=scopes)
+    train_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=train_idx,
+                                            graph_provider=graph_provider, scopes=scopes)
+    val_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=val_idx,
+                                          graph_provider=graph_provider, scopes=scopes)
+    test_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=test_idx,
+                                           graph_provider=graph_provider, scopes=scopes)
+    full_dataset = LearnedNeighbourDataset(coords=coords_full, values=values_full, query_indices=None,
+                                           graph_provider=graph_provider, scopes=scopes)
 
     # Define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
@@ -399,7 +407,8 @@ def prepare_learned_neighbourhood_loaders(coords: torch.Tensor,
 
     dists_train = None
 
-    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(1), values_train.size(1), dists_train, coords_full, values_full, mask_full
+    return full_loader, train_loader, val_loader, test_loader, train_scaler_dict, coords_train.size(
+        1), values_train.size(1), dists_train, coords_full, values_full, mask_full
 
 
 def prepare_pointwise_loaders(coords: torch.Tensor,
@@ -748,6 +757,7 @@ def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu",
     mask = mask_line.unsqueeze(1).expand(B, feature_dim)
 
     return mask
+
 
 class WeightedMinMaxScaler(BaseEstimator, TransformerMixin):
     def __init__(self, feature_range=(0, 1), use_sqrt=True, weights=None):

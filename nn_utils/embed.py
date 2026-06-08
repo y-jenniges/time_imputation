@@ -100,7 +100,6 @@ class CoordEncoder(nn.Module):
                 raise ValueError("Unknown encoder input: %s" % self.cfg.encoder_input)
 
 
-
 class PositionalEncoder(nn.Module):
     """
     MLP that maps relative position vectors to positional embeddings (Point Transformer style).
@@ -130,6 +129,3 @@ class PositionalEncoder(nn.Module):
     def forward(self, rel_pos):
         """Map relative position vector ``rel_pos`` to a positional embedding."""
         return self.pos_embed(rel_pos)
-
-
-

@@ -1,3 +1,6 @@
+"""k-NN graph construction, analytics, and the GraphProvider class for MaSTNeT."""
+
+import logging
 import torch
 import numpy as np
 from typing import Union, Dict, Any
@@ -7,6 +10,7 @@ from utils.preprocessing import fill_feature_tensor, get_scopes
 
 
 def set_seed(seed):
+    """Set all random seeds for reproducibility; returns a seeded :class:`torch.Generator`."""
     np.random.seed(seed)
     torch.manual_seed(seed)  # CPU
     torch.cuda.manual_seed(seed)  # current GPU
@@ -20,6 +24,7 @@ def set_seed(seed):
 
 
 def knn_feature_variance(values, mask, knn_idx, scope="default"):
+    """Return mean squared feature difference between each point and its k-NN neighbours (lower = more similar)."""
     knn_idx = knn_idx[scope]
 
     # How similar are feature values in neighbourhood? Low variance --> Similar neighbours
@@ -27,16 +32,16 @@ def knn_feature_variance(values, mask, knn_idx, scope="default"):
     v_j = values[knn_idx]  # [N, K, F]
 
     # Prepare passed mask
-    m_i = mask.unsqueeze(1)            # [N, 1, F]
-    m_j = mask[knn_idx]                # [N, K, F]
+    m_i = mask.unsqueeze(1)  # [N, 1, F]
+    m_j = mask[knn_idx]  # [N, K, F]
 
     # NaN mask
-    nan_mask = ~torch.isnan(values)    # [N, F]
-    n_i = nan_mask.unsqueeze(1)        # [N, 1, F]
-    n_j = nan_mask[knn_idx]            # [N, K, F]
+    nan_mask = ~torch.isnan(values)  # [N, F]
+    n_i = nan_mask.unsqueeze(1)  # [N, 1, F]
+    n_j = nan_mask[knn_idx]  # [N, K, F]
 
     # Combine masks
-    joint_mask = m_i & m_j & n_i & n_j   # [N, K, F]
+    joint_mask = m_i & m_j & n_i & n_j  # [N, K, F]
 
     # Compute squared differences (avoid NaN propagation)
     diff2 = (torch.nan_to_num(v_i) - torch.nan_to_num(v_j)) ** 2
@@ -49,6 +54,7 @@ def knn_feature_variance(values, mask, knn_idx, scope="default"):
 
 
 def knn_time_difference(coords, knn_idx, scope="default"):
+    """Return mean absolute time separation between each point and its k-NN neighbours (lower = temporally closer)."""
     # How far apart are neighbours in time? (Lower is better)
     knn_idx = knn_idx[scope]
 
@@ -59,19 +65,43 @@ def knn_time_difference(coords, knn_idx, scope="default"):
 
 
 def knn_overlap(prev_idx, new_idx, scope="default"):
+    """Return fraction of neighbours shared between consecutive graph updates (1.0 = identical graphs)."""
     # How many neighbours stayed the same after graph update? (1 = identical neighbours)
     prev = prev_idx[scope].unsqueeze(2)  # [N, K, 1]
-    new  = new_idx[scope].unsqueeze(1)  # [N, 1, K]
+    new = new_idx[scope].unsqueeze(1)  # [N, 1, K]
 
     matches = (prev.eq(new)).any(dim=-1).float()  # [N, K]
     return matches.mean().item()
 
 
 class GraphProvider:
+    """
+    Manages k-NN graph construction, updates, and diagnostics for MaSTNeT.
+
+    Supports static graphs (built once), dynamic graphs (periodically recomputed
+    in latent space), and random graphs. Tracks graph quality metrics
+    (feature variance, time separation, neighbour overlap) across updates.
+
+    Parameters
+    ----------
+    n_neighbours : int, default=20
+        Number of k-nearest neighbours per query point.
+    update_every : int, default=5
+        Epochs between graph re-computations (dynamic mode only).
+    cfg : ModelConfig or None, default=None
+        Experiment configuration; controls graph mode, metric, and space.
+    test_idx : Tensor or None, default=None
+        Test-set indices; their feature values are masked to NaN during graph
+        construction to prevent data leakage.
+    val_idx : Tensor or None, default=None
+        Validation-set indices; same leakage prevention as ``test_idx``.
+    device : torch.device, default=cpu
+    """
+
     def __init__(self,
                  n_neighbours=20,
                  update_every: int = 5,
-                 cfg = None,
+                 cfg=None,
                  test_idx: torch.Tensor = None,
                  val_idx: torch.Tensor = None,
                  device: torch.device = torch.device("cpu")
@@ -96,57 +126,62 @@ class GraphProvider:
 
     @torch.no_grad()
     def build_graph(self, encoded, coords, values, mask, anisotropic_weights=None):
+        """Build neighbour index tensors according to ``cfg.graph_mode`` and ``cfg.graph_metric``."""
         if self.cfg.graph_mode == "random":
             # Random neighbours
             self.neighbour_indices = {"default": compute_random_neighbours(coords, k=self.n_neighbours)}
 
         elif self.cfg.attention_type == "space_time_attention" or self.cfg.attention_type == "time_space_attention":
             # Time neighbours
-            time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours+1)
+            time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours + 1)
             time_indices = time_indices[:, 1:]  # Remove self
 
             # Space neighbours
-            space_indices = compute_candidates(coords[:, :4], k=self.n_neighbours+1)
+            space_indices = compute_candidates(coords[:, :4], k=self.n_neighbours + 1)
             space_indices = space_indices[:, 1:]  # Remove self
 
             self.neighbour_indices = {"space": space_indices, "time": time_indices}
 
         elif self.cfg.attention_type == "space_time_depth_attention" or self.cfg.attention_type == "weighted_space_time_depth_attention":
             # Time neighbours
-            time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours+1)
+            time_indices = compute_candidates(coords[:, -1:], k=self.n_neighbours + 1)
             time_indices = time_indices[:, 1:]  # Remove self
 
             # Space neighbours
-            space_indices = compute_candidates(coords[:, :3], k=self.n_neighbours+1)
+            space_indices = compute_candidates(coords[:, :3], k=self.n_neighbours + 1)
             space_indices = space_indices[:, 1:]  # Remove self
 
             # Depth neighbours
-            depth_indices = compute_candidates(coords[:, 3:4], k=self.n_neighbours+1)
+            depth_indices = compute_candidates(coords[:, 3:4], k=self.n_neighbours + 1)
             depth_indices = depth_indices[:, 1:]  # Remove self
 
             self.neighbour_indices = {"space": space_indices, "time": time_indices, "depth": depth_indices}
 
         elif self.cfg.graph_metric == "isotropic":
-            indices = compute_candidates(encoded, k=self.n_neighbours+1)
+            indices = compute_candidates(encoded, k=self.n_neighbours + 1)
             self.neighbour_indices = {"default": indices[:, 1:]}  # Remove self
 
         elif self.cfg.graph_metric == "anisotropic":
             candidates = compute_candidates(coords, k=200)
             indices = compute_anisotropic_knn(coords, values, mask, k=self.n_neighbours,
-                                                             candidate_idx=candidates,
-                                                             lambda_=1.0, weights=None, batch_size=2048,
-                                                             device=self.device)
+                                              candidate_idx=candidates,
+                                              lambda_=1.0, weights=None, batch_size=2048,
+                                              device=self.device)
             self.neighbour_indices = {"default": indices}
 
         else:
             raise ValueError(f"Unknown graph metric: {self.cfg.graph_metric}")
 
     def encode_input(self, encoder, coords, values, mask, mean_values=None):
+        """Encode coordinates/features into the graph embedding space (raw coords or encoder output)."""
         if self.cfg.graph_space == "encoded":
             # Fill masked values and nan values (test/val idxs)
-            values_filled = fill_feature_tensor(features=values, mask=mask, fill_strategy=self.cfg.fill_strategy, mean_values=mean_values)
-            values_filled = fill_feature_tensor(features=values_filled, mask=None, fill_strategy=self.cfg.fill_strategy, mean_values=mean_values)
-            encoded = encoder(coords=coords[:, :4], values=values_filled, mask=mask.float(), times=coords[:, -1:].float())
+            values_filled = fill_feature_tensor(features=values, mask=mask, fill_strategy=self.cfg.fill_strategy,
+                                                mean_values=mean_values)
+            values_filled = fill_feature_tensor(features=values_filled, mask=None, fill_strategy=self.cfg.fill_strategy,
+                                                mean_values=mean_values)
+            encoded = encoder(coords=coords[:, :4], values=values_filled, mask=mask.float(),
+                              times=coords[:, -1:].float())
             return encoded.detach()
 
         elif self.cfg.graph_space == "raw":
@@ -155,6 +190,7 @@ class GraphProvider:
             raise ValueError(f"Unknown graph space: {self.cfg.graph_space}")
 
     def get_metrics(self, coords, values, mask, scope="default"):
+        """Compute feature-variance, time-difference, and overlap diagnostics for a given scope."""
         feat_variance = knn_feature_variance(values, mask, self.neighbour_indices, scope=scope)
         time_difference = knn_time_difference(coords, self.neighbour_indices, scope=scope)
 
@@ -164,15 +200,18 @@ class GraphProvider:
         return {"feat_variance": feat_variance, "time_difference": time_difference, "overlap": overlap}
 
     def append_metrics(self, metrics, scope="default"):
+        """Append a metrics dict to the per-scope history lists."""
         self.history[scope]["feat_variance"].append(metrics["feat_variance"])
         self.history[scope]["time_difference"].append(metrics["time_difference"])
         self.history[scope]["overlap"].append(metrics["overlap"])
 
     def update_eval_metrics(self, values, coords, mask):
+        """Compute and log graph quality metrics for all scopes after a graph update."""
         scopes = get_scopes(cfg=self.cfg)
         for scope in scopes:
             metrics = self.get_metrics(coords=coords, values=values, mask=mask, scope=scope)
-            print(f"{scope} graph: \nfeat_variance: {metrics['feat_variance']:.6f}, time_difference: {metrics['time_difference']:.6f}, overlap: {metrics['overlap']}")
+            logging.info(
+                f"{scope} graph: feat_variance={metrics['feat_variance']:.6f}, time_difference={metrics['time_difference']:.6f}, overlap={metrics['overlap']}")
             self.append_metrics(metrics=metrics, scope=scope)
 
         self.prev_neighbour_indices = {k: v.clone() for k, v in self.neighbour_indices.items()}
@@ -189,24 +228,27 @@ class GraphProvider:
             values[self.val_idx] = torch.nan
 
         # Encoding
-        encoded = self.encode_input(encoder=encoder, coords=coords, values=values, mask=mask, mean_values=mean_values)  # second visit here somehow leaves nan
+        encoded = self.encode_input(encoder=encoder, coords=coords, values=values, mask=mask,
+                                    mean_values=mean_values)  # second visit here somehow leaves nan
 
         # Graph building
         # Weighting each coordinate dimension
-        # w = 1 if anisotropic_weights is None else torch.nn.functional.softplus(anisotropic_weights)  # torch.exp(anisotropic_weights)
         w = 1 if anisotropic_weights is None else torch.exp(anisotropic_weights)
-        print("Weights in graph: ", w)
+        logging.debug("Graph weights: %s", w)
         coords_scaled = coords * w
         encoded_scaled = encoded * w
-        self.build_graph(encoded=encoded_scaled, coords=coords_scaled, values=values, mask=mask, anisotropic_weights=anisotropic_weights)
+        self.build_graph(encoded=encoded_scaled, coords=coords_scaled, values=values, mask=mask,
+                         anisotropic_weights=anisotropic_weights)
 
         # KNN eval metrics
         self.update_eval_metrics(values=values, coords=coords, mask=mask)
 
     def get_neighbours(self, idx, scope="default"):
+        """Return neighbour index tensor for query point ``idx`` in the given scope."""
         return self.neighbour_indices[scope][idx]
 
     def get_neighbour_batch(self, idx, coords, values, feature_mask, scope="default") -> Dict[str, Any]:
+        """Return a dict with neighbour indices, values, masks, and coordinates for query ``idx``."""
         n_idx = self.neighbour_indices[scope][idx]
 
         return {
@@ -218,13 +260,14 @@ class GraphProvider:
 
 
 def compute_random_neighbours(coords, k):
+    """Return a (N, k) LongTensor of random neighbour indices (self excluded)."""
     N = coords.shape[0]
 
     indices = torch.empty((N, k), dtype=torch.long)
 
     for i in range(N):
         # sample k from N-1 without full permutation
-        choices = torch.randint(0, N-1, (k,))
+        choices = torch.randint(0, N - 1, (k,))
         choices[choices >= i] += 1  # skip self
         indices[i] = choices
 
@@ -233,8 +276,19 @@ def compute_random_neighbours(coords, k):
 
 def compute_candidates(coords, k=200):
     """
-    coords: [N, D] (CPU tensor or numpy)
-    returns: [N, k] candidate indices
+    Compute the k nearest neighbours for every point using sklearn's NearestNeighbors.
+
+    Parameters
+    ----------
+    coords : Tensor or ndarray, shape (N, D)
+        Coordinate matrix (CPU tensor or numpy array).
+    k : int, default=200
+        Number of neighbours to retrieve (self is included and typically dropped later).
+
+    Returns
+    -------
+    Tensor of shape (N, k)
+        Neighbour indices.
     """
     if torch.is_tensor(coords):
         coords_np = coords.cpu().numpy()
@@ -249,22 +303,52 @@ def compute_candidates(coords, k=200):
 
 
 def compute_anisotropic_knn(
-    coords,
-    values,
-    mask,
-    candidate_idx,
-    k=20,
-    lambda_=1.0,
-    weights=None,
-    batch_size=2048,
-    device=torch.device("cpu")
+        coords,
+        values,
+        mask,
+        candidate_idx,
+        k=20,
+        lambda_=1.0,
+        weights=None,
+        batch_size=2048,
+        device=torch.device("cpu")
 ):
+    """
+    Select k neighbours from a candidate set using a combined geometric + feature distance.
+
+    Distance: d = d_geo * (1 + λ · d_feat), where d_geo is a weighted Euclidean
+    coordinate distance and d_feat is the mean squared feature distance over jointly
+    observed variables.
+
+    Parameters
+    ----------
+    coords : Tensor, shape (N, D)
+    values : Tensor, shape (N, F)
+    mask : Tensor, shape (N, F)
+        Boolean — True where feature values are observed.
+    candidate_idx : Tensor, shape (N, Kc)
+        Pre-computed isotropic candidate neighbours (e.g. from :func:`compute_candidates`).
+    k : int, default=20
+        Final number of neighbours to select.
+    lambda_ : float, default=1.0
+        Weight for the feature-distance term.
+    weights : list[float] or None, default=None
+        Per-coordinate scaling weights; defaults to uniform (1.0 for each dim).
+    batch_size : int, default=2048
+        Number of query points processed per batch to limit memory usage.
+    device : torch.device, default=cpu
+
+    Returns
+    -------
+    Tensor of shape (N, k)
+        Anisotropic k-NN neighbour indices.
+    """
     if weights is None:
         weights = [1] * coords.shape[-1]
 
     coords = coords.to(device)
     values = values.to(device)
-    mask   = mask.to(device)
+    mask = mask.to(device)
     candidate_idx = candidate_idx.to(device)
 
     N, D = coords.shape
@@ -275,15 +359,15 @@ def compute_anisotropic_knn(
     neighbors = []
 
     for i in range(0, N, batch_size):
-        q_coords = coords[i:i+batch_size]
-        q_values = values[i:i+batch_size]
-        q_mask   = mask[i:i+batch_size]
+        q_coords = coords[i:i + batch_size]
+        q_values = values[i:i + batch_size]
+        q_mask = mask[i:i + batch_size]
 
-        cand = candidate_idx[i:i+batch_size]  # [B, Kc]
+        cand = candidate_idx[i:i + batch_size]  # [B, Kc]
 
-        coords_ref = coords[cand]   # [B, Kc, D]
-        values_ref = values[cand]   # [B, Kc, F]
-        mask_ref   = mask[cand]     # [B, Kc, F]
+        coords_ref = coords[cand]  # [B, Kc, D]
+        values_ref = values[cand]  # [B, Kc, F]
+        mask_ref = mask[cand]  # [B, Kc, F]
 
         B, Kc = cand.shape
 
@@ -296,7 +380,7 @@ def compute_anisotropic_knn(
 
         # Feature distances
         d_feat = torch.zeros((B, Kc), device=device, dtype=coords.dtype)
-        denom  = torch.zeros((B, Kc), device=device, dtype=coords.dtype)
+        denom = torch.zeros((B, Kc), device=device, dtype=coords.dtype)
 
         for f in range(F):
             qi = q_values[:, f].unsqueeze(1)
@@ -310,7 +394,7 @@ def compute_anisotropic_knn(
             diff2 = (qi - qj) ** 2
 
             d_feat += diff2 * m
-            denom  += m
+            denom += m
 
         d_feat = torch.where(
             denom > 0,
