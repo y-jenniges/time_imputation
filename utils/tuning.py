@@ -203,7 +203,7 @@ def combine_resfiles(dir_path, file_ending=".csv", out_name="combined.csv", remo
         Combined results; empty DataFrame if no files found.
     """
     # Remove file if exists
-    if Path.exists(Path(dir_path + out_name)):
+    if Path(dir_path + out_name).exists():
         Path(dir_path + out_name).unlink()
 
     # Load all result files as df
