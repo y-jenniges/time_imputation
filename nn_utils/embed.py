@@ -1,8 +1,33 @@
+"""Coordinate and positional encoder modules used as optional components in MaSTNeT."""
+
 import torch
 import torch.nn as nn
 
 
 class CoordEncoder(nn.Module):
+    """
+    Learnable encoder mapping coordinates (and optionally feature values) to a fixed-size embedding.
+
+    Used to build the latent space for dynamic graph construction or to enrich
+    token representations before attention.
+
+    Parameters
+    ----------
+    cfg : ModelConfig
+        Controls ``encoder_input``: one of ``'coords'``, ``'coords_feat'``,
+        ``'coords_feat_mask'``.
+    hidden_dim : int, default=32
+        Hidden dimension of the spatial, temporal, and feature sub-networks.
+    coord_dim : int, default=5
+        Number of spatial coordinate dimensions (lat/lon/depth encoded; excludes time).
+    value_dim : int, default=6
+        Number of ocean feature variables.
+    time_dim : int, default=1
+        Dimensionality of the time input (1 for linear, 2 for cyclic encoding).
+    output_dim : int or None, default=None
+        Output embedding dimension; defaults to ``hidden_dim``.
+    """
+
     def __init__(self, cfg, hidden_dim=32, coord_dim=5, value_dim=6, time_dim=1, output_dim=None):
         super().__init__()
         self.cfg = cfg
@@ -56,6 +81,7 @@ class CoordEncoder(nn.Module):
             )
 
     def forward(self, coords, times, values, mask):
+        """Encode spatio-temporal coordinates (and optionally features/masks) into a fixed-size embedding."""
         h_s = self.spatial(coords)
         h_t = self.time(times)
 
@@ -74,13 +100,24 @@ class CoordEncoder(nn.Module):
                 raise ValueError("Unknown encoder input: %s" % self.cfg.encoder_input)
 
 
-"""
-Reference: H. Zhao, L. Jiang, J. Jia, P. Torr and V. Koltun, "Point Transformer," 2021 IEEE/CVF International 
-Conference on Computer Vision (ICCV), Montreal, QC, Canada, 2021, pp. 16239-16248, doi: 10.1109/ICCV48922.2021.01595. 
-"""
-
 
 class PositionalEncoder(nn.Module):
+    """
+    MLP that maps relative position vectors to positional embeddings (Point Transformer style).
+
+    Reference: Zhao et al., "Point Transformer," ICCV 2021.
+    doi: 10.1109/ICCV48922.2021.01595.
+
+    Parameters
+    ----------
+    input_dim : int, default=5
+        Dimensionality of the relative position vector (typically coord_dim).
+    hidden_dim : int, default=32
+        Hidden layer width.
+    output_dim : int, default=64
+        Output embedding dimension; should match ``d_model`` of the attention block.
+    """
+
     def __init__(self, input_dim=5, hidden_dim=32, output_dim=64):
         super().__init__()
 
@@ -91,6 +128,7 @@ class PositionalEncoder(nn.Module):
         )
 
     def forward(self, rel_pos):
+        """Map relative position vector ``rel_pos`` to a positional embedding."""
         return self.pos_embed(rel_pos)
 
 
