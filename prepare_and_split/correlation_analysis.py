@@ -1,3 +1,5 @@
+"""Spatial and feature correlation analysis for the prepared COMFORT dataset."""
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pyproj import Transformer
