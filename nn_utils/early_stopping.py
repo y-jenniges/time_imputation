@@ -1,15 +1,27 @@
+"""Early stopping with adaptive improvement threshold."""
+
 import torch
 import numpy as np
 
 
 class EarlyStopping:
+    """
+    Early stopping with an adaptive minimum-improvement threshold.
+
+    The required improvement is the larger of ``min_delta_abs`` and
+    ``delta_ratio * |val_loss|``, so the threshold scales with loss magnitude.
+
+    Parameters
+    ----------
+    patience : int, default=20
+        Epochs to wait without improvement before stopping.
+    delta_ratio : float, default=1e-4
+        Fraction of the current validation loss used as the minimum improvement.
+    min_delta_abs : float, default=1e-8
+        Absolute floor for the minimum improvement (prevents near-zero comparisons).
+    """
+
     def __init__(self, patience=20, delta_ratio=1e-4, min_delta_abs=1e-8):
-        """
-        Args:
-            patience (int): Number of epochs to wait for improvement before stopping
-            delta_ratio (float): Fraction of current val_loss used to define min_delta adaptively
-            min_delta_abs (float): Absolute minimum delta threshold (prevents too small comparisons)
-        """
         self.patience = patience
         self.delta_ratio = delta_ratio
         self.min_delta_abs = min_delta_abs
@@ -21,6 +33,7 @@ class EarlyStopping:
         self.epoch = 0
 
     def reset(self):
+        """Reset all state to allow reuse across multiple training runs."""
         self.best_loss = np.inf
         self.counter = 0
         self.early_stop = False
@@ -29,10 +42,17 @@ class EarlyStopping:
 
     def __call__(self, val_loss):
         """
-        Update the early stopping state with a new validation loss.
+        Update state with ``val_loss`` and return True if training should stop.
 
-        Args:
-            val_loss (float or torch.Tensor): current validation loss
+        Parameters
+        ----------
+        val_loss : float or Tensor
+            Current validation loss for the epoch.
+
+        Returns
+        -------
+        bool
+            True when the patience counter has reached ``patience``.
         """
         if isinstance(val_loss, torch.Tensor):
             val_loss = val_loss.item()
