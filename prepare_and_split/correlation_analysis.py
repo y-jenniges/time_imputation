@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 
 import config
-from nn_utils.dataset import load_dataset
+from utils.data import load_dataset
 
 
 if __name__ == "__main__":
