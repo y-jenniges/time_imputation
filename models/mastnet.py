@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from models.encoders import PositionalEncoder, CoordEncoder
 from experiments.modelconfig import ModelConfig
-from utils.preprocessing import fill_feature_tensor, get_scopes
+from utils.tensor_utils import fill_feature_tensor, get_scopes
 
 
 class CrossAttentionBlock(nn.Module):

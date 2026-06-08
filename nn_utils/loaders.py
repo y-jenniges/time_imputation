@@ -11,7 +11,7 @@ import config
 from nn_utils.datasets import LearnedNeighbourDataset, PointwiseDataset, TimeSequenceDataset
 from nn_utils.graph import GraphProvider
 from utils.data import preprocess
-from utils.preprocessing import get_scopes
+from utils.tensor_utils import get_scopes
 
 
 def prepare_time_sequence_loaders(coords: torch.Tensor,

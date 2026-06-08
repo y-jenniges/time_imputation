@@ -6,7 +6,7 @@ import numpy as np
 from typing import Union, Dict, Any
 from sklearn.neighbors import NearestNeighbors
 
-from utils.preprocessing import fill_feature_tensor, get_scopes
+from utils.tensor_utils import fill_feature_tensor, get_scopes
 
 
 def knn_feature_variance(values, mask, knn_idx, scope="default"):
