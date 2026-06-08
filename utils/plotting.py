@@ -26,31 +26,6 @@ import config
 from utils.gridding import df_to_gridded_da
 
 
-# def geo_to_cartesian(lat, lon, depth, R=6371000.0):
-#     """
-#     Convert geographic coordinates to 3D Cartesian.
-#     lat, lon in degrees
-#     depth in meters (positive down)
-#     R = Earth radius in meters
-#     """
-#     lat_rad = np.radians(lat)
-#     lon_rad = np.radians(lon)
-#     r = 1.0 - depth / R
-#     x = r * np.cos(lat_rad) * np.cos(lon_rad)
-#     y = r * np.cos(lat_rad) * np.sin(lon_rad)
-#     z = r * np.sin(lat_rad)
-#     # Scale from [-1, 1] to [0, 1]
-#     x = (x + 1) / 2
-#     y = (y + 1) / 2
-#     z = (z + 1) / 2
-#     return np.array([x, y, z])
-#
-#
-# def geo_distance(lat1, lon1, depth1, lat2, lon2, depth2):
-#     p1 = geo_to_cartesian(lat1, lon1, depth1)
-#     p2 = geo_to_cartesian(lat2, lon2, depth2)
-#     return np.linalg.norm(p1 - p2)
-
 
 def plot_time_series_for_location(df, y, y_imputed, var_pred, observed_mask, var_names,
                                   lat=None, lon=None, lev=None, var_idx=0, auto_pick=True):
