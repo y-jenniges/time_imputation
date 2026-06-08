@@ -1,3 +1,5 @@
+"""Evaluation metrics (RMSE, MAE, R², KGE, Wasserstein, …) for imputation model comparison."""
+
 import numpy as np
 from scipy import stats
 from permetrics import RegressionMetric
@@ -7,12 +9,22 @@ import config
 
 def compute_metrics(y_true, y_pred, var_names=None):
     """
-    Compute global and per-variable metrics for model evaluation.
+    Compute global and per-variable regression metrics.
 
-    :param y_true: True values, numpy array of shape (n_samples, n_variables)
-    :param y_pred: Predicted values, numpy array of shape (n_samples, n_variables)
-    :param var_names: List of variable names (optional)
-    :return: Dict with global metrics and per-variable metrics
+    Parameters
+    ----------
+    y_true : ndarray, shape (N, F)
+        Ground-truth values; ``NaN`` at missing positions.
+    y_pred : ndarray, shape (N, F)
+        Predicted values; ``NaN`` at missing positions.
+    var_names : list[str] or None, default=None
+        Variable names; defaults to ``['var_0', 'var_1', …]``.
+
+    Returns
+    -------
+    dict
+        ``{'Global': {metric: value}, 'PerVariable': {name: {metric: value}}}``.
+        Global metrics are computed by aggregating over all valid entries across variables.
     """
     # Variables
     n_vars = y_true.shape[1]
