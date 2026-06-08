@@ -1,4 +1,4 @@
-"""Coordinate and positional encoder modules used as optional components in MaSTNeT."""
+"""Coordinate and positional encoder modules that are part of the MaSTNeT architecture."""
 
 import torch
 import torch.nn as nn
