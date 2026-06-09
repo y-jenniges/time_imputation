@@ -834,6 +834,172 @@ def plot_missingness_over_column(df, config, col="DATEANDTIME", figsize=(8, 6), 
         plt.savefig(save_as, dpi=dpi)
 
 
+def plot_missingness_panels(df, depth_levels, cmap="RdYlGn_r", ncols=3, vmin=0, vmax=1, save_as=None, dpi=300):
+    n = len(depth_levels)
+    nrows = int(np.ceil(n / ncols))
+
+    fig, axs = plt.subplots(
+        nrows=nrows,
+        ncols=ncols,
+        figsize=(ncols * 3.6, nrows * 3.2),
+        subplot_kw={"projection": ccrs.PlateCarree()},
+        constrained_layout=True,
+    )
+    axs = np.atleast_1d(axs).flatten()
+
+    lon_min, lon_max = df["LONGITUDE"].min(), df["LONGITUDE"].max()
+    lat_min, lat_max = df["LATITUDE"].min(), df["LATITUDE"].max()
+    pcm = None
+
+    for i, d in enumerate(depth_levels):
+        ax = axs[i]
+        sub = df[df["LEV_M"] == d]
+        grid = sub.pivot_table(index="LATITUDE", columns="LONGITUDE", values="miss")
+        lats = grid.index.values
+        lons = grid.columns.values
+
+        ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
+        ax.add_feature(cfeature.LAND, facecolor="0.92", zorder=0)
+        ax.coastlines(linewidth=0.6, color="0.3")
+
+        row, col = i // ncols, i % ncols
+        gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                          linewidth=0.4, linestyle="--", color="gray")
+        gl.top_labels = gl.right_labels = gl.left_labels = gl.bottom_labels = False
+        if col == 0:
+            gl.left_labels = True
+            gl.ylabel_style = {"size": 8}
+        if row == nrows - 1:
+            gl.bottom_labels = True
+            gl.xlabel_style = {"size": 8}
+
+        pcm = ax.pcolormesh(lons, lats, grid.values, cmap=cmap, vmin=vmin, vmax=vmax,
+                            shading="auto", transform=ccrs.PlateCarree())
+        ax.set_title(f"{int(d)} m", fontsize=9)
+
+    for j in range(i + 1, len(axs)):
+        axs[j].axis("off")
+
+    cbar = fig.colorbar(pcm, ax=axs, orientation="vertical", pad=0.02, shrink=0.7)
+    cbar.set_label("Missingness", fontsize=10)
+
+    if save_as:
+        plt.savefig(save_as, dpi=dpi, bbox_inches="tight", facecolor="white")
+    plt.show()
+
+
+def generate_latex_table(
+    df_global: "pd.DataFrame",
+    df_pervar: "pd.DataFrame",
+    model_col: str = "Model",
+    bold_best: bool = True,
+) -> str:
+    """
+    Generate a LaTeX table: Model | RMSE↓ | KGE↑ | CMIP MAE↓ | per-variable RMSE↓
+
+    Parameters
+    ----------
+    df_global : DataFrame
+        One row per model. Required columns: ``model_col``, ``RMSE``, ``KGE``.
+        If a ``CMIP_diff`` column is present it is included after KGE.
+    df_pervar : DataFrame
+        One row per (model, variable). Required columns: ``model_col``, ``parameter``, ``RMSE``.
+    model_col : str
+        Column used as the unique model identifier and row label.
+    bold_best : bool
+        Bold the best value in each metric column independently.
+    """
+    import config as _cfg
+
+    for col in [model_col, "RMSE", "KGE"]:
+        if col not in df_global.columns:
+            raise ValueError(f"df_global is missing required column: {col!r}")
+    for col in [model_col, "RMSE", "parameter"]:
+        if col not in df_pervar.columns:
+            raise ValueError(f"df_pervar is missing required column: {col!r}")
+
+    has_cmip = "CMIP_diff" in df_global.columns and df_global["CMIP_diff"].notna().any()
+
+    # Per-variable RMSE pivot: rows = model, cols = parameter
+    pivot = df_pervar.pivot_table(index=model_col, values="RMSE", columns="parameter", aggfunc="mean")
+    param_cols = [p for p in _cfg.parameters if p in pivot.columns]
+    pivot = pivot[param_cols]
+
+    # Build table: one row per model, global metrics + per-variable RMSE
+    global_cols = [model_col, "RMSE", "KGE"] + (["CMIP_diff"] if has_cmip else [])
+    table = df_global[global_cols].drop_duplicates(subset=[model_col]).set_index(model_col).join(pivot, how="left")
+
+    def _fmt_cell(v, decimals=4):
+        """Format a single value; return '---' for NaN."""
+        if pd.isna(v):
+            return "---"
+        return f"{v:.{decimals}f}"
+
+    def _format_column(series, lower_is_better, decimals=4):
+        """Format a numeric Series; bold the single best non-NaN value."""
+        valid = series.dropna()
+        if valid.empty or not bold_best:
+            return {i: _fmt_cell(v, decimals) for i, v in series.items()}
+        best_idx = valid.idxmin() if lower_is_better else valid.idxmax()
+        result = {}
+        for idx, val in series.items():
+            s = _fmt_cell(val, decimals)
+            result[idx] = rf"\textbf{{{s}}}" if idx == best_idx else s
+        return result
+
+    formatted = pd.DataFrame(index=table.index)
+    formatted["RMSE_g"] = pd.Series(_format_column(table["RMSE"],      lower_is_better=True))
+    formatted["KGE_g"]  = pd.Series(_format_column(table["KGE"],       lower_is_better=False))
+    if has_cmip:
+        formatted["CMIP"] = pd.Series(_format_column(table["CMIP_diff"], lower_is_better=True))
+    for p in param_cols:
+        formatted[p] = pd.Series(_format_column(table[p], lower_is_better=True))
+
+    n_params = len(param_cols)
+    n_global = 2 + (1 if has_cmip else 0)
+    col_spec = "l" + "c" * (n_global + n_params)
+    short = _cfg.parameter_name_map
+
+    # Header rows
+    cmip_hdr = r"CMIP MAE $\downarrow$ & " if has_cmip else ""
+    row1 = (
+        f"    {model_col} & RMSE $\\downarrow$ & KGE $\\uparrow$ & "
+        + cmip_hdr
+        + rf"\multicolumn{{{n_params}}}{{c}}{{RMSE per parameter $\downarrow$}} \\"
+    )
+    start_col = 1 + n_global + 1       # 1-indexed column where per-param span starts
+    end_col   = 1 + n_global + n_params
+    cmidrule  = rf"    \cmidrule(lr){{{start_col}-{end_col}}}"
+    # Second header row: empty cells for global columns, then parameter short names
+    empty_cells = " & ".join([""] * (1 + n_global))
+    param_hdrs  = " & ".join(short.get(p, p) for p in param_cols)
+    row2 = f"    {empty_cells} & {param_hdrs} \\\\"
+
+    lines = [
+        r"\begin{table}[htbp]",
+        r"    \centering",
+        r"    \caption{Model performance metrics (normalized space)}",
+        r"    \label{tab:model_performance}",
+        r"    \resizebox{\textwidth}{!}{%",
+        rf"    \begin{{tabular}}{{{col_spec}}}",
+        r"    \toprule",
+        row1, cmidrule, row2,
+        r"    \midrule",
+    ]
+
+    # Data rows
+    for mid, row in formatted.iterrows():
+        cells = [str(mid), row["RMSE_g"], row["KGE_g"]]
+        if has_cmip:
+            cells.append(row["CMIP"])
+        for p in param_cols:
+            cells.append(row.get(p, "---"))
+        lines.append("    " + " & ".join(cells) + r" \\")
+
+    lines += [r"    \bottomrule", r"    \end{tabular}", r"    }", r"\end{table}"]
+    return "\n".join(lines)
+
+
 """
 Following functions (adapted) from:
 Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1). 
@@ -1299,115 +1465,3 @@ def plot_geo(df, color_label="color", save_as=None, figsize=(6, 6),
     if save_as:
         plt.savefig(save_as, dpi=dpi)
     # plt.show()
-
-
-def generate_latex_table(
-    df_global: "pd.DataFrame",
-    df_pervar: "pd.DataFrame",
-    model_col: str = "Model",
-    bold_best: bool = True,
-) -> str:
-    """
-    Generate a LaTeX table: Model | RMSE↓ | KGE↑ | CMIP MAE↓ | per-variable RMSE↓
-
-    Parameters
-    ----------
-    df_global : DataFrame
-        One row per model. Required columns: ``model_col``, ``RMSE``, ``KGE``.
-        If a ``CMIP_diff`` column is present it is included after KGE.
-    df_pervar : DataFrame
-        One row per (model, variable). Required columns: ``model_col``, ``parameter``, ``RMSE``.
-    model_col : str
-        Column used as the unique model identifier and row label.
-    bold_best : bool
-        Bold the best value in each metric column independently.
-    """
-    import config as _cfg
-
-    for col in [model_col, "RMSE", "KGE"]:
-        if col not in df_global.columns:
-            raise ValueError(f"df_global is missing required column: {col!r}")
-    for col in [model_col, "RMSE", "parameter"]:
-        if col not in df_pervar.columns:
-            raise ValueError(f"df_pervar is missing required column: {col!r}")
-
-    has_cmip = "CMIP_diff" in df_global.columns and df_global["CMIP_diff"].notna().any()
-
-    # Per-variable RMSE pivot: rows = model, cols = parameter
-    pivot = df_pervar.pivot_table(index=model_col, values="RMSE", columns="parameter", aggfunc="mean")
-    param_cols = [p for p in _cfg.parameters if p in pivot.columns]
-    pivot = pivot[param_cols]
-
-    # Build table: one row per model, global metrics + per-variable RMSE
-    global_cols = [model_col, "RMSE", "KGE"] + (["CMIP_diff"] if has_cmip else [])
-    table = df_global[global_cols].drop_duplicates(subset=[model_col]).set_index(model_col).join(pivot, how="left")
-
-    def _fmt_cell(v, decimals=4):
-        """Format a single value; return '---' for NaN."""
-        if pd.isna(v):
-            return "---"
-        return f"{v:.{decimals}f}"
-
-    def _format_column(series, lower_is_better, decimals=4):
-        """Format a numeric Series; bold the single best non-NaN value."""
-        valid = series.dropna()
-        if valid.empty or not bold_best:
-            return {i: _fmt_cell(v, decimals) for i, v in series.items()}
-        best_idx = valid.idxmin() if lower_is_better else valid.idxmax()
-        result = {}
-        for idx, val in series.items():
-            s = _fmt_cell(val, decimals)
-            result[idx] = rf"\textbf{{{s}}}" if idx == best_idx else s
-        return result
-
-    formatted = pd.DataFrame(index=table.index)
-    formatted["RMSE_g"] = pd.Series(_format_column(table["RMSE"],      lower_is_better=True))
-    formatted["KGE_g"]  = pd.Series(_format_column(table["KGE"],       lower_is_better=False))
-    if has_cmip:
-        formatted["CMIP"] = pd.Series(_format_column(table["CMIP_diff"], lower_is_better=True))
-    for p in param_cols:
-        formatted[p] = pd.Series(_format_column(table[p], lower_is_better=True))
-
-    n_params = len(param_cols)
-    n_global = 2 + (1 if has_cmip else 0)
-    col_spec = "l" + "c" * (n_global + n_params)
-    short = _cfg.parameter_name_map
-
-    # Header rows
-    cmip_hdr = r"CMIP MAE $\downarrow$ & " if has_cmip else ""
-    row1 = (
-        f"    {model_col} & RMSE $\\downarrow$ & KGE $\\uparrow$ & "
-        + cmip_hdr
-        + rf"\multicolumn{{{n_params}}}{{c}}{{RMSE per parameter $\downarrow$}} \\"
-    )
-    start_col = 1 + n_global + 1       # 1-indexed column where per-param span starts
-    end_col   = 1 + n_global + n_params
-    cmidrule  = rf"    \cmidrule(lr){{{start_col}-{end_col}}}"
-    # Second header row: empty cells for global columns, then parameter short names
-    empty_cells = " & ".join([""] * (1 + n_global))
-    param_hdrs  = " & ".join(short.get(p, p) for p in param_cols)
-    row2 = f"    {empty_cells} & {param_hdrs} \\\\"
-
-    lines = [
-        r"\begin{table}[htbp]",
-        r"    \centering",
-        r"    \caption{Model performance metrics (normalized space)}",
-        r"    \label{tab:model_performance}",
-        r"    \resizebox{\textwidth}{!}{%",
-        rf"    \begin{{tabular}}{{{col_spec}}}",
-        r"    \toprule",
-        row1, cmidrule, row2,
-        r"    \midrule",
-    ]
-
-    # Data rows
-    for mid, row in formatted.iterrows():
-        cells = [str(mid), row["RMSE_g"], row["KGE_g"]]
-        if has_cmip:
-            cells.append(row["CMIP"])
-        for p in param_cols:
-            cells.append(row.get(p, "---"))
-        lines.append("    " + " & ".join(cells) + r" \\")
-
-    lines += [r"    \bottomrule", r"    \end{tabular}", r"    }", r"\end{table}"]
-    return "\n".join(lines)
