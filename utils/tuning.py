@@ -258,3 +258,45 @@ def load_optuna_study(model_name):
         study = optuna.load_study(study_name=f"{model_name}_tuning", storage=storage)
         print("Study loaded as log")
     return study
+
+
+def load_geophysical_diffs(model_name, results_dir="output/testing"):
+    """
+    Load scaled WOA and CMIP difference summaries for one model.
+
+    Expects CSVs written by the comparison notebooks:
+      ``{results_dir}/{model_name}/{model_name}_woa_diff_summary_scaled.csv``
+      ``{results_dir}/{model_name}/{model_name}_cmip_diff_summary_scaled.csv``
+
+    Each CSV must contain at least a ``MAE`` column and optionally ``std``.
+    Returns ``np.nan`` for any file that does not yet exist.
+
+    Parameters
+    ----------
+    model_name : str
+    results_dir : str or Path
+
+    Returns
+    -------
+    dict with keys ``CMIP_diff``, ``CMIP_std``, ``WOA_diff``, ``WOA_std``
+    """
+    out = {"CMIP_diff": np.nan, "CMIP_std": np.nan, "WOA_diff": np.nan, "WOA_std": np.nan}
+    base = Path(results_dir) / model_name
+
+    # CMIP differences
+    cmip_path = base / f"{model_name}_cmip_diff_summary_scaled.csv"
+    if cmip_path.exists():
+        c = pd.read_csv(cmip_path)
+        out["CMIP_diff"] = float(c["MAE"].mean())
+        if "std" in c.columns:
+            out["CMIP_std"] = float(c["std"].mean())
+
+    # WOA differencess
+    woa_path = base / f"{model_name}_woa_diff_summary_scaled.csv"
+    if woa_path.exists():
+        w = pd.read_csv(woa_path)
+        out["WOA_diff"] = float(w["MAE"].mean())
+        if "std" in w.columns:
+            out["WOA_std"] = float(w["std"].mean())
+
+    return out
