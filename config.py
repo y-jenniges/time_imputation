@@ -7,7 +7,6 @@ output_dir_gridding = output_dir + "gridding/"
 output_dir_splits = output_dir + "splits/"
 output_dir_tuning = output_dir + "tuning/"
 output_dir_correlations = output_dir + "correlations/"
-output_dir_high_res_plots = output_dir + "high_res_plots/"
 output_dir_plots = output_dir + "plots/"
 
 output_dir_preliminary = output_dir + "preliminary/"
@@ -207,14 +206,9 @@ data_path = "output/gridding/df_20y_na.csv"
 val_fractions = [0.1, 0.2, 0.5]
 test_fraction = 0.15
 
-# --- Tuning --------------------------------------------------------------------------------------------- #
-
-# --- Training --------------------------------------------------------------------------------------------- #
-
 # --- Testing --------------------------------------------------------------------------------------------- #
 # Evaluation metrics
 EVAL_METRICS = ["MAE", "RMSE", "NRMSE", "PCC", "R2", "KGE", "OI"]
-
 
 # --- Plotting --------------------------------------------------------------------------------------------- #
 parameter_name_map = {"P_TEMPERATURE": "Potential temperature", "P_SALINITY": "Salinity",
