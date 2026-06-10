@@ -291,7 +291,7 @@ def load_geophysical_diffs(model_name, results_dir="output/testing"):
         if "std" in c.columns:
             out["CMIP_std"] = float(c["std"].mean())
 
-    # WOA differencess
+    # WOA differences
     woa_path = base / f"{model_name}_woa_diff_summary_scaled.csv"
     if woa_path.exists():
         w = pd.read_csv(woa_path)
