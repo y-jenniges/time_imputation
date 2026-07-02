@@ -1,4 +1,4 @@
-"""Sklearn baseline study script — runs mean, KNN, MICE, and MissForest across all splits."""
+"""Sklearn baseline study script - runs mean, KNN, MICE, and MissForest across all splits."""
 
 import argparse
 import logging

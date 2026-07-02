@@ -9,7 +9,7 @@ class ModelConfig:
     Configuration dataclass for a single MaSTNeT ablation experiment.
 
     Controls various aspects of the model: graph construction, attention type, input
-    encoders, masking strategy, and training loss.  Instances are defined in the
+    encoders, masking strategy, and training loss. Instances are defined in the
     ``ablation_study`` dict below (exp0 … exp90+).
 
     Parameters

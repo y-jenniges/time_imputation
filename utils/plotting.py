@@ -79,7 +79,7 @@ def plot_time_series_for_location(df, y, y_imputed, var_pred, observed_mask, var
 
     plt.xlabel('Month')
     plt.ylabel(var_names[var_idx])
-    plt.title(f"Location time series at lat={lat0}, lon={lon0}, lev={lev0} — var={var_names[var_idx]}")
+    plt.title(f"Location time series at lat={lat0}, lon={lon0}, lev={lev0} - var={var_names[var_idx]}")
     plt.xticks(np.arange(1, 13))
     plt.grid(alpha=0.3)
     plt.legend()
@@ -114,7 +114,7 @@ def plot_regional_monthly_mean(df, y_imputed, var_pred, var_names, var_idx=0):
     plt.fill_between(month_order, mean_imps - mean_stds, mean_imps + mean_stds, alpha=0.25, label='Mean ± mean std')
     plt.xlabel('Month')
     plt.ylabel(var_names[var_idx])
-    plt.title(f"Regional monthly mean ± mean std — var={var_names[var_idx]}")
+    plt.title(f"Regional monthly mean ± mean std - var={var_names[var_idx]}")
     plt.xticks(month_order)
     plt.grid(alpha=0.3)
     plt.legend()
@@ -1035,7 +1035,7 @@ def generate_latex_table(
 
 """
 Following functions (adapted) from:
-Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1). 
+Yvonne Jenniges. (2025). y-jenniges/ocean_clustering_and_validation: Biogeochemical Ocean Regions - Code Base (v1.0.1).
 Zenodo. https://doi.org/10.5281/zenodo.15827777
 """
 

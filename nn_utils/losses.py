@@ -62,7 +62,7 @@ class BaseLoss(nn.Module):
         target : Tensor
             Ground truth; ``NaN`` at missing positions.
         mask : Tensor or None
-            Boolean mask — True at positions to include in the loss.
+            Boolean mask - True at positions to include in the loss.
         coords : Tensor or None
             Spatiotemporal coordinates; required by :class:`PhysicsLoss`.
         pred_var : Tensor or None
@@ -242,7 +242,7 @@ class FourierImputationLoss(BaseLoss):
 
     Encourages the imputed field to have a sparse Fourier spectrum, equivalent to
     minimising the convolution nuclear norm (low-rank regularisation in the frequency
-    domain).  Applied to the full composite field (observed GT + imputed predictions),
+    domain). Applied to the full composite field (observed GT + imputed predictions),
     so gradients flow only through the imputed positions.
 
     For ocean data this is well-motivated: physical fields (SST, salinity) are dominated
@@ -256,11 +256,11 @@ class FourierImputationLoss(BaseLoss):
     Parameters
     ----------
     spatial_dims : list[int] or None, default=None
-        Dimensions corresponding to space in the input tensor.  If None, defaults to all
+        Dimensions corresponding to space in the input tensor. If None, defaults to all
         middle dims (excluding batch dim 0 and feature dim -1).
         Example: ``[1, 2]`` for a ``[B, H, W, T, F]`` tensor.
     temporal_dim : int or None, default=None
-        Dimension corresponding to time.  If None, FIL is applied over spatial dims only
+        Dimension corresponding to time. If None, FIL is applied over spatial dims only
         (or all non-feature dims when ``spatial_dims`` is also None).
     """
 
@@ -278,7 +278,7 @@ class FourierImputationLoss(BaseLoss):
         target : Tensor, shape [B, ..., F]
             Ground truth with NaNs at missing locations.
         mask : Tensor or None
-            Boolean — True where values are observed.  Derived from ``~isnan(target)``
+            Boolean - True where values are observed. Derived from ``~isnan(target)``
             when None.
         pred_var : ignored
             Accepted for API consistency with other loss classes.
@@ -297,7 +297,7 @@ class FourierImputationLoss(BaseLoss):
         target_filled = torch.where(obs_mask, target, input)
 
         # Composite: GT where observed, prediction where missing
-        # Use detach() on the GT part — we only want gradients through the imputed part
+        # Use detach() on the GT part - we only want gradients through the imputed part
         composite = torch.where(
             obs_mask,
             target_filled.detach(),  # no gradient through known observations
@@ -365,7 +365,7 @@ class HeteroscedasticNLLWithFourierSparsity(BaseLoss):
         target : Tensor, shape [B, ..., F]
             Ground truth with NaNs at missing locations.
         mask : Tensor or None
-            Boolean — True at observed locations.
+            Boolean - True at observed locations.
         pred_var : Tensor, shape [B, ..., F]
             Predicted log-variance log(σ²); same convention as
             :class:`HeteroscedasticGaussianNLL`.
@@ -386,7 +386,7 @@ class HeteroscedasticNLLWithFourierSparsity(BaseLoss):
             pred_var=pred_var,
         )
         if nll_loss is None:
-            # No valid points — skip
+            # No valid points - skip
             return None
 
         # --- FIL on the full composite field -----------------------------------

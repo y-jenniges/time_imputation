@@ -311,7 +311,7 @@ def compute_anisotropic_knn(
     coords : Tensor, shape (N, D)
     values : Tensor, shape (N, F)
     mask : Tensor, shape (N, F)
-        Boolean — True where feature values are observed.
+        Boolean - True where feature values are observed.
     candidate_idx : Tensor, shape (N, Kc)
         Pre-computed isotropic candidate neighbours (e.g. from :func:`compute_candidates`).
     k : int, default=20

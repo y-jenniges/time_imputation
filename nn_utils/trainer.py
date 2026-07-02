@@ -35,14 +35,14 @@ class Trainer:
     optimizer : torch.optim.Optimizer
         Optimiser (typically Adam).
     full_coords : Tensor
-        Preprocessed coordinates for the entire dataset — used for graph updates
+        Preprocessed coordinates for the entire dataset - used for graph updates
         and full-dataset reconstruction.
     full_values : Tensor
         Preprocessed feature values for the entire dataset.
     full_mask : Tensor
         Boolean observation mask for the entire dataset.
     graph_provider : GraphProvider or None, default=None
-        Manages k-NN graph construction and updates.  Pass None for models that
+        Manages k-NN graph construction and updates. Pass None for models that
         do not use a neighbourhood graph.
     device : str or torch.device, default='cpu'
         Compute device.

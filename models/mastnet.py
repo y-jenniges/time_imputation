@@ -1,4 +1,4 @@
-﻿"""MaSTNeT model — Masked Spatiotemporal Neighbourhood Transformer for ocean data imputation."""
+﻿"""MaSTNeT model - Masked Spatiotemporal Neighbourhood Transformer for ocean data imputation."""
 
 import torch
 import torch.nn as nn
@@ -48,7 +48,7 @@ class MaSTNeT(nn.Module):
     Reconstructs missing values in spatio-temporal ocean point-cloud data by attending
     to k-nearest neighbours. Supports multiple attention modes (factorised space-time,
     space-time-depth, transformer encoder, autoencoder) as well as a per-feature
-    single_feature mode — all controlled by a :class:`ModelConfig`.
+    single_feature mode - all controlled by a :class:`ModelConfig`.
 
     The model outputs a per-point mean **and** log-variance for every feature,
     supporting heteroscedastic uncertainty quantification.
@@ -59,7 +59,7 @@ class MaSTNeT(nn.Module):
         Experiment configuration controlling graph mode, attention type, encoders,
         masking strategy, and other ablation flags.
     coord_dim : int, default=5
-        Dimensionality of the (preprocessed) coordinate vector.  5 for linear time
+        Dimensionality of the (preprocessed) coordinate vector. 5 for linear time
         encoding (x, y, z, depth, time), 6 for cyclic time encoding.
     value_dim : int, default=6
         Number of ocean variables to impute (T, S, O₂, NO₃, SiO₂, PO₄).
@@ -76,7 +76,7 @@ class MaSTNeT(nn.Module):
     dim_feedforward : int, default=128
         Feedforward sublayer width inside each attention block.
     global_means : list[float] or None, default=None
-        Per-feature means for ``fill_strategy='mean'``.  Registered as a buffer
+        Per-feature means for ``fill_strategy='mean'``. Registered as a buffer
         so they are automatically moved to the correct device.
     """
 

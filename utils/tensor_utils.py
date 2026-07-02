@@ -12,7 +12,7 @@ def fill_feature_tensor(features, mask, fill_strategy="zero", mean_values=None):
     features : Tensor, shape (..., F)
         Feature values; unobserved positions may contain arbitrary values.
     mask : Tensor or None
-        Boolean tensor — True where values are observed.  If None, inferred
+        Boolean tensor - True where values are observed. If None, inferred
         from ``~isnan(features)``.
     fill_strategy : str, default='zero'
         ``'zero'`` fills with 0; ``'mean'`` fills with ``mean_values``.

@@ -16,7 +16,7 @@ def load_dataset(data_path=None) -> DataFrame:
     Parameters
     ----------
     data_path : str or Path or None, default=None
-        Path to the CSV file.  Uses ``config.data_path`` when None.
+        Path to the CSV file. Uses ``config.data_path`` when None.
 
     Returns
     -------

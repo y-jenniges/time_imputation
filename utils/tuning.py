@@ -26,7 +26,7 @@ class TuningResult:
     Container for the outputs of a single tuning run (one split × seed × hyperparameter combo).
 
     Stores evaluation metrics, uncertainty estimates, model/scaler paths, and graph
-    diagnostics.  Can be serialised to JSON via :meth:`save`.
+    diagnostics. Can be serialised to JSON via :meth:`save`.
 
     Parameters
     ----------

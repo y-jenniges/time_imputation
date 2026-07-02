@@ -107,7 +107,7 @@ def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu"):
 
 def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu",
                           orientation=0.0):
-    """Create a great-circle transect mask; applied with probability ``p``.  ``orientation=0`` is fully random, ``1`` forces axis-aligned transects."""
+    """Create a great-circle transect mask; applied with probability ``p``. ``orientation=0`` is fully random, ``1`` forces axis-aligned transects."""
     lonlats = batch["query_coords"][:, :3]  # [B, 3]
     B = lonlats.shape[0]
 
