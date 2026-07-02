@@ -26,7 +26,6 @@ import config
 from utils.gridding import df_to_gridded_da
 
 
-
 def plot_time_series_for_location(df, y, y_imputed, var_pred, observed_mask, var_names,
                                   lat=None, lon=None, lev=None, var_idx=0, auto_pick=True):
     """
@@ -889,10 +888,11 @@ def plot_missingness_panels(df, depth_levels, cmap="RdYlGn_r", ncols=3, vmin=0, 
 
 
 def generate_latex_table(
-    df_global: "pd.DataFrame",
-    df_pervar: "pd.DataFrame",
-    model_col: str = "Model",
-    bold_best: bool = True,
+        df_global: "pd.DataFrame",
+        df_pervar: "pd.DataFrame",
+        model_col: str = "Model",
+        bold_best: bool = True,
+        label_cols: list = None,
 ) -> str:
     """
     Generate a LaTeX table: Model | RMSE↓ | KGE↑ | CMIP MAE↓ | per-variable RMSE↓
@@ -905,11 +905,18 @@ def generate_latex_table(
     df_pervar : DataFrame
         One row per (model, variable). Required columns: ``model_col``, ``parameter``, ``RMSE``.
     model_col : str
-        Column used as the unique model identifier and row label.
+        Column used as the unique model identifier and pivot/join key.
     bold_best : bool
         Bold the best value in each metric column independently.
+    label_cols : list of str, optional
+        If provided, these columns are displayed as row labels instead of
+        ``model_col``. ``model_col`` is still used as the pivot/join key.
+        All columns must be present in ``df_global``.
     """
     import config as _cfg
+
+    display_cols = label_cols if label_cols else [model_col]
+    n_label = len(display_cols)
 
     for col in [model_col, "RMSE", "KGE"]:
         if col not in df_global.columns:
@@ -917,6 +924,10 @@ def generate_latex_table(
     for col in [model_col, "RMSE", "parameter"]:
         if col not in df_pervar.columns:
             raise ValueError(f"df_pervar is missing required column: {col!r}")
+    if label_cols:
+        for col in label_cols:
+            if col not in df_global.columns:
+                raise ValueError(f"df_global is missing label column: {col!r}")
 
     has_cmip = "CMIP_diff" in df_global.columns and df_global["CMIP_diff"].notna().any()
 
@@ -927,7 +938,13 @@ def generate_latex_table(
 
     # Build table: one row per model, global metrics + per-variable RMSE
     global_cols = [model_col, "RMSE", "KGE"] + (["CMIP_diff"] if has_cmip else [])
-    table = df_global[global_cols].drop_duplicates(subset=[model_col]).set_index(model_col).join(pivot, how="left")
+    global_subset = df_global[global_cols].drop_duplicates(subset=[model_col]).set_index(model_col)
+    table = global_subset.join(pivot, how="left")
+
+    # Attach label columns so data rows can reference them
+    if label_cols:
+        label_df = df_global[[model_col] + label_cols].drop_duplicates().set_index(model_col)
+        table = table.join(label_df)
 
     def _fmt_cell(v, decimals=4):
         """Format a single value; return '---' for NaN."""
@@ -948,8 +965,8 @@ def generate_latex_table(
         return result
 
     formatted = pd.DataFrame(index=table.index)
-    formatted["RMSE_g"] = pd.Series(_format_column(table["RMSE"],      lower_is_better=True))
-    formatted["KGE_g"]  = pd.Series(_format_column(table["KGE"],       lower_is_better=False))
+    formatted["RMSE_g"] = pd.Series(_format_column(table["RMSE"], lower_is_better=True))
+    formatted["KGE_g"] = pd.Series(_format_column(table["KGE"], lower_is_better=False))
     if has_cmip:
         formatted["CMIP"] = pd.Series(_format_column(table["CMIP_diff"], lower_is_better=True))
     for p in param_cols:
@@ -957,28 +974,40 @@ def generate_latex_table(
 
     n_params = len(param_cols)
     n_global = 2 + (1 if has_cmip else 0)
-    col_spec = "l" + "c" * (n_global + n_params)
+    col_spec = "l" * n_label + "c" * (n_global + n_params)
     short = _cfg.parameter_name_map
 
-    # Header rows
+    # First header row
+    if n_label > 1:
+        model_header = rf"\multicolumn{{{n_label}}}{{l}}{{Model}}"
+    else:
+        model_header = display_cols[0]
     cmip_hdr = r"CMIP MAE $\downarrow$ & " if has_cmip else ""
     row1 = (
-        f"    {model_col} & RMSE $\\downarrow$ & KGE $\\uparrow$ & "
-        + cmip_hdr
-        + rf"\multicolumn{{{n_params}}}{{c}}{{RMSE per parameter $\downarrow$}} \\"
+            f"    {model_header} & RMSE $\\downarrow$ & KGE $\\uparrow$ & "
+            + cmip_hdr
+            + rf"\multicolumn{{{n_params}}}{{c}}{{RMSE per parameter $\downarrow$}} \\"
     )
-    start_col = 1 + n_global + 1       # 1-indexed column where per-param span starts
-    end_col   = 1 + n_global + n_params
-    cmidrule  = rf"    \cmidrule(lr){{{start_col}-{end_col}}}"
-    # Second header row: empty cells for global columns, then parameter short names
-    empty_cells = " & ".join([""] * (1 + n_global))
-    param_hdrs  = " & ".join(short.get(p, p) for p in param_cols)
-    row2 = f"    {empty_cells} & {param_hdrs} \\\\"
+
+    # Cmidrule under per-parameter span
+    start_col = n_label + n_global + 1
+    end_col = n_label + n_global + n_params
+    cmidrule = rf"    \cmidrule(lr){{{start_col}-{end_col}}}"
+
+    # Second header row: label sub-headers + empty global cells + param short names
+    param_hdrs = " & ".join(short.get(p, p) for p in param_cols)
+    if n_label > 1:
+        label_hdrs = " & ".join(display_cols)
+        global_empty = " & ".join([""] * n_global)
+        row2 = f"    {label_hdrs} & {global_empty} & {param_hdrs} \\\\"
+    else:
+        all_empty = " & ".join([""] * (n_label + n_global))
+        row2 = f"    {all_empty} & {param_hdrs} \\\\"
 
     lines = [
         r"\begin{table}[htbp]",
         r"    \centering",
-        r"    \caption{Model performance metrics (normalized space)}",
+        r"    \caption{Model performance metrics (normalised space)}",
         r"    \label{tab:model_performance}",
         r"    \resizebox{\textwidth}{!}{%",
         rf"    \begin{{tabular}}{{{col_spec}}}",
@@ -989,7 +1018,11 @@ def generate_latex_table(
 
     # Data rows
     for mid, row in formatted.iterrows():
-        cells = [str(mid), row["RMSE_g"], row["KGE_g"]]
+        if label_cols:
+            cells = [str(table.loc[mid, c]) for c in label_cols]
+        else:
+            cells = [str(mid)]
+        cells += [row["RMSE_g"], row["KGE_g"]]
         if has_cmip:
             cells.append(row["CMIP"])
         for p in param_cols:
