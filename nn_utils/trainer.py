@@ -9,6 +9,8 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+logger = logging.getLogger(__name__)
+
 import config
 from nn_utils.graph import GraphProvider
 from nn_utils.losses import MaskedMSELoss, BaseLoss
@@ -89,7 +91,7 @@ class Trainer:
         # Init summary writer
         self.writer = SummaryWriter(log_dir=f"/tmp/{self.model.__class__.__name__}_{int(time())}")
 
-    def train_one_epoch(self, loader: DataLoader, mask_ratio: float = 0.5) -> Tuple[float, float]:
+    def train_one_epoch(self, loader: DataLoader, mask_ratio: float = 0.5, verbose: bool = True) -> Tuple[float, float]:
         """
         Run one training epoch over ``loader``.
 
@@ -108,7 +110,7 @@ class Trainer:
         self.model.train()
         total_loss, total_miss_ratio, n_samples = 0.0, 0.0, 0
 
-        for batch in tqdm(loader, desc="Train", leave=False):
+        for batch in tqdm(loader, desc="Train", leave=False, disable=not verbose):
             batch = self.adapter.prepare_batch(batch=batch, device=self.device)
 
             masks, miss_ratio = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="train",
@@ -149,7 +151,7 @@ class Trainer:
         #         module.train() if enable else module.eval()
 
     @torch.no_grad()
-    def evaluate(self, loader: DataLoader, mask_ratio: float, metrics_key: str = "Metrics", full_metrics: bool = True):
+    def evaluate(self, loader: DataLoader, mask_ratio: float, metrics_key: str = "Metrics", full_metrics: bool = True, verbose: bool = True):
         """
         Evaluate the model on ``loader`` without gradient updates.
 
@@ -173,7 +175,7 @@ class Trainer:
         total_loss, total_miss_ratio, n_samples = 0.0, 0.0, 0
         all_true, all_pred = [], []
 
-        for batch in tqdm(loader, desc="Val", leave=False):
+        for batch in tqdm(loader, desc="Val", leave=False, disable=not verbose):
             batch = self.adapter.prepare_batch(batch, self.device)
             masks, miss_ratio = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="eval",
                                                         device=self.device, cfg=self.cfg)
@@ -208,7 +210,7 @@ class Trainer:
 
         if full_metrics:
             if len(all_true) == 0:
-                print("Warning: No valid entries to evaluate!")
+                logger.warning("No valid entries to evaluate")
                 return total_loss / max(1, n_samples), {}, total_miss_ratio / max(1, n_samples)
 
             # Stack for full array metrics
@@ -231,14 +233,14 @@ class Trainer:
         if self.freeze_graph:
             return
 
-        logging.info("Updating graph...")
+        logger.info("Updating graph...")
         st = time()
         self.model.eval()
 
         self.graph_provider.update(encoder=self.model.coord_encoder, coords=self.full_coords, values=self.full_values,
                                    mask=self.full_mask, mean_values=self.global_means,
                                    anisotropic_weights=self.model.anisotropic_weights)
-        logging.info("Updated graph in %.0f minutes." % ((time() - st) / 60))
+        logger.info("Updated graph in %.0f minutes." % ((time() - st) / 60))
 
     def log_metrics(self, prefix, d):
         """Recursively write all scalar entries in ``d`` to TensorBoard under ``prefix``."""
@@ -341,7 +343,8 @@ class Trainer:
             early_stopping=None,
             mask_ratio: Union[float, Callable[[int], float]] = 0.5,
             optuna_callback=None,
-            full_metrics: bool = False):
+            full_metrics: bool = False,
+            verbose: bool = True):
         """
         Train the model for up to ``max_epochs`` epochs with optional early stopping.
 
@@ -358,6 +361,8 @@ class Trainer:
             Optuna pruning callback; called with ``(epoch, val_losses)``.
         full_metrics : bool, default=False
             When True, compute full validation metrics (RMSE, MAE, etc.) each epoch.
+        verbose : bool, default=True
+            When False, suppress tqdm bars and per-epoch console output (useful for Optuna).
 
         Returns
         -------
@@ -388,20 +393,22 @@ class Trainer:
                         if self.cfg.encoder_scope == "graph":
                             for p in self.model.coord_encoder.parameters():
                                 p.requires_grad = False
-                            logging.info(f"Coord encoder frozen at epoch {self.cfg.graph_freeze_epoch}")
+                            logger.info(f"Coord encoder frozen at epoch {self.cfg.graph_freeze_epoch}")
 
-                        logging.info(f"Graph frozen at epoch {self.cfg.graph_freeze_epoch}")
+                        logger.info(f"Graph frozen at epoch {self.cfg.graph_freeze_epoch}")
 
                     # Update the graph
                     if (not self.freeze_graph) and (epoch % self.graph_provider.update_every == 0):
                         self.update_graph()
 
             # Train and compute losses
-            train_loss, train_miss_ratio = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio)
+            train_loss, train_miss_ratio = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio,
+                                                                verbose=verbose)
             val_loss, val_metrics, val_miss_ratio = self.evaluate(loader=val_loader,
                                                                   mask_ratio=mask_ratio,
                                                                   metrics_key=f"Epoch_{epoch}",
-                                                                  full_metrics=full_metrics)
+                                                                  full_metrics=full_metrics,
+                                                                  verbose=verbose)
 
             # Update best model
             self.update_best_model(val_loss=val_loss)
@@ -411,7 +418,6 @@ class Trainer:
             history["train_miss_ratio"][epoch] = train_miss_ratio
             history["val_miss_ratio"][epoch] = val_miss_ratio
             history["metrics"][epoch] = val_metrics
-            tqdm.write(f"Epoch {epoch:03d}: Train Loss={train_loss:.6f} | Val Loss={val_loss:.6f}")
 
             # TensorBoard logging
             self.writer.add_scalar("Loss/train", train_loss, epoch)
@@ -421,9 +427,21 @@ class Trainer:
             if optuna_callback is not None:
                 optuna_callback(epoch=epoch, val_losses=list(history["val"].values()))
 
-            # Early stopping
-            if early_stopping and early_stopping(val_loss):
-                print(f"Early stopping at epoch {early_stopping.epoch}, best_epoch={early_stopping.best_epoch}")
+            # Early stopping (called before print so counter is current)
+            should_stop = early_stopping and early_stopping(val_loss)
+
+            if verbose:
+                patience_str = ""
+                if early_stopping is not None and hasattr(early_stopping, "counter"):
+                    patience_str = f" | patience {early_stopping.counter}/{early_stopping.patience}"
+                tqdm.write(
+                    f"Epoch {epoch:03d}/{max_epochs}"
+                    f" | train={train_loss:.6f} | val={val_loss:.6f}"
+                    f" | miss={val_miss_ratio:.2f}{patience_str}"
+                )
+
+            if should_stop:
+                logger.info(f"Early stopping at epoch {early_stopping.epoch}, best_epoch={early_stopping.best_epoch}")
                 break
 
         # Load best model
