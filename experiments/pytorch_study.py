@@ -284,7 +284,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
     logging.info(f"RAM after loader init: {ram()}")
 
-    # Initialize model optimizer, loss and trainer
+    # Initialise model optimiser, loss and trainer
     st = time()
     model = model_class(**model_hyps).to(device)
     loss_fn = build_loss(loss_spec)
