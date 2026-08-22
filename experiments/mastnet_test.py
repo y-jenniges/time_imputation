@@ -1,4 +1,4 @@
-﻿"""Single-split test script for MaSTNeT â€” used for ablation studies, quick iteration and debugging."""
+﻿"""Single-split test script for MaSTNeT used for ablation studies, quick iteration and debugging."""
 
 from pathlib import Path
 import torch
@@ -69,7 +69,7 @@ if __name__ == "__main__":
         # split = json.load(open(f"{config.output_dir_splits}/test_train_split.json"))  # Test-train
         # test_idx = np.array(split["test_idx"], dtype=int)
 
-        # Load train-val split (15Â° blocks)
+        # Load train-val split (15° blocks)
         split = json.load(open(f"{config.output_dir_splits}/selected_splits/fold_block_15.json"))
         test_idx = np.array(split["val_idx"], dtype=int)
         train_idx = np.array(split["train_idx"], dtype=int)
@@ -177,23 +177,22 @@ if __name__ == "__main__":
     logging.info(evaluator.NRMSE(multi_output="raw_values"))
     logging.info(evaluator.OI(multi_output="raw_values"))
 
-    # Set up dataframes
-    logging.info("Setting up dataframes...")
-    df_rec = pd.DataFrame(y_pred, columns=config.parameters)
-    df_rec[config.coordinates] = df[config.coordinates]
+    # # Set up dataframes
+    # logging.info("Setting up dataframes...")
+    # df_rec = pd.DataFrame(y_pred, columns=config.parameters)
+    # df_rec[config.coordinates] = df[config.coordinates]
+    #
+    # df_aleatoric = pd.DataFrame(uncertainties[0], columns=config.parameters)
+    # df_aleatoric[config.coordinates] = df[config.coordinates]
+    #
+    # df_epistemic = pd.DataFrame(uncertainties[1], columns=config.parameters)
+    # df_epistemic[config.coordinates] = df[config.coordinates]
 
-    df_aleatoric = pd.DataFrame(uncertainties[0], columns=config.parameters)
-    df_aleatoric[config.coordinates] = df[config.coordinates]
-
-    df_epistemic = pd.DataFrame(uncertainties[1], columns=config.parameters)
-    df_epistemic[config.coordinates] = df[config.coordinates]
-
-    logging.info("Generating animations...")
-
-    for param in config.parameters:
+    # logging.info("Generating animations...")
+    # for param in config.parameters:
         # Reconstruction animations
-        generate_animation(df_rec, scaler_dict=scaler_dict, parameter=param,
-                           save_as=f"{output_dir}/{model_name}_test_model{model_name}_{param}_reconstruction_{model_name}.mp4")
+        # generate_animation(df_rec, scaler_dict=scaler_dict, parameter=param,
+        #                    save_as=f"{output_dir}/{model_name}_test_model{model_name}_{param}_reconstruction_{model_name}.mp4")
 
         # # Aleatoric uncertainty animations
         # generate_animation(df_aleatoric, scaler_dict=None, parameter=param,
