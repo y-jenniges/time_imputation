@@ -2,8 +2,7 @@
 
 import logging
 import torch
-import numpy as np
-from typing import Union, Dict, Any
+from typing import Dict, Any
 from sklearn.neighbors import NearestNeighbors
 
 from utils.tensor_utils import fill_feature_tensor, get_scopes
@@ -77,8 +76,8 @@ class GraphProvider:
     cfg : ModelConfig or None, default=None
         Experiment configuration; controls graph mode, metric, and space.
     test_idx : Tensor or None, default=None
-        Test-set indices; their feature values are masked to NaN during graph
-        construction to prevent data leakage.
+        Test-set indices. Their feature values are hidden during graph and
+        neighbourhood construction
     val_idx : Tensor or None, default=None
         Validation-set indices; same leakage prevention as ``test_idx``.
     device : torch.device, default=cpu
@@ -104,6 +103,10 @@ class GraphProvider:
         # Graph properties and analytics
         self.neighbour_indices = None
         self.prev_neighbour_indices = None
+
+        # Idxs to hide and mean values
+        self.held_out_mask = None
+        self.mean_values = None
 
         base_history = {"feat_variance": [], "time_difference": [], "overlap": []}
         self.history = {}
@@ -207,15 +210,23 @@ class GraphProvider:
         values = values.clone()
         mask = mask.clone()
 
+        # Save test/val idxs
+        held_out_mask = torch.zeros(values.shape[0], dtype=torch.bool, device=values.device)
         if self.test_idx is not None:
+            held_out_mask[self.test_idx] = True
             values[self.test_idx] = torch.nan
 
         if self.val_idx is not None:
+            held_out_mask[self.val_idx] = True
             values[self.val_idx] = torch.nan
+
+        # Remembered so get_neighbour_batch() can hide test/val values
+        self.held_out_mask = held_out_mask
+        self.mean_values = mean_values
 
         # Encoding
         encoded = self.encode_input(encoder=encoder, coords=coords, values=values, mask=mask,
-                                    mean_values=mean_values)  # second visit here somehow leaves nan
+                                    mean_values=mean_values)
 
         # Graph building
         # Weighting each coordinate dimension
@@ -234,13 +245,32 @@ class GraphProvider:
         return self.neighbour_indices[scope][idx]
 
     def get_neighbour_batch(self, idx, coords, values, feature_mask, scope="default") -> Dict[str, Any]:
-        """Return a dict with neighbour indices, values, masks, and coordinates for query ``idx``."""
+        """
+        Return a dict with neighbour indices, values, masks and coordinates for query ``idx``.
+
+        Neighbours that belong to ``test_idx``/``val_idx`` have their true feature values
+        hidden (filled via ``cfg.fill_strategy``).
+        """
         n_idx = self.neighbour_indices[scope][idx]
+
+        # Get neighbour values and masks
+        n_values = values[n_idx]
+        n_mask = feature_mask[n_idx]
+
+        # Hide test/val data
+        if self.held_out_mask is not None:
+            hidden = self.held_out_mask[n_idx]  # [*, k]
+            n_values = torch.where(hidden.unsqueeze(-1), torch.full_like(n_values, float("nan")), n_values)
+            n_mask = n_mask & ~hidden.unsqueeze(-1)
+            n_values = fill_feature_tensor(features=n_values, mask=n_mask, fill_strategy=self.cfg.fill_strategy,
+                                           mean_values=self.mean_values)
+            n_values = fill_feature_tensor(features=n_values, mask=None, fill_strategy=self.cfg.fill_strategy,
+                                           mean_values=self.mean_values)
 
         return {
             "idx": n_idx,
-            "values": values[n_idx],
-            "mask": feature_mask[n_idx],
+            "values": n_values,
+            "mask": n_mask,
             "coords": coords[n_idx]
         }
 
