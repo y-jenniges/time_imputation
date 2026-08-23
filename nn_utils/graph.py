@@ -259,7 +259,7 @@ class GraphProvider:
 
         # Hide test/val data
         if self.held_out_mask is not None:
-            hidden = self.held_out_mask[n_idx]  # [*, k]
+            hidden = self.held_out_mask[n_idx].to(n_values.device)  # [*, k]
             n_values = torch.where(hidden.unsqueeze(-1), torch.full_like(n_values, float("nan")), n_values)
             n_mask = n_mask & ~hidden.unsqueeze(-1)
             n_values = fill_feature_tensor(features=n_values, mask=n_mask, fill_strategy=self.cfg.fill_strategy,
