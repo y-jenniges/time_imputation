@@ -85,14 +85,19 @@ def prepare_time_sequence_loaders(coords: torch.Tensor,
     )
     mask_full = ~torch.isnan(values_full)
 
+    # Ensure val/test rows are set to nan
+    window_values = values_full.clone()
+    window_values[test_idx] = torch.nan
+    window_values[val_idx] = torch.nan
+
     train_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=train_idx,
-                                        sequence_length=sequence_length)
+                                        sequence_length=sequence_length, window_values=window_values)
     val_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=val_idx,
-                                      sequence_length=sequence_length)
+                                      sequence_length=sequence_length, window_values=window_values)
     test_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=test_idx,
-                                       sequence_length=sequence_length)
+                                       sequence_length=sequence_length, window_values=window_values)
     full_dataset = TimeSequenceDataset(coords=coords_full, values=values_full, query_indices=None,
-                                       sequence_length=sequence_length)
+                                       sequence_length=sequence_length, window_values=window_values)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=generator)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)

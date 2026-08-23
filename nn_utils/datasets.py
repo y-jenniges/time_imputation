@@ -1,7 +1,6 @@
 """PyTorch Dataset classes for MaSTNeT training."""
 
 from typing import Dict, Any
-
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -116,11 +115,13 @@ class TimeSequenceDataset(Dataset):
         unique time steps in ``coords``.
     scopes : ignored
         For API compatibility.
+    window_values : Tensor or None, default=None
+        Values exposed as temporal window context. Pass a copy with val/test
+        rows set to NaN.
     """
 
     def __init__(self, coords: torch.Tensor, values: torch.Tensor, query_indices: np.ndarray | None = None,
-                 sequence_length: int = None,
-                 scopes=None):
+                 sequence_length: int = None, scopes=None, window_values: torch.Tensor | None = None):
         if sequence_length is None:
             sequence_length = len(torch.unique(coords[:, -1]))
         assert sequence_length % 2 == 1, "sequence_length must be odd"
@@ -133,11 +134,15 @@ class TimeSequenceDataset(Dataset):
         self.half = sequence_length // 2
 
         self.feature_mask = ~torch.isnan(values)
+        window_values = values if window_values is None else window_values
+        self.window_mask = ~torch.isnan(window_values)
 
         self.sorted_idx = torch.argsort(coords[:, -1])
         self.coords_sorted = coords[self.sorted_idx]
         self.values_sorted = values[self.sorted_idx]
         self.mask_sorted = self.feature_mask[self.sorted_idx]
+        self.window_values_sorted = window_values[self.sorted_idx]
+        self.window_mask_sorted = self.window_mask[self.sorted_idx]
 
         if query_indices is None:
             self.query_indices = torch.arange(len(coords), dtype=torch.long)
@@ -156,24 +161,24 @@ class TimeSequenceDataset(Dataset):
         seq_end = min(int(q_idx + self.half + 1), len(self.coords_sorted))
 
         seq_coords = self.coords_sorted[seq_start:seq_end]
-        seq_values = self.values_sorted[seq_start:seq_end]
-        seq_mask = self.mask_sorted[seq_start:seq_end]
+        seq_window_values = self.window_values_sorted[seq_start:seq_end]
+        seq_window_mask = self.window_mask_sorted[seq_start:seq_end]
 
         q_local = min(self.half, seq_coords.shape[0] - 1)
 
         if seq_coords.shape[0] < self.seq_len:
             pad_size = self.seq_len - seq_coords.shape[0]
             seq_coords = torch.cat([seq_coords, seq_coords[-1:].repeat(pad_size, 1)], dim=0)
-            seq_values = torch.cat([seq_values, seq_values[-1:].repeat(pad_size, 1)], dim=0)
-            seq_mask = torch.cat([seq_mask, seq_mask[-1:].repeat(pad_size, 1)], dim=0)
+            seq_window_values = torch.cat([seq_window_values, seq_window_values[-1:].repeat(pad_size, 1)], dim=0)
+            seq_window_mask = torch.cat([seq_window_mask, seq_window_mask[-1:].repeat(pad_size, 1)], dim=0)
 
         return {
-            "query_features": seq_values[q_local],
-            "query_mask": seq_mask[q_local],
+            "query_features": self.values_sorted[q_idx],
+            "query_mask": self.mask_sorted[q_idx],
             "query_coords": seq_coords[q_local],
             "time": {
-                "features": seq_values,
-                "mask": seq_mask,
+                "features": seq_window_values,
+                "mask": seq_window_mask,
                 "coords": seq_coords,
                 "rel_positions": seq_coords - seq_coords[q_local]
             }
