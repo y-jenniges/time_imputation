@@ -44,6 +44,8 @@ if __name__ == "__main__":
     # Parsing arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_id", type=int, default=0, help="experiment id")
+    parser.add_argument("--n_seeds", type=int, default=1, help="number of seeds")
+    parser.add_argument("--base_seed", type=int, default=42, help="first seed")
     args = parser.parse_args()
 
     if GLOBAL:
@@ -120,62 +122,87 @@ if __name__ == "__main__":
     logging.info(f"device: {device}")
     logging.info(f"hyps: {hyps}")
 
-    # Set seed
-    seed = 42
-    set_seed(seed=seed)
-    i = 0
+    # Generate list of seeds
+    seeds = [args.base_seed + i for i in range(args.n_seeds)]
+    logging.info(f"seeds: {seeds}")
 
-    results, y_true, y_pred, uncertainties, scaler_dict = train_pytorch_single_split(
-        coords_raw=torch.tensor(df[config.coordinates].astype(float).to_numpy()),
-        values_raw=torch.tensor(df[config.parameters].astype(float).to_numpy()),
-        model_class=model_class,
-        hyps=hyps,
-        train_idx=train_idx,
-        val_idx=test_idx,
-        test_idx=test_idx,
-        model_name=model_name,
-        split_path="final",
-        trial_id=i,
-        optuna_callback=None,
-        seed=seed + i,
-        tuning_mode=False,
-        device=device,
-        do_dropout=True,
-        n_inferences=1,
-        save_model=True,
-        output_dir=output_dir,
-        cfg=cfg
-    )
+    # Iterate over seeds
+    per_seed_metrics = {}
+    for seed in seeds:
+        logging.info(f"=== {exp_id}, seed {seed} ===")
+        set_seed(seed=seed)
 
-    logging.info(f"results: {results}")
+        # Train model
+        results, y_true, y_pred, uncertainties, scaler_dict = train_pytorch_single_split(
+            coords_raw=torch.tensor(df[config.coordinates].astype(float).to_numpy()),
+            values_raw=torch.tensor(df[config.parameters].astype(float).to_numpy()),
+            model_class=model_class,
+            hyps=hyps,
+            train_idx=train_idx,
+            val_idx=test_idx,
+            test_idx=test_idx,
+            model_name=model_name,
+            split_path="final",
+            trial_id=seed,
+            optuna_callback=None,
+            seed=seed,
+            tuning_mode=False,
+            device=device,
+            do_dropout=True,
+            n_inferences=1,
+            save_model=True,
+            output_dir=output_dir,
+            cfg=cfg
+        )
 
-    # Store y_true
-    df_true = pd.DataFrame(y_true, columns=config.parameters)
-    df_true[config.coordinates] = df[config.coordinates]
-    df_true.to_csv(f"{output_dir}/{model_name}_y_true.csv", index=False)
+        logging.info(f"results (seed {seed}): {results}")
 
-    logging.info(f"Stored y_true in {output_dir}/{model_name}_y_true.csv")
+        # Store y_true
+        df_true = pd.DataFrame(y_true, columns=config.parameters)
+        df_true[config.coordinates] = df[config.coordinates]
+        df_true.to_csv(f"{output_dir}/{model_name}_seed{seed}_y_true.csv", index=False)
 
-    df_pred = pd.DataFrame(y_pred, columns=config.parameters)
-    df_pred[config.coordinates] = df[config.coordinates]
-    df_pred.to_csv(f"{output_dir}/{model_name}_y_pred.csv", index=False)
+        # Store y_pred
+        df_pred = pd.DataFrame(y_pred, columns=config.parameters)
+        df_pred[config.coordinates] = df[config.coordinates]
+        df_pred.to_csv(f"{output_dir}/{model_name}_seed{seed}_y_pred.csv", index=False)
 
-    logging.info(f"Stored y_pred in {output_dir}/{model_name}_y_pred.csv")
+        logging.info(f"Stored y_true and y_pred for seed {seed} in {output_dir}")
 
-    # Error
-    val_rmse = np.sqrt(np.nanmean((y_true[test_idx] - y_pred[test_idx]) ** 2))
-    logging.info(f"val_rmse: {val_rmse}")
+        # Error
+        val_rmse = np.sqrt(np.nanmean((y_true[test_idx] - y_pred[test_idx]) ** 2))
+        logging.info(f"val_rmse (seed {seed}): {val_rmse}")
 
-    valid = ~np.isnan(y_true)
-    y_true_valid = y_true[valid]
-    y_pred_valid = y_pred[valid]
-    evaluator = RegressionMetric(y_true_valid[test_idx], y_pred_valid[test_idx])
-    logging.info(evaluator.RMSE(multi_output="raw_values"))
-    logging.info(evaluator.MAE(multi_output="raw_values"))
-    logging.info(evaluator.KGE(multi_output="raw_values"))
-    logging.info(evaluator.R2(multi_output="raw_values"))
-    logging.info(evaluator.NRMSE(multi_output="raw_values"))
-    logging.info(evaluator.OI(multi_output="raw_values"))
+        valid = ~np.isnan(y_true)
+        y_true_valid = y_true[valid]
+        y_pred_valid = y_pred[valid]
+        evaluator = RegressionMetric(y_true_valid[test_idx], y_pred_valid[test_idx])
+        per_seed_metrics[seed] = {
+            "RMSE": np.asarray(evaluator.RMSE(multi_output="raw_values")).tolist(),
+            "MAE": np.asarray(evaluator.MAE(multi_output="raw_values")).tolist(),
+            "KGE": np.asarray(evaluator.KGE(multi_output="raw_values")).tolist(),
+            "R2": np.asarray(evaluator.R2(multi_output="raw_values")).tolist(),
+            "NRMSE": np.asarray(evaluator.NRMSE(multi_output="raw_values")).tolist(),
+            "OI": np.asarray(evaluator.OI(multi_output="raw_values")).tolist(),
+        }
+        logging.info(f"metrics (seed {seed}): {per_seed_metrics[seed]}")
+
+    # Aggregate across seeds (mean/std per metric, per parameter)
+    if len(seeds) > 1:
+        summary = {}
+        for metric_name in next(iter(per_seed_metrics.values())).keys():
+            values = np.array([per_seed_metrics[s][metric_name] for s in seeds])  # (n_seeds, n_params)
+            summary[metric_name] = {
+                "mean": values.mean(axis=0).tolist(),
+                "std": values.std(axis=0).tolist(),
+            }
+
+        summary_path = f"{output_dir}/{model_name}_{exp_id}_seed_summary.json"
+        with open(summary_path, "w") as f:
+            json.dump({"parameters": config.parameters, "seeds": seeds,
+                       "metrics": summary, "per_seed_metrics": per_seed_metrics}, f)
+
+        logging.info(f"Stored {len(seeds)}-seed summary in {summary_path}")
 
     # # Set up dataframes
     # logging.info("Setting up dataframes...")
