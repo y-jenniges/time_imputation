@@ -327,10 +327,10 @@ class TimeSequenceAdapter(ModelAdapter):
         batch["query_mask"] = masks["q_input_mask"]
 
         for scope, seq_mask in masks["sequence_input"].items():
-            # Replace center position with query mask
+            # Replace centre position with query mask (so held-out rows are not marked observed)
             center_pos = seq_mask.shape[1] // 2
             sm = seq_mask.clone()  # Break potential shared memory
-            sm[:, center_pos, :] = masks["q_input_mask"]
+            sm[:, center_pos, :] = masks["q_input_mask"] & seq_mask[:, center_pos, :]
 
             batch[scope]["mask"] = sm
 
