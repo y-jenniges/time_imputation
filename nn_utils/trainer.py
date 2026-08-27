@@ -151,7 +151,8 @@ class Trainer:
         #         module.train() if enable else module.eval()
 
     @torch.no_grad()
-    def evaluate(self, loader: DataLoader, mask_ratio: float, metrics_key: str = "Metrics", full_metrics: bool = True, verbose: bool = True):
+    def evaluate(self, loader: DataLoader, mask_ratio: float, metrics_key: str = "Metrics", full_metrics: bool = True,
+                verbose: bool = True, generator: torch.Generator | None = None):
         """
         Evaluate the model on ``loader`` without gradient updates.
 
@@ -164,6 +165,8 @@ class Trainer:
             TensorBoard prefix for logged metrics.
         full_metrics : bool, default=True
             When True, compute and return RMSE/MAE/R² metrics; when False, only loss.
+        generator : torch.Generator, optional
+            Generator for creating the same validation masks across epochs.
 
         Returns
         -------
@@ -178,7 +181,7 @@ class Trainer:
         for batch in tqdm(loader, desc="Val", leave=False, disable=not verbose):
             batch = self.adapter.prepare_batch(batch, self.device)
             masks, miss_ratio = self.adapter.make_masks(batch=batch, mask_ratio=mask_ratio, mode="eval",
-                                                        device=self.device, cfg=self.cfg)
+                                                        device=self.device, cfg=self.cfg, generator=generator)
 
             # Predict
             outputs = self.adapter.forward(self.model, batch=batch, masks=masks)
@@ -344,7 +347,8 @@ class Trainer:
             mask_ratio: Union[float, Callable[[int], float]] = 0.5,
             optuna_callback=None,
             full_metrics: bool = False,
-            verbose: bool = True):
+            verbose: bool = True,
+            val_seed: int = 0):
         """
         Train the model for up to ``max_epochs`` epochs with optional early stopping.
 
@@ -363,6 +367,8 @@ class Trainer:
             When True, compute full validation metrics (RMSE, MAE, etc.) each epoch.
         verbose : bool, default=True
             When False, suppress tqdm bars and per-epoch console output (useful for Optuna).
+        val_seed : int, default=0
+            Generator for creating the same validation masks across epochs.
 
         Returns
         -------
@@ -371,6 +377,7 @@ class Trainer:
             ``'val_miss_ratio'``, each mapping epoch index → value.
         """
         history = {"train": {}, "val": {}, "metrics": {}, "train_miss_ratio": {}, "val_miss_ratio": {}}
+        val_mask_generator = torch.Generator(device=self.device)
 
         # Iterate over epochs
         for epoch in range(max_epochs):
@@ -404,11 +411,13 @@ class Trainer:
             # Train and compute losses
             train_loss, train_miss_ratio = self.train_one_epoch(train_loader, mask_ratio=current_mask_ratio,
                                                                 verbose=verbose)
+            val_mask_generator.manual_seed(val_seed)  # same val masks every epoch
             val_loss, val_metrics, val_miss_ratio = self.evaluate(loader=val_loader,
                                                                   mask_ratio=mask_ratio,
                                                                   metrics_key=f"Epoch_{epoch}",
                                                                   full_metrics=full_metrics,
-                                                                  verbose=verbose)
+                                                                  verbose=verbose,
+                                                                  generator=val_mask_generator)
 
             # Update best model
             self.update_best_model(val_loss=val_loss)

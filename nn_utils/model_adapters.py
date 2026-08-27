@@ -11,8 +11,8 @@ class ModelAdapter(ABC):
     """
     Abstract adapter interface between the :class:`nn_utils.trainer.Trainer` and a specific model.
 
-    Each concrete subclass handles one model/dataset combination by implementing
-    batch preparation, masking, forward calls, and loss input construction.
+    Each subclass handles one model/dataset combination by implementing
+    batch preparation, masking, forward calls and loss input construction.
     """
 
     @abstractmethod
@@ -26,7 +26,8 @@ class ModelAdapter(ABC):
         pass
 
     @abstractmethod
-    def make_masks(self, batch, mask_ratio, mode="train", device:torch.device = torch.device("cpu"), cfg=None):
+    def make_masks(self, batch, mask_ratio, mode="train", device:torch.device = torch.device("cpu"),
+                   cfg=None, generator: torch.Generator | None = None):
         """
         Generate input and loss masks for the current batch.
 
@@ -38,6 +39,8 @@ class ModelAdapter(ABC):
             ``'train'``, ``'eval'``, or ``'reconstruct'``.
         device : torch.device
         cfg : ModelConfig or None
+        generator : torch.Generator, optional
+            Generator for reproducible masks across validation epochs.
 
         Returns
         -------
@@ -80,7 +83,8 @@ class NeighbourAdapter(ModelAdapter):
             return {k: self.to_device(v, device) for k, v in x.items()}
         return x.to(device)
 
-    def make_masks(self, batch, mask_ratio=0.0, mode="train", device=torch.device("cpu"), cfg=None):
+    def make_masks(self, batch, mask_ratio=0.0, mode="train", device=torch.device("cpu"),
+                   cfg=None, generator: torch.Generator | None = None):
         masking_strategies = ["random"] if cfg.masking_strategies is None else cfg.masking_strategies
         q_mask = batch["query_mask"]
         batch_size = q_mask.shape[0]
@@ -100,7 +104,8 @@ class NeighbourAdapter(ModelAdapter):
                         mask_ratio=mask_ratio,
                         device=device,
                         mask_query=True,
-                        mask_neighbours=False
+                        mask_neighbours=False,
+                        generator=generator
                     )
                     if q_rand_mask.any():
                         break
@@ -113,7 +118,8 @@ class NeighbourAdapter(ModelAdapter):
                         batch_size=q_mask.shape[0],
                         feature_dim=q_mask.shape[1],
                         mask_ratio=cfg.mask_ratio,
-                        device=device)
+                        device=device,
+                        generator=generator)
                     if q_per_feature_mask.any():
                         break
                 masks_list.append(q_per_feature_mask)
@@ -125,7 +131,8 @@ class NeighbourAdapter(ModelAdapter):
                                                             width=cfg.transect_mask_width,
                                                             p=cfg.transect_mask_p,
                                                             orientation=cfg.transect_mask_orientation,
-                                                            device=device)
+                                                            device=device,
+                                                            generator=generator)
                     if q_transect_mask.any():
                         break
                 masks_list.append(q_transect_mask)
@@ -134,7 +141,8 @@ class NeighbourAdapter(ModelAdapter):
                 q_sphere_mask = torch.zeros(q_mask.shape, device=device)
                 for i in range(batch_size):
                     q_sphere_mask = spherical_feature_mask(batch=batch, feature_dim=q_mask.shape[1],
-                                                          size=cfg.sphere_mask_radius, p=cfg.sphere_mask_p, device=device)
+                                                          size=cfg.sphere_mask_radius, p=cfg.sphere_mask_p, device=device,
+                                                          generator=generator)
                     if q_sphere_mask.any():
                         break
                 masks_list.append(q_sphere_mask)
@@ -171,7 +179,8 @@ class NeighbourAdapter(ModelAdapter):
                     n_neighbours=n_mask.shape[1],
                     device=device,
                     mask_query=False,
-                    mask_neighbours=True
+                    mask_neighbours=True,
+                    generator=generator
                 )
                 masks["neighbour_input"][scope] = n_mask & ~n_random_mask
                 masks["neighbour_loss"][scope] = n_mask & n_random_mask
@@ -253,7 +262,8 @@ class TimeSequenceAdapter(ModelAdapter):
             return {k: self.to_device(v, device) for k, v in x.items()}
         return x.to(device)
 
-    def make_masks(self, batch, mask_ratio=0.0, mode="train", device=torch.device("cpu"), cfg=None):
+    def make_masks(self, batch, mask_ratio=0.0, mode="train", device=torch.device("cpu"),
+                   cfg=None, generator: torch.Generator | None = None):
         q_mask = batch["query_mask"]
 
         scopes = [scope for scope in batch.keys() if scope not in ["query_features", "query_mask", "query_coords"]]
@@ -270,7 +280,8 @@ class TimeSequenceAdapter(ModelAdapter):
                     mask_ratio=mask_ratio,
                     device=device,
                     mask_query=True,
-                    mask_neighbours=False
+                    mask_neighbours=False,
+                    generator=generator
                 )
                 if q_random_mask.any():
                     break
@@ -299,7 +310,8 @@ class TimeSequenceAdapter(ModelAdapter):
                     n_neighbours=n_mask.shape[1],
                     device=device,
                     mask_query=False,
-                    mask_neighbours=True
+                    mask_neighbours=True,
+                    generator=generator
                 )
                 masks["sequence_input"][scope] = n_mask & ~n_random_mask
                 masks["sequence_loss"][scope] = n_mask & n_random_mask
@@ -382,14 +394,16 @@ class FeatureAdapter(ModelAdapter):
     def prepare_batch(self, batch, device):
         return {k: v.to(device) for k, v in batch.items()}
 
-    def make_masks(self, batch, mask_ratio, mode="train", device=torch.device("cpu"), masking_strategies=None, cfg=None):
+    def make_masks(self, batch, mask_ratio, mode="train", device=torch.device("cpu"),
+                   cfg=None, masking_strategies=None, generator: torch.Generator | None = None):
         feat = batch["features"]
         mask = batch["mask"]
         batch_size, n_features = feat.shape
 
         if mode in ["train", "eval"] and mask_ratio > 0:
             # random_mask: True means "mask/hide this token"
-            random_mask = random_token_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio, device=device)
+            random_mask = random_token_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio,
+                                            device=device, generator=generator)
 
             # Observed inputs after random masking
             input_mask = mask & ~random_mask
@@ -457,7 +471,8 @@ class PointwiseAdapter(ModelAdapter):
     def prepare_batch(self, batch, device):
         return {k: v.to(device) for k, v in batch.items()}
 
-    def make_masks(self, batch, mask_ratio, mode="train", device=torch.device("cpu"), masking_strategies=None, cfg=None):
+    def make_masks(self, batch, mask_ratio, mode="train", device=torch.device("cpu"),
+                   masking_strategies=None, cfg=None, generator: torch.Generator | None = None):
         feat = batch["features"]
         mask = batch["mask"]
         batch_size, n_features = feat.shape
@@ -466,7 +481,8 @@ class PointwiseAdapter(ModelAdapter):
             # random_feature_mask: True means "mask/hide this feature"
             random_mask, _ = (
                 random_feature_mask(batch_size=batch_size, feature_dim=n_features, mask_ratio=mask_ratio,
-                                    n_neighbours=0, device=device, mask_query=True, mask_neighbours=False))
+                                    n_neighbours=0, device=device, mask_query=True, mask_neighbours=False,
+                                    generator=generator))
 
             # Observed inputs after random masking
             input_mask = mask & ~random_mask
