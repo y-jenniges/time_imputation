@@ -77,9 +77,13 @@ def assemble_hyps(model_name: str, raw: dict) -> dict:
         return raw
 
 
-def build_mastnet_cfg(hyps, exp_id=73):
-    """Build a MaSTNeT ablation config with Optuna-selected overrides applied."""
+def build_pytorch_cfg(model_name, hyps, exp_id=73):
+    """Build the base config for MaSTNeT and MLP, applying Optuna overrides."""
     cfg = ablation_study[f"exp{exp_id}"]["config"]
+    if model_name != "mastnet":
+        # MLP does not use graph setup
+        return cfg
+
     cfg.dropout = hyps["model"]["dropout"]
     cfg.n_neighbours = hyps["train"]["n_neighbours"]
     cfg.mask_ratio = hyps["train"]["mask_ratio"]
@@ -135,7 +139,7 @@ if __name__ == "__main__":
         logging.info("PyTorch model...")
 
         # Load MaSTNeT architecture config and apply Optuna overrides
-        cfg = build_mastnet_cfg(hyps, exp_id=73)
+        cfg = build_pytorch_cfg(model_name, hyps, exp_id=73)
 
         results, y_true, y_pred, uncertainty_pair, scaler_dict = train_pytorch_single_split(
             coords_raw=torch.tensor(df[config.coordinates].astype(float).to_numpy()),

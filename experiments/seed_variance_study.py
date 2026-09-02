@@ -18,7 +18,7 @@ import torch
 import config
 from experiments.pytorch_study import train_pytorch_single_split
 from experiments.sklearn_study import train_sklearn_single_split
-from experiments.train_final import assemble_hyps, build_mastnet_cfg
+from experiments.train_final import assemble_hyps, build_pytorch_cfg
 from models.registry import get_model_class
 from utils.data import load_dataset
 from utils.tuning import load_optuna_study, set_seed
@@ -42,7 +42,7 @@ def run_one(model_name, seed, df, train_idx, test_idx, device, n_inferences, out
 
     if isinstance(model_class, type) and issubclass(model_class, torch.nn.Module):
         # MaSTNeT and MLP go through the PyTorch training loop
-        cfg = build_mastnet_cfg(hyps)
+        cfg = build_pytorch_cfg(model_name, hyps)
 
         results, _, _, _, _ = train_pytorch_single_split(
             coords_raw=torch.tensor(df[config.coordinates].astype(float).to_numpy()),
