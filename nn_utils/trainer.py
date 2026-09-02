@@ -89,7 +89,8 @@ class Trainer:
         self.var_names = var_names if var_names is not None else config.parameters
 
         # Init summary writer
-        self.writer = SummaryWriter(log_dir=f"/tmp/{self.model.__class__.__name__}_{int(time())}")
+        self.writer = SummaryWriter(
+            log_dir=f"{config.output_dir_tensorboard}{self.model.__class__.__name__}_{int(time())}")
 
     def train_one_epoch(self, loader: DataLoader, mask_ratio: float = 0.5, verbose: bool = True) -> Tuple[float, float]:
         """
