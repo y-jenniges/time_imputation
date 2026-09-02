@@ -67,7 +67,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
         loss = "hetero"  # trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
         lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
 
-        strategy = trial.suggest_categorical("strategy", ["random", "sphere", "transect"])
+        strategy = trial.suggest_categorical("strategy", ["sphere", "transect", "per_feature"])
         mask_ratio = trial.suggest_categorical("mask_ratio", [0.3, 0.4, 0.5])
         radius, width, masking_strategies = 0.0, 0.0, ["random"]
 
@@ -77,14 +77,16 @@ def suggest_hyperparameters(trial, model_name="mae"):
         elif strategy == "transect":
             width = trial.suggest_categorical("transect_mask_width", [0.02, 0.05])
             masking_strategies = ["random", "transect"]
+        elif strategy == "per_feature":
+            masking_strategies = ["per_feature"]
 
         return {
             "train": {
                 "n_neighbours": trial.suggest_int("n_neighbours", 5, 60),
                 "batch_size": trial.suggest_categorical("batch_size", [64, 128, 256, 512]),
                 "learning_rate": trial.suggest_float("lr", 1e-5, 1e-3, log=True),
-                "patience": 5,
-                "n_epochs": 20,
+                "patience": 10,
+                "n_epochs": 40,
                 "mask_ratio": mask_ratio,
                 "loss": loss,
                 "lambda_smooth": lambda_smooth,
@@ -305,6 +307,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         mask_ratio=mask_ratio,
         optuna_callback=optuna_callback,
         full_metrics=True,  # not tuning_mode
+        val_seed=seed,
     )
     train_time = time() - strain
 
@@ -354,7 +357,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         # Compute uncertainties
         y_pred_mean = all_preds.mean(dim=0)  # Mean prediction
         epistemic_uncertainty = all_preds.var(dim=0, unbiased=False)
-        aleatoric_uncertainty = all_vars.mean(dim=0) if all_vars is not None else None
+        aleatoric_uncertainty = all_vars.exp().mean(dim=0) if all_vars is not None else None
         total_uncertainty = epistemic_uncertainty + aleatoric_uncertainty if aleatoric_uncertainty is not None else epistemic_uncertainty
         total_uncertainty = total_uncertainty.detach().cpu().numpy()
 
@@ -478,8 +481,9 @@ def optuna_objective(trial, model_name, output_dir):
         val_idx = np.array(split["val_idx"])
 
         # Load basic architecture config
-        # base_cfg = ablation_study["exp73"]["config"]
-        base_cfg = ablation_study["exp90"]["config"]
+        # base_cfg = ablation_study["73"]["config"]
+        # base_cfg = ablation_study["90"]["config"]
+        base_cfg = ablation_study["exp247"]["config"]
 
         # Train
         results, _, _, _ = train_pytorch_single_split(
