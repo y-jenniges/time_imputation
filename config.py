@@ -8,6 +8,7 @@ output_dir_splits = output_dir + "splits/"
 output_dir_tuning = output_dir + "tuning/"
 output_dir_correlations = output_dir + "correlations/"
 output_dir_plots = output_dir + "plots/"
+output_dir_tensorboard = output_dir + "tensorboard/"
 
 output_dir_preliminary = output_dir + "preliminary/"
 
