@@ -137,7 +137,6 @@ ablation_study = {
     "exp1": {
         "description": "Raw KNN, MHA with masks",
         "config": ModelConfig(
-            use_rel_pos=False,
             use_masks=True,
             attention_type="mha"
         )},
@@ -4181,6 +4180,14 @@ ablation_study = {
             transect_mask_width=0.02,
             sphere_mask_p=1.0,
             sphere_mask_radius=0.1,
+        )},
+
+    # Space_time attention
+    "exp319": {
+        "description": "Time_space_attention",
+        "config": ModelConfig(
+            use_masks=True,
+            attention_type="time_space_attention"
         )},
 
 }
