@@ -44,7 +44,7 @@ def run_one(model_name, seed, df, train_idx, test_idx, device, n_inferences, out
         # MaSTNeT and MLP go through the PyTorch training loop
         cfg = build_pytorch_cfg(model_name, hyps)
 
-        results, _, _, _, _ = train_pytorch_single_split(
+        results, y_true, y_pred, _, _ = train_pytorch_single_split(
             coords_raw=torch.tensor(df[config.coordinates].astype(float).to_numpy()),
             values_raw=torch.tensor(df[config.parameters].astype(float).to_numpy()),
             model_class=model_class,
@@ -66,7 +66,7 @@ def run_one(model_name, seed, df, train_idx, test_idx, device, n_inferences, out
         )
     else:
         # Everything else (ReMasker, MissForest, ...) goes through the sklearn-style path
-        results, _, _, _ = train_sklearn_single_split(
+        results, y_true, y_pred, _ = train_sklearn_single_split(
             df=df,
             model_class=model_class,
             hyps=hyps,
@@ -81,6 +81,17 @@ def run_one(model_name, seed, df, train_idx, test_idx, device, n_inferences, out
             save_model=False,
             output_dir=str(output_dir),
         )
+
+    # Store output CSVs
+    if y_pred is None or y_true is None:
+        logging.info(f"{model_name} seed={seed}: results loaded from cache; "
+                     f"skipping y_pred/y_true CSV regeneration (delete the cached JSON to force a rerun).")
+    else:
+        if y_pred.shape[1] != len(config.parameters):
+            coord_dim = y_pred.shape[1] - len(config.parameters)
+            y_pred = y_pred[:, coord_dim:]
+        pd.DataFrame(y_pred, columns=config.parameters).to_csv(output_dir / f"{model_name}_seed{seed}_y_pred.csv", index=False)
+        pd.DataFrame(y_true, columns=config.parameters).to_csv(output_dir / f"{model_name}_seed{seed}_y_true.csv", index=False)
 
     return _test_metrics(results)
 
