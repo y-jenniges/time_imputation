@@ -105,7 +105,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default="cuda",
                         help="PyTorch device (cuda or cpu)")
-    parser.add_argument("--no_animations", type=bool, default=False,
+    parser.add_argument("--no_animations", action="store_true",
                         help="Skip generating MP4 animations (faster, saves disk space)")
     args = parser.parse_args()
 
@@ -186,49 +186,54 @@ if __name__ == "__main__":
         )
         variance_aleatoric, variance_epistemic = None, None
 
-    # Strip prepended coordinate columns if present (some sklearn paths return full X)
-    if y_pred is not None and y_pred.shape[1] != len(config.parameters):
-        coord_dim = y_pred.shape[1] - len(config.parameters)
-        y_pred = y_pred[:, coord_dim:]
-
-    # Save ground truth and predictions
-    pd.DataFrame(y_pred, columns=config.parameters).to_csv(
-        output_dir / f"model{model_name}_y_pred.csv", index=False
-    )
-    pd.DataFrame(y_true, columns=config.parameters).to_csv(
-        output_dir / f"model{model_name}_y_true.csv", index=False
-    )
-    logging.info(f"Predictions saved to {output_dir}")
-
-    # Plot animations of imputation and uncertainties if given
-    if args.no_animations:
-        logging.info("Skipping animations (--no_animations)")
+    if y_pred is None or y_true is None:
+        # Do not overwrite existing runs
+        logging.info(f"Results for model{model_name} seed={seed} were loaded from cache; "
+                     f"skipping CSV/animation regeneration (delete the cached JSON to force a rerun).")
     else:
-        # Create imputed df
-        df_imputed = pd.DataFrame(y_true, columns=config.parameters)
-        df_imputed = df_imputed.combine_first(pd.DataFrame(y_pred, columns=config.parameters))
-        df_imputed[config.coordinates] = df[config.coordinates].values
+        # Strip prepended coordinate columns if present (some sklearn paths return full X)
+        if y_pred.shape[1] != len(config.parameters):
+            coord_dim = y_pred.shape[1] - len(config.parameters)
+            y_pred = y_pred[:, coord_dim:]
 
-        # Per-parameter animations
-        for param in config.parameters:
-            generate_animation(
-                df_imputed, scaler_dict=scaler_dict, parameter=param,
-                save_as=str(output_dir / f"model{model_name}_{param}_imputation.mp4"),
-            )
+        # Save ground truth and predictions
+        pd.DataFrame(y_pred, columns=config.parameters).to_csv(
+            output_dir / f"model{model_name}_y_pred.csv", index=False
+        )
+        pd.DataFrame(y_true, columns=config.parameters).to_csv(
+            output_dir / f"model{model_name}_y_true.csv", index=False
+        )
+        logging.info(f"Predictions saved to {output_dir}")
 
-            if variance_aleatoric is not None:
-                df_var = pd.DataFrame(variance_aleatoric, columns=config.parameters)
-                df_var[config.coordinates] = df[config.coordinates].values
+        # Plot animations of imputation and uncertainties if given
+        if args.no_animations:
+            logging.info("Skipping animations (--no_animations)")
+        else:
+            # Create imputed df
+            df_imputed = pd.DataFrame(y_true, columns=config.parameters)
+            df_imputed = df_imputed.combine_first(pd.DataFrame(y_pred, columns=config.parameters))
+            df_imputed[config.coordinates] = df[config.coordinates].values
+
+            # Per-parameter animations
+            for param in config.parameters:
                 generate_animation(
-                    df_var, scaler_dict=None, parameter=param,
-                    save_as=str(output_dir / f"model{model_name}_{param}_aleatoric.mp4"),
+                    df_imputed, scaler_dict=scaler_dict, parameter=param,
+                    save_as=str(output_dir / f"model{model_name}_{param}_imputation.mp4"),
                 )
 
-                df_var = pd.DataFrame(variance_epistemic, columns=config.parameters)
-                df_var[config.coordinates] = df[config.coordinates].values
-                generate_animation(
-                    df_var, scaler_dict=None, parameter=param,
-                    save_as=str(output_dir / f"model{model_name}_{param}_epistemic.mp4"),
-                )
+                if variance_aleatoric is not None:
+                    df_var = pd.DataFrame(variance_aleatoric, columns=config.parameters)
+                    df_var[config.coordinates] = df[config.coordinates].values
+                    generate_animation(
+                        df_var, scaler_dict=None, parameter=param,
+                        save_as=str(output_dir / f"model{model_name}_{param}_aleatoric.mp4"),
+                    )
+
+                    df_var = pd.DataFrame(variance_epistemic, columns=config.parameters)
+                    df_var[config.coordinates] = df[config.coordinates].values
+                    generate_animation(
+                        df_var, scaler_dict=None, parameter=param,
+                        save_as=str(output_dir / f"model{model_name}_{param}_epistemic.mp4"),
+                    )
 
     logging.info("Done.")
