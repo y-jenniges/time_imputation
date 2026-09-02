@@ -77,6 +77,21 @@ def assemble_hyps(model_name: str, raw: dict) -> dict:
         return raw
 
 
+def build_mastnet_cfg(hyps, exp_id=73):
+    """Build a MaSTNeT ablation config with Optuna-selected overrides applied."""
+    cfg = ablation_study[f"exp{exp_id}"]["config"]
+    cfg.dropout = hyps["model"]["dropout"]
+    cfg.n_neighbours = hyps["train"]["n_neighbours"]
+    cfg.mask_ratio = hyps["train"]["mask_ratio"]
+    masking = hyps["train"].get("masking", {})
+    cfg.masking_strategies = masking.get("masking_strategies", ["random"])
+    cfg.sphere_mask_radius = masking.get("sphere_mask_radius", 0.0)
+    cfg.sphere_mask_p = 1.0
+    cfg.transect_mask_width = masking.get("transect_mask_width", 0.0)
+    cfg.transect_mask_p = 1.0
+    return cfg
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Final model training with best Optuna params.")
     parser.add_argument("--model_name", type=str, required=True,
@@ -119,17 +134,8 @@ if __name__ == "__main__":
     if isinstance(model_class, type) and issubclass(model_class, torch.nn.Module):
         logging.info("PyTorch model...")
 
-        # Load architecture config (exp73 = chosen MaSTNeT ablation) and apply Optuna overrides
-        cfg = ablation_study["exp73"]["config"]
-        cfg.dropout = hyps["model"]["dropout"]
-        cfg.n_neighbours = hyps["train"]["n_neighbours"]
-        cfg.mask_ratio = hyps["train"]["mask_ratio"]
-        masking = hyps["train"].get("masking", {})
-        cfg.masking_strategies = masking.get("masking_strategies", ["random"])
-        cfg.sphere_mask_radius = masking.get("sphere_mask_radius", 0.0)
-        cfg.sphere_mask_p = 1.0
-        cfg.transect_mask_width = masking.get("transect_mask_width", 0.0)
-        cfg.transect_mask_p = 1.0
+        # Load MaSTNeT architecture config and apply Optuna overrides
+        cfg = build_mastnet_cfg(hyps, exp_id=73)
 
         results, y_true, y_pred, uncertainty_pair, scaler_dict = train_pytorch_single_split(
             coords_raw=torch.tensor(df[config.coordinates].astype(float).to_numpy()),
