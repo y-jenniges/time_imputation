@@ -77,7 +77,7 @@ def assemble_hyps(model_name: str, raw: dict) -> dict:
         return raw
 
 
-def build_pytorch_cfg(model_name, hyps, exp_id=73):
+def build_pytorch_cfg(model_name, hyps, exp_id=247):
     """Build the base config for MaSTNeT and MLP, applying Optuna overrides."""
     cfg = ablation_study[f"exp{exp_id}"]["config"]
     if model_name != "mastnet":
