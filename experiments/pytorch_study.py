@@ -451,7 +451,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         return results, y_true, y_pred, [aleatoric_uncertainty, epistemic_uncertainty], scaler_dict
 
 
-def optuna_objective(trial, model_name, output_dir):
+def optuna_objective(trial, model_name, output_dir, base_exp="exp247"):
     """ Optuna objective function: One trial runs on all 5 splits. """
     # Init torch device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -481,9 +481,7 @@ def optuna_objective(trial, model_name, output_dir):
         val_idx = np.array(split["val_idx"])
 
         # Load basic architecture config
-        # base_cfg = ablation_study["73"]["config"]
-        # base_cfg = ablation_study["90"]["config"]
-        base_cfg = ablation_study["exp247"]["config"]
+        base_cfg = ablation_study[base_exp]["config"]
 
         # Train
         results, _, _, _ = train_pytorch_single_split(
@@ -526,6 +524,8 @@ if __name__ == "__main__":
     parser.add_argument("--n_trials", type=int, default=1, help="Number of trials to run")
     parser.add_argument("--model_name", type=str, default="mae", help="Model name")
     parser.add_argument("--output_dir", type=str, default="", help="Output directory")
+    parser.add_argument("--base_exp", type=str, default="exp247",
+                        help="ablation_study key for the base architecture config (MaSTNeT only)")
     args = parser.parse_args()
 
     # Setup logging
@@ -558,7 +558,8 @@ if __name__ == "__main__":
                                 load_if_exists=True)
 
     logging.info("Starting OPTUNA study...")
-    study.optimize(partial(optuna_objective, model_name=args.model_name, output_dir=output_dir), n_trials=args.n_trials)
+    study.optimize(partial(optuna_objective, model_name=args.model_name, output_dir=output_dir,
+                           base_exp=args.base_exp), n_trials=args.n_trials)
 
     # # Save results
     # logging.info("Storing OPTUNA study results...")
