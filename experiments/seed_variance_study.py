@@ -42,7 +42,7 @@ def run_one(model_name, seed, df, train_idx, test_idx, device, n_inferences, out
 
     if isinstance(model_class, type) and issubclass(model_class, torch.nn.Module):
         # MaSTNeT and MLP go through the PyTorch training loop
-        cfg = build_pytorch_cfg(model_name, hyps)
+        cfg = build_pytorch_cfg(model_name, hyps=hyps, exp_id=247)
 
         results, y_true, y_pred, _, _ = train_pytorch_single_split(
             coords_raw=torch.tensor(df[config.coordinates].astype(float).to_numpy()),
@@ -50,7 +50,7 @@ def run_one(model_name, seed, df, train_idx, test_idx, device, n_inferences, out
             model_class=model_class,
             hyps=hyps,
             train_idx=train_idx,
-            val_idx=test_idx,  # matches train_final.py: test set used for early stopping
+            val_idx=test_idx,  # test set used for early stopping
             test_idx=test_idx,
             model_name=model_name,
             split_path="final",
