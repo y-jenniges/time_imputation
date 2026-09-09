@@ -13,6 +13,8 @@ from time import time
 import argparse
 import logging
 import gc
+from optuna.study import MaxTrialsCallback
+from optuna.trial import TrialState
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 import psutil
@@ -548,7 +550,8 @@ if __name__ == "__main__":
         storage = JournalStorage(JournalFileBackend(journal_path))
 
     sampler = optuna.samplers.TPESampler(n_startup_trials=20,  # More initial random exploration
-                                         multivariate=True)  # Learn joint distributions
+                                         multivariate=True,  # Learn joint distributions
+                                         )
     pruner = optuna.pruners.MedianPruner()
     study = optuna.create_study(study_name=f"{args.model_name}_tuning",
                                 direction="minimize",
@@ -559,7 +562,10 @@ if __name__ == "__main__":
 
     logging.info("Starting OPTUNA study...")
     study.optimize(partial(optuna_objective, model_name=args.model_name, output_dir=output_dir,
-                           base_exp=args.base_exp), n_trials=args.n_trials)
+                           base_exp=args.base_exp),
+                   n_trials=args.n_trials,
+                   # callbacks=[MaxTrialsCallback(args.n_trials, states=(TrialState.COMPLETE, TrialState.PRUNED))],
+                   )
 
     # # Save results
     # logging.info("Storing OPTUNA study results...")
