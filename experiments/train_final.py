@@ -117,7 +117,7 @@ if __name__ == "__main__":
     model_name = args.model_name
     seed = args.seed
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-    output_dir = Path("output/testing") / model_name
+    output_dir = Path(config.output_dir) / "testing"/ model_name
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load dataset and fixed test-train split
