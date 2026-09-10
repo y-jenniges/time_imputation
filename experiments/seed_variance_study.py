@@ -27,8 +27,17 @@ NEURAL_MODELS = ["mastnet", "mlp", "remasker"]
 
 
 def _test_metrics(results):
-    """Normalise the two possible return shapes (dict from cache, TuningResult when freshly computed)."""
-    return results["test_metrics"] if isinstance(results, dict) else results.test_metrics
+    """Normalise the two possible return shapes (dict from cache, TuningResult when freshly computed)
+    and the two metrics layouts: PyTorch models populate ``test_metrics``, sklearn-style models
+    (ReMasker, MissForest, ...) populate ``metrics_all`` instead.
+    """
+    if isinstance(results, dict):
+        tm = results.get("test_metrics") or {}
+        ma = results.get("metrics_all") or {}
+    else:
+        tm = results.test_metrics or {}
+        ma = results.metrics_all or {}
+    return tm if tm.get("Global") else ma
 
 
 def run_one(model_name, seed, df, train_idx, test_idx, device, n_inferences, output_root):
