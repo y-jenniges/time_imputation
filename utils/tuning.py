@@ -63,7 +63,7 @@ class TuningResult:
     mean_total_uncertainty: float = np.nan
     std_total_uncertainty: float = np.nan
 
-    stop_epoch: int = np.nan
+    stop_epoch: int | np.nan = np.nan
 
     reconstruction_rmse: float = np.nan
 
@@ -268,9 +268,6 @@ def load_geophysical_diffs(model_name, results_dir="output/testing"):
       ``{results_dir}/{model_name}/{model_name}_woa_diff_summary_scaled.csv``
       ``{results_dir}/{model_name}/{model_name}_cmip_diff_summary_scaled.csv``
 
-    Each CSV must contain at least a ``MAE`` column and optionally ``std``.
-    Returns ``np.nan`` for any file that does not yet exist.
-
     Parameters
     ----------
     model_name : str
@@ -278,9 +275,11 @@ def load_geophysical_diffs(model_name, results_dir="output/testing"):
 
     Returns
     -------
-    dict with keys ``CMIP_diff``, ``CMIP_std``, ``WOA_diff``, ``WOA_std``
+    dict with keys ``CMIP_diff``, ``CMIP_RMSE``, ``CMIP_std``, ``WOA_diff``, ``WOA_RMSE``, ``WOA_std``.
+    The MAE are variants ``CMIP_diff``, ``WOA_diff``.
     """
-    out = {"CMIP_diff": np.nan, "CMIP_std": np.nan, "WOA_diff": np.nan, "WOA_std": np.nan}
+    out = {"CMIP_diff": np.nan, "CMIP_RMSE": np.nan, "CMIP_std": np.nan,
+           "WOA_diff": np.nan, "WOA_RMSE": np.nan, "WOA_std": np.nan}
     base = Path(results_dir) / model_name
 
     # CMIP differences
@@ -288,6 +287,8 @@ def load_geophysical_diffs(model_name, results_dir="output/testing"):
     if cmip_path.exists():
         c = pd.read_csv(cmip_path)
         out["CMIP_diff"] = float(c["MAE"].mean())
+        if "RMSE" in c.columns:
+            out["CMIP_RMSE"] = float(c["RMSE"].mean())
         if "std" in c.columns:
             out["CMIP_std"] = float(c["std"].mean())
 
@@ -296,7 +297,110 @@ def load_geophysical_diffs(model_name, results_dir="output/testing"):
     if woa_path.exists():
         w = pd.read_csv(woa_path)
         out["WOA_diff"] = float(w["MAE"].mean())
+        if "RMSE" in w.columns:
+            out["WOA_RMSE"] = float(w["RMSE"].mean())
         if "std" in w.columns:
             out["WOA_std"] = float(w["std"].mean())
 
     return out
+
+
+def load_cmip_diff_pervar(model_name, results_dir="output/testing", seed_variance_dir=None, scaled=True):
+    """
+    Load per-parameter CMIP difference (MAE, RMSE), averaged across training seeds where available.
+
+    Reads the ``{model_name}[_seed{N}]_cmip_diff_summary[_scaled].csv`` files written by
+    cmip6_comparison.ipynb (one row per parameter). Non-deterministic models with a
+    seed-variance cache get the mean/std of MAE and RMSE across seeds.
+
+    Parameters
+    ----------
+    model_name : str
+    results_dir : str or Path
+        Directory containing ``{model_name}/{model_name}_cmip_diff_summary[_scaled].csv``.
+    seed_variance_dir : str or Path, optional
+        Directory containing ``{model_name}/{model_name}_seed{N}_cmip_diff_summary[_scaled].csv``.
+        Defaults to ``{results_dir}/seed_variance/seed_variance``.
+    scaled : bool
+        Whether to read the ``_scaled`` ([0,1] normalised) or physical-units summary.
+
+    Returns
+    -------
+    pandas.DataFrame with columns: parameter, MAE, MAE_std, RMSE, RMSE_std.
+    """
+    suffix = "_scaled" if scaled else ""
+    cols = ["parameter", "MAE", "MAE_std", "RMSE", "RMSE_std"]
+
+    # Get the seed variance files
+    if seed_variance_dir is None:
+        # Default seed_variance_dir
+        seed_variance_dir = Path(results_dir) / "seed_variance" / "seed_variance"
+    seed_dir = Path(seed_variance_dir) / model_name
+    seed_files = sorted(seed_dir.glob(f"{model_name}_seed*_cmip_diff_summary{suffix}.csv")) \
+        if seed_dir.exists() else []
+
+    # Get mean/std across seeds
+    if seed_files:
+        combined = pd.concat([pd.read_csv(f) for f in seed_files], ignore_index=True)
+        out = combined.groupby("parameter")[["MAE", "RMSE"]].agg(["mean", "std"])
+        out.columns = ["MAE", "MAE_std", "RMSE", "RMSE_std"]
+        return out.reset_index()[cols]
+
+    # Store and return result df
+    path = Path(results_dir) / model_name / f"{model_name}_cmip_diff_summary{suffix}.csv"
+    if not path.exists():
+        return pd.DataFrame(columns=cols)
+    out = pd.read_csv(path)
+    out["MAE_std"] = np.nan
+    out["RMSE_std"] = np.nan
+    return out[cols]
+
+
+def load_seeded_predictions(model_name, results_dir="output/testing", seed_variance_dir=None):
+    """
+    Load predictions for one model, averaged element-wise across training seeds where available.
+
+    Non-deterministic models with runs from ``experiments/seed_variance_study.py``
+    (mastnet, mlp, remasker, missforest) get the element-wise mean of ``y_pred`` across all
+    ``{model_name}_seed*_y_pred.csv``. Models without seed-variance study fall back to the single
+    "final" trial0 run.
+
+    Parameters
+    ----------
+    model_name : str
+    results_dir : str or Path
+        Directory holding ``{model_name}/model{model_name}_y_pred.csv`` (trial0 fallback).
+    seed_variance_dir : str or Path, optional
+        Directory holding ``{model_name}/{model_name}_seed{N}_y_pred.csv`` per seed.
+        Defaults to ``{results_dir}/seed_variance/seed_variance``.
+
+    Returns
+    -------
+    y_pred, y_true : pandas.DataFrame
+    n_seeds : int
+        Number of seeds averaged into ``y_pred`` (1 when falling back to trial0).
+    """
+    # Get seed variance result files
+    if seed_variance_dir is None:
+        seed_variance_dir = Path(results_dir) / "seed_variance" / "seed_variance"
+    seed_dir = Path(seed_variance_dir) / model_name
+    pred_files = sorted(seed_dir.glob(f"{model_name}_seed*_y_pred.csv")) if seed_dir.exists() else []
+
+    def _clean(df):
+        return df.drop(columns=[c for c in df.columns if c.startswith("Unnamed")])
+
+    if pred_files:
+        # Load seeded predictions
+        true_files = sorted(seed_dir.glob(f"{model_name}_seed*_y_true.csv"))
+        preds = [_clean(pd.read_csv(f)) for f in pred_files]
+        y_pred = sum(preds) / len(preds)
+        y_true = _clean(pd.read_csv(true_files[0]))
+        n_seeds = len(pred_files)
+    else:
+        # Load one-file predictions
+        base = Path(results_dir) / model_name
+        y_pred = _clean(pd.read_csv(base / f"model{model_name}_y_pred.csv"))
+        y_true = _clean(pd.read_csv(base / f"model{model_name}_y_true.csv"))
+        n_seeds = 1
+
+    return y_pred, y_true, n_seeds
