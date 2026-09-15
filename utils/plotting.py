@@ -13,7 +13,6 @@ from cartopy.io import shapereader
 import matplotlib.animation as animation
 import seaborn as sns
 from scipy.interpolate import griddata
-import xarray as xr
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
@@ -515,6 +514,7 @@ def plot_geo_panels(
 def plot_depth_panels(
         data,
         depth_dim="depth",
+        depths=None,
         cmap="inferno",
         vmin=None,
         vmax=None,
@@ -528,6 +528,11 @@ def plot_depth_panels(
     """
     Plot multiple depth-level panels for a 3D DataArray (depth × lat × lon).
     Each subplot corresponds to one depth level.
+
+    Parameters
+    ----------
+    depths : list, optional
+        Subset of depth levels to plot. Default is None (plot all depth levels).
     """
 
     # --- Validate input
@@ -535,7 +540,12 @@ def plot_depth_panels(
         raise ValueError(f"Expected a 3D DataArray with dims (depth, lat, lon). Got ndim = {data.ndim}")
 
     data = data.transpose(depth_dim, "lat", "lon")
+
+    # Select data at given depth levels
+    if depths is not None:
+        data = data.sel({depth_dim: depths})
     depths = data[depth_dim].values
+
     ndepths = len(depths)
     nrows = int(np.ceil(ndepths / ncols))
 
@@ -544,8 +554,9 @@ def plot_depth_panels(
         ncols=ncols,
         figsize=(ncols * 3.2, nrows * 2.6),
         subplot_kw={"projection": ccrs.PlateCarree()},
-        constrained_layout=True,
+        layout="compressed",
     )
+    fig.get_layout_engine().set(w_pad=0.02, h_pad=0.02, wspace=0.02, hspace=0.01)
     axs = axs.flatten()
 
     if vmin is None:
@@ -557,12 +568,14 @@ def plot_depth_panels(
 
     for i, d in enumerate(depths):
         ax = axs[i]
-        ax.set_extent([float(data.lon.min()), float(data.lon.max()),
-                       float(data.lat.min()), float(data.lat.max())])
+        # Map settings
+        ax.set_xlim(float(data.lon.min()), float(data.lon.max()))
+        ax.set_ylim(float(data.lat.min()), float(data.lat.max()))
         ax.add_feature(cfeature.LAND, facecolor=coast_color, zorder=0)
         ax.coastlines(linewidth=0.5)
         ax.add_feature(cfeature.BORDERS, linewidth=0.3)
 
+        # Gridlines and labels
         gl = ax.gridlines(draw_labels=True, linewidth=0.3, linestyle="--", alpha=0.5)
         gl.top_labels = False
         gl.right_labels = False
@@ -571,16 +584,17 @@ def plot_depth_panels(
 
         da2d = data.sel({depth_dim: d})
 
+        # Define colour mesh
         if norm is not None:
             pcm = ax.pcolormesh(
                 data.lon, data.lat, da2d,
-                cmap=cmap, norm=norm,
+                cmap=cmap, norm=norm, shading="nearest",
                 transform=ccrs.PlateCarree(),
             )
         else:
             pcm = ax.pcolormesh(
                 data.lon, data.lat, da2d,
-                cmap=cmap, vmin=vmin, vmax=vmax,
+                cmap=cmap, vmin=vmin, vmax=vmax, shading="nearest",
                 transform=ccrs.PlateCarree(),
             )
         ax.set_title(f"{d} m", fontsize=9)
@@ -601,6 +615,7 @@ def plot_depth_panels(
 def animate_depth_panels(
         data,
         depth_dim="depth",
+        depths=None,
         cmap="inferno",
         vmin=None,
         vmax=None,
@@ -613,6 +628,11 @@ def animate_depth_panels(
     Animate multiple depth-level panels for a 4D DataArray (time × depth × lat × lon).
     Each subplot corresponds to one depth level, and all update together per frame.
     Assumes 'time' coordinate contains integers (e.g., years) or datetimes.
+
+    Parameters
+    ----------
+    depths : list, optional
+        Subset of depth levels to plot. Default is None (plot all depth levels).
     """
 
     # --- Validate input
@@ -620,6 +640,8 @@ def animate_depth_panels(
         raise ValueError("Expected a 4D DataArray with dims (time, depth, lat, lon).")
 
     data = data.transpose("time", depth_dim, "lat", "lon")
+    if depths is not None:
+        data = data.sel({depth_dim: depths})
     times = np.sort(np.unique(data["time"]))
     depths = data[depth_dim].values
     nframes = len(times)
@@ -631,8 +653,9 @@ def animate_depth_panels(
         ncols=ncols,
         figsize=(ncols * 3.2, nrows * 2.6),
         subplot_kw={"projection": ccrs.PlateCarree()},
-        constrained_layout=True,
+        layout="compressed",
     )
+    fig.get_layout_engine().set(w_pad=0.02, h_pad=0.02, wspace=0.02, hspace=0.01)
     axs = axs.flatten()
 
     if vmin is None:
@@ -644,8 +667,9 @@ def animate_depth_panels(
 
     for i, d in enumerate(depths):
         ax = axs[i]
-        ax.set_extent([float(data.lon.min()), float(data.lon.max()),
-                       float(data.lat.min()), float(data.lat.max())])
+        # Map settings
+        ax.set_xlim(float(data.lon.min()), float(data.lon.max()))
+        ax.set_ylim(float(data.lat.min()), float(data.lat.max()))
         ax.add_feature(cfeature.LAND, facecolor=coast_color, zorder=0)
         ax.coastlines(linewidth=0.5)
         ax.add_feature(cfeature.BORDERS, linewidth=0.3)
@@ -661,13 +685,13 @@ def animate_depth_panels(
         if norm is not None:
             pcm = ax.pcolormesh(
                 data.lon, data.lat, da2d,
-                cmap=cmap, norm=norm,
+                cmap=cmap, norm=norm, shading="nearest",
                 transform=ccrs.PlateCarree(),
             )
         else:
             pcm = ax.pcolormesh(
                 data.lon, data.lat, da2d,
-                cmap=cmap, vmin=vmin, vmax=vmax,
+                cmap=cmap, vmin=vmin, vmax=vmax, shading="nearest",
                 transform=ccrs.PlateCarree(),
             )
         ax.set_title(f"{d} m", fontsize=9)
@@ -680,7 +704,7 @@ def animate_depth_panels(
                         shrink=0.9, aspect=30, pad=0.02)
     cbar.set_label(data.name)
 
-    # Initialize title
+    # Initialise title
     time_label = fig.suptitle(f"Year: {times[0]}", fontsize=12)
 
     # Update function
@@ -719,8 +743,9 @@ def animate_depth_panels(
         plt.show()
 
 
-def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", save_as=None, cmap="inferno",
-                       norm=None):
+def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE",
+                       depths=None, ncols=4, save_as=None,
+                       cmap="inferno", vmin=None, vmax=None, norm=None):
     temp = df_imputed.copy()
 
     # Undo scaling
@@ -735,11 +760,11 @@ def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE", 
 
     # Animate and save
     if "DATEANDTIME" in df_imputed.columns and len(df_imputed["DATEANDTIME"].unique()) > 1:
-        animate_depth_panels(data=ds, save_as=save_as, cmap=cmap, norm=norm)
+        animate_depth_panels(data=ds, depths=depths, ncols=ncols, save_as=save_as, cmap=cmap, vmin=vmin, vmax=vmax, norm=norm)
     else:
         if "time" in ds.dims:
             ds = ds.squeeze(dim="time")
-        plot_depth_panels(data=ds, save_as=save_as, cmap=cmap, norm=norm)
+        plot_depth_panels(data=ds, depths=depths, ncols=ncols, save_as=save_as, cmap=cmap, vmin=vmin, vmax=vmax, norm=norm)
 
 
 def plot_profile(df, param, figsize=(6, 8), save_as=None, dpi=300):
@@ -887,15 +912,236 @@ def plot_missingness_panels(df, depth_levels, cmap="RdYlGn_r", ncols=3, vmin=0, 
     plt.show()
 
 
+def bar_label_beyond_errorbar(ax, stds, fmt="{:.2f}", offset_pts=6):
+    """
+    Annotate each bar in a bar plot with its value, placed just past the tip of its error
+    whisker instead of past the bar height.
+
+    Parameters
+    ----------
+    ax : matplotlib Axes
+        Axes containing exactly one bar container (e.g. from ``sns.barplot`` without grouping).
+    stds : sequence of float
+        One std per bar, in the same left-to-right order as the bars. NaN is treated as 0.
+    fmt : str
+        Format string applied to each bar's value.
+    offset_pts : float
+        Extra spacing (points) between the whisker tip and the label.
+    """
+    bars = ax.containers[0]
+    for bar, sd in zip(bars, stds):
+        sd = 0 if pd.isna(sd) else sd
+        m = bar.get_height()
+        sign = 1 if m >= 0 else -1
+        ax.annotate(fmt.format(m), xy=(bar.get_x() + bar.get_width() / 2, m + sign * sd),
+                    xytext=(0, sign * offset_pts), textcoords="offset points",
+                    ha="center", va="bottom" if sign >= 0 else "top")
+
+
+def to_latex_table(df, caption, label, column_format=None, float_format="%.3f", index=False, escape=False):
+    """
+    Render ``df`` as a LaTeX table wrapped in a centred ``table`` environment.
+
+    Parameters
+    ----------
+    df : DataFrame
+    caption, label : str
+    column_format : str, optional
+        LaTeX column spec (e.g. ``"lrrr"``). Dfaults to pandas' own inference.
+    float_format : str
+        Format applied to float columns.
+    index : bool
+        Whether to include the DataFrame index as a column.
+    escape : bool
+        Whether to LaTeX-escape special characters (keep False for cells with ``$...$``).
+    """
+    latex = df.to_latex(index=index, escape=escape, caption=caption, label=label,
+                         position="htbp", column_format=column_format, float_format=float_format)
+    return latex.replace("\\begin{table}[htbp]\n", "\\begin{table}[htbp]\n    \\centering\n", 1)
+
+
+# Metric polarity to determine best values for LaTeX tables
+_LOWER_IS_BETTER = {"RMSE": True, "MAE": True, "NRMSE": True,
+                     "KGE": False, "R2": False, "PCC": False, "OI": False}
+
+# Default decimal places per metric in LaTeX tables
+_DEFAULT_DECIMALS = {"RMSE": 4, "KGE": 2, "CMIP_diff": 4}
+
+
+def _fmt_cell(v, std=None, decimals=4):
+    """Format a single value as 'mean' or 'mean $\\pm$ std'; return '---' for NaN."""
+    if pd.isna(v):
+        return "---"
+    s = f"{v:.{decimals}f}"
+    if std is not None and pd.notna(std):
+        s += rf" $\pm$ {std:.{decimals}f}"
+    return s
+
+
+def _format_column(series, lower_is_better, decimals=4, std_series=None, bold_best=True):
+    """Format a numeric Series and bold the single best non-NaN value."""
+    # Get valid values
+    valid = series.dropna()
+    if valid.empty or not bold_best:
+        # Return formatted series (without bold)
+        return {i: _fmt_cell(v, std_series.get(i) if std_series is not None else None, decimals)
+                for i, v in series.items()}
+
+    # Determine best idx
+    best_idx = valid.idxmin() if lower_is_better else valid.idxmax()
+    result = {}
+    for idx, val in series.items():
+        # Format series (with bold best value)
+        s = _fmt_cell(val, std_series.get(idx) if std_series is not None else None, decimals)
+        result[idx] = rf"\textbf{{{s}}}" if idx == best_idx else s
+    return result
+
+
+def generate_pervar_table(
+        df_pervar: "pd.DataFrame",
+        metric: str = "RMSE",
+        model_col: str = "Model",
+        bold_best: bool = True,
+        label_cols: list = None,
+        lower_is_better: bool = None,
+        decimals: int = None,
+        caption: str = None,
+        label: str = None,
+        use_units: bool = False,
+        row_order: list = None,
+) -> str:
+    """
+    Generate a LaTeX table for one metric, per variable: Model | metric per parameter.
+
+    Parameters
+    ----------
+    df_pervar : DataFrame
+        One row per (model, variable). Required columns: ``model_col``, ``parameter``, ``metric``.
+    metric : str
+        Column in ``df_pervar`` to tabulate, e.g. ``"RMSE"``.
+    model_col : str
+        Column used as the unique model identifier and pivot key.
+    bold_best : bool
+        Bold the best value in each parameter column.
+    label_cols : list of str, optional
+        If provided, these columns are displayed as row labels instead of ``model_col``.
+        All columns must be present in ``df_pervar``.
+    lower_is_better : bool, optional
+        Whether a smaller value is better for ``metric``. Defaults to a lookup in
+        ``_LOWER_IS_BETTER``.
+    decimals : int, optional
+        Number of decimal places to display. Defaults to a lookup in ``_DEFAULT_DECIMALS``,
+        falling back to 4 for any other metric.
+    caption, label : str, optional
+        Override the default caption/``\\label{}``. Needed e.g. when generating more than one
+        table for the same ``metric`` in one document (e.g. scaled vs. physical units).
+    use_units : bool
+        Use ``config.parameter_name_unit_map`` (e.g. ``"Salinity [psu]"``) for column headers
+        instead of the plain ``config.parameter_name_map`` names.
+    row_order : list of str, optional
+        Explicit row order. Rows not listed are appended at the end.
+
+    Notes
+    -----
+    If ``df_pervar`` has a ``"{metric}_std"`` column (e.g. from a multi-seed variance study),
+    cells are rendered as ``mean $\\pm$ std`` instead of a bare mean.
+    """
+    import config as _cfg
+
+    # Check if all metric polartities are given
+    if lower_is_better is None:
+        if metric not in _LOWER_IS_BETTER:
+            raise ValueError(f"lower_is_better must be given explicitly for unknown metric {metric!r}")
+        lower_is_better = _LOWER_IS_BETTER[metric]
+
+    # Define decimals to displac
+    if decimals is None:
+        decimals = _DEFAULT_DECIMALS.get(metric, 4)
+
+    display_cols = label_cols if label_cols else [model_col]
+    n_label = len(display_cols)
+
+    # Check if required columns are given
+    for col in [model_col, "parameter", metric]:
+        if col not in df_pervar.columns:
+            raise ValueError(f"df_pervar is missing required column: {col!r}")
+    if label_cols:
+        for col in label_cols:
+            if col not in df_pervar.columns:
+                raise ValueError(f"df_pervar is missing label column: {col!r}")
+
+    # Check if std is given
+    std_col = f"{metric}_std"
+    has_std = std_col in df_pervar.columns
+
+    # Prepare the df
+    pivot = df_pervar.pivot_table(index=model_col, values=metric, columns="parameter", aggfunc="mean")
+    param_cols = [p for p in _cfg.parameters if p in pivot.columns]
+    pivot = pivot[param_cols]
+    if has_std:
+        pivot_std = df_pervar.pivot_table(index=model_col, values=std_col, columns="parameter", aggfunc="mean")
+        pivot_std = pivot_std.reindex(columns=param_cols)
+
+    # Formatting
+    formatted = pd.DataFrame(index=pivot.index)
+    for p in param_cols:
+        std_series = pivot_std[p] if has_std else None
+        formatted[p] = pd.Series(_format_column(
+            pivot[p], lower_is_better=lower_is_better, decimals=decimals,
+            std_series=std_series, bold_best=bold_best))
+
+    # Use label_cols
+    if label_cols:
+        label_df = df_pervar[[model_col] + label_cols].drop_duplicates().set_index(model_col)
+        formatted = formatted.join(label_df)
+
+    # Optionally apply row order
+    if row_order is not None:
+        ordered = [m for m in row_order if m in formatted.index] + \
+                  [m for m in formatted.index if m not in row_order]
+        formatted = formatted.reindex(ordered)
+
+    # Generate LaTeX table
+    short = _cfg.parameter_name_unit_map if use_units else _cfg.parameter_name_map
+    col_spec = "l" * (n_label + len(param_cols))
+    header = " & ".join(display_cols) + " & " + " & ".join(short.get(p, p) for p in param_cols) + r" \\"
+    arrow = r"$\downarrow$" if lower_is_better else r"$\uparrow$"
+    caption = caption if caption is not None else f"{metric} per parameter for each model (normalised space) {arrow}"
+    label = label if label is not None else f"tab:{metric.lower()}_per_var"
+
+    lines = [
+        r"\begin{table}[htbp]",
+        r"    \centering",
+        rf"    \caption{{{caption}}}",
+        rf"    \label{{{label}}}",
+        r"    \resizebox{\textwidth}{!}{%",
+        rf"    \begin{{tabular}}{{{col_spec}}}",
+        r"    \toprule",
+        f"    {header}",
+        r"    \midrule",
+    ]
+    for mid, row in formatted.iterrows():
+        cells = [str(mid)] if not label_cols else [str(formatted.loc[mid, c]) for c in label_cols]
+        cells += [row[p] for p in param_cols]
+        lines.append("    " + " & ".join(cells) + r" \\")
+    lines += [r"    \bottomrule", r"    \end{tabular}", r"    }", r"\end{table}"]
+    return "\n".join(lines)
+
+
 def generate_latex_table(
         df_global: "pd.DataFrame",
         df_pervar: "pd.DataFrame",
         model_col: str = "Model",
         bold_best: bool = True,
         label_cols: list = None,
+        include_pervar: bool = True,
+        row_order: list = None,
+        decimals: dict = None,
+        caption: str = None,
+        label: str = None,
 ) -> str:
     """
-    Generate a LaTeX table: Model | RMSE↓ | KGE↑ | CMIP MAE↓ | per-variable RMSE↓
+    Generate a LaTeX table: Model | RMSE↓ | KGE↑ | CMIP MAE↓ | [per-variable RMSE↓]
 
     Parameters
     ----------
@@ -904,6 +1150,7 @@ def generate_latex_table(
         If a ``CMIP_diff`` column is present it is included after KGE.
     df_pervar : DataFrame
         One row per (model, variable). Required columns: ``model_col``, ``parameter``, ``RMSE``.
+        Ignored if ``include_pervar`` is False (pass an empty DataFrame in that case).
     model_col : str
         Column used as the unique model identifier and pivot/join key.
     bold_best : bool
@@ -912,69 +1159,109 @@ def generate_latex_table(
         If provided, these columns are displayed as row labels instead of
         ``model_col``. ``model_col`` is still used as the pivot/join key.
         All columns must be present in ``df_global``.
+    include_pervar : bool
+        If False, produce a global-metrics-only table (Model | RMSE | KGE | CMIP MAE),
+        without the per-variable RMSE columns. Defaults to True.
+    row_order : list of str, optional
+        Explicit row order (values of ``model_col``). Rows not listed are appended at the
+        end.
+    decimals : dict, optional
+        Per-metric decimal-place overrides, e.g. ``{"KGE": 3}``. Merged on top of
+        ``_DEFAULT_DECIMALS``.
+    caption, label : str, optional
+        Override the default caption/``\\label{}``. Needed when generating more than one
+        table with this function in the same document.
+
+    Notes
+    -----
+    If ``df_global`` or ``df_pervar`` has a ``metric_std`` column (e.g. from a multi-seed variance study),
+    cells are rendered as ``mean $\\pm$ std`` instead of a bare mean.
     """
     import config as _cfg
 
-    display_cols = label_cols if label_cols else [model_col]
-    n_label = len(display_cols)
+    # Get decimals per metric
+    decimals = {**_DEFAULT_DECIMALS, **(decimals or {})}
 
+    # Check if requires columns are passed
     for col in [model_col, "RMSE", "KGE"]:
         if col not in df_global.columns:
             raise ValueError(f"df_global is missing required column: {col!r}")
-    for col in [model_col, "RMSE", "parameter"]:
-        if col not in df_pervar.columns:
-            raise ValueError(f"df_pervar is missing required column: {col!r}")
+    if include_pervar:
+        for col in [model_col, "RMSE", "parameter"]:
+            if col not in df_pervar.columns:
+                raise ValueError(f"df_pervar is missing required column: {col!r}")
     if label_cols:
         for col in label_cols:
             if col not in df_global.columns:
                 raise ValueError(f"df_global is missing label column: {col!r}")
 
+    # Get number of labels
+    display_cols = label_cols if label_cols else [model_col]
+    n_label = len(display_cols)
+
+    # Check which variables have an std
     has_cmip = "CMIP_diff" in df_global.columns and df_global["CMIP_diff"].notna().any()
+    has_rmse_std = "RMSE_std" in df_global.columns
+    has_kge_std = "KGE_std" in df_global.columns
+    has_cmip_std = has_cmip and "CMIP_diff_std" in df_global.columns
+    has_pervar_std = include_pervar and "RMSE_std" in df_pervar.columns
 
-    # Per-variable RMSE pivot: rows = model, cols = parameter
-    pivot = df_pervar.pivot_table(index=model_col, values="RMSE", columns="parameter", aggfunc="mean")
-    param_cols = [p for p in _cfg.parameters if p in pivot.columns]
-    pivot = pivot[param_cols]
+    # Build per-variable information
+    if include_pervar:
+        # Per-variable RMSE pivot: rows = model, cols = parameter
+        pivot = df_pervar.pivot_table(index=model_col, values="RMSE", columns="parameter", aggfunc="mean")
+        param_cols = [p for p in _cfg.parameters if p in pivot.columns]
+        pivot = pivot[param_cols]
+        if has_pervar_std:
+            pivot_std = df_pervar.pivot_table(index=model_col, values="RMSE_std", columns="parameter", aggfunc="mean")
+            pivot_std = pivot_std.reindex(columns=param_cols)
+    else:
+        param_cols = []
 
-    # Build table: one row per model, global metrics + per-variable RMSE
+    # Build table: One row per model, global metrics + per-variable RMSE
     global_cols = [model_col, "RMSE", "KGE"] + (["CMIP_diff"] if has_cmip else [])
+    if has_rmse_std:
+        global_cols.append("RMSE_std")
+    if has_kge_std:
+        global_cols.append("KGE_std")
+    if has_cmip_std:
+        global_cols.append("CMIP_diff_std")
     global_subset = df_global[global_cols].drop_duplicates(subset=[model_col]).set_index(model_col)
-    table = global_subset.join(pivot, how="left")
+    table = global_subset.join(pivot, how="left") if include_pervar else global_subset
 
     # Attach label columns so data rows can reference them
     if label_cols:
         label_df = df_global[[model_col] + label_cols].drop_duplicates().set_index(model_col)
         table = table.join(label_df)
 
-    def _fmt_cell(v, decimals=4):
-        """Format a single value; return '---' for NaN."""
-        if pd.isna(v):
-            return "---"
-        return f"{v:.{decimals}f}"
-
-    def _format_column(series, lower_is_better, decimals=4):
-        """Format a numeric Series; bold the single best non-NaN value."""
-        valid = series.dropna()
-        if valid.empty or not bold_best:
-            return {i: _fmt_cell(v, decimals) for i, v in series.items()}
-        best_idx = valid.idxmin() if lower_is_better else valid.idxmax()
-        result = {}
-        for idx, val in series.items():
-            s = _fmt_cell(val, decimals)
-            result[idx] = rf"\textbf{{{s}}}" if idx == best_idx else s
-        return result
-
+    # Formatting each metric
     formatted = pd.DataFrame(index=table.index)
-    formatted["RMSE_g"] = pd.Series(_format_column(table["RMSE"], lower_is_better=True))
-    formatted["KGE_g"] = pd.Series(_format_column(table["KGE"], lower_is_better=False))
+    formatted["RMSE_g"] = pd.Series(_format_column(
+        table["RMSE"], lower_is_better=True, decimals=decimals["RMSE"], bold_best=bold_best,
+        std_series=table["RMSE_std"] if has_rmse_std else None))
+    formatted["KGE_g"] = pd.Series(_format_column(
+        table["KGE"], lower_is_better=False, decimals=decimals["KGE"], bold_best=bold_best,
+        std_series=table["KGE_std"] if has_kge_std else None))
     if has_cmip:
-        formatted["CMIP"] = pd.Series(_format_column(table["CMIP_diff"], lower_is_better=True))
-    for p in param_cols:
-        formatted[p] = pd.Series(_format_column(table[p], lower_is_better=True))
+        formatted["CMIP"] = pd.Series(_format_column(
+            table["CMIP_diff"], lower_is_better=True, decimals=decimals["CMIP_diff"], bold_best=bold_best,
+            std_series=table["CMIP_diff_std"] if has_cmip_std else None))
+    if include_pervar:
+        for p in param_cols:
+            std_series = pivot_std[p] if has_pervar_std and p in pivot_std.columns else None
+            formatted[p] = pd.Series(_format_column(
+                table[p], lower_is_better=True, decimals=decimals["RMSE"], bold_best=bold_best,
+                std_series=std_series))
+
+    # Apply row order
+    if row_order is not None:
+        ordered = [m for m in row_order if m in formatted.index] + \
+                  [m for m in formatted.index if m not in row_order]
+        formatted = formatted.reindex(ordered)
 
     n_params = len(param_cols)
     n_global = 2 + (1 if has_cmip else 0)
-    col_spec = "l" * n_label + "c" * (n_global + n_params)
+    col_spec = "l" * (n_label + n_global + n_params)
     short = _cfg.parameter_name_map
 
     # First header row
@@ -983,36 +1270,52 @@ def generate_latex_table(
     else:
         model_header = display_cols[0]
     cmip_hdr = r"CMIP MAE $\downarrow$ & " if has_cmip else ""
-    row1 = (
-            f"    {model_header} & RMSE $\\downarrow$ & KGE $\\uparrow$ & "
-            + cmip_hdr
-            + rf"\multicolumn{{{n_params}}}{{c}}{{RMSE per parameter $\downarrow$}} \\"
-    )
 
-    # Cmidrule under per-parameter span
-    start_col = n_label + n_global + 1
-    end_col = n_label + n_global + n_params
-    cmidrule = rf"    \cmidrule(lr){{{start_col}-{end_col}}}"
+    # Optionally add per-variable header
+    if include_pervar:
+        row1 = (
+                f"    {model_header} & RMSE $\\downarrow$ & KGE $\\uparrow$ & "
+                + cmip_hdr
+                + rf"\multicolumn{{{n_params}}}{{c}}{{RMSE per parameter $\downarrow$}} \\"
+        )
 
-    # Second header row: label sub-headers + empty global cells + param short names
-    param_hdrs = " & ".join(short.get(p, p) for p in param_cols)
-    if n_label > 1:
-        label_hdrs = " & ".join(display_cols)
-        global_empty = " & ".join([""] * n_global)
-        row2 = f"    {label_hdrs} & {global_empty} & {param_hdrs} \\\\"
+        # Cmidrule under per-parameter span
+        start_col = n_label + n_global + 1
+        end_col = n_label + n_global + n_params
+        cmidrule = rf"    \cmidrule(lr){{{start_col}-{end_col}}}"
+
+        # Second header row: Label sub-headers + empty global cells + param short names
+        param_hdrs = " & ".join(short.get(p, p) for p in param_cols)
+        if n_label > 1:
+            label_hdrs = " & ".join(display_cols)
+            global_empty = " & ".join([""] * n_global)
+            row2 = f"    {label_hdrs} & {global_empty} & {param_hdrs} \\\\"
+        else:
+            all_empty = " & ".join([""] * (n_label + n_global))
+            row2 = f"    {all_empty} & {param_hdrs} \\\\"
+        header_rows = [row1, cmidrule, row2]
     else:
-        all_empty = " & ".join([""] * (n_label + n_global))
-        row2 = f"    {all_empty} & {param_hdrs} \\\\"
+        row1 = f"    {model_header} & RMSE $\\downarrow$ & KGE $\\uparrow$" + (
+            f" & {cmip_hdr[:-3]}" if has_cmip else "") + r" \\"
+        header_rows = [row1]
 
+    # LaTaX caption, label and table beginning
+    caption = caption if caption is not None else "Model performance metrics (normalised space)"
+    label = label if label is not None else "tab:model_performance"
     lines = [
         r"\begin{table}[htbp]",
         r"    \centering",
-        r"    \caption{Model performance metrics (normalised space)}",
-        r"    \label{tab:model_performance}",
-        r"    \resizebox{\textwidth}{!}{%",
-        rf"    \begin{{tabular}}{{{col_spec}}}",
+        rf"    \caption{{{caption}}}",
+        rf"    \label{{{label}}}",
+    ]
+
+    # Optionally add per-variable table beginning
+    if include_pervar:
+        lines.append(r"    \resizebox{\textwidth}{!}{%")
+    lines.append(rf"    \begin{{tabular}}{{{col_spec}}}")
+    lines += [
         r"    \toprule",
-        row1, cmidrule, row2,
+        *header_rows,
         r"    \midrule",
     ]
 
@@ -1029,7 +1332,11 @@ def generate_latex_table(
             cells.append(row.get(p, "---"))
         lines.append("    " + " & ".join(cells) + r" \\")
 
-    lines += [r"    \bottomrule", r"    \end{tabular}", r"    }", r"\end{table}"]
+    # Assemble table rows
+    lines += [r"    \bottomrule", r"    \end{tabular}"]
+    if include_pervar:
+        lines.append(r"    }")
+    lines.append(r"\end{table}")
     return "\n".join(lines)
 
 
