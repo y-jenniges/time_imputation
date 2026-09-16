@@ -745,7 +745,17 @@ def animate_depth_panels(
 
 def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE",
                        depths=None, ncols=4, save_as=None,
-                       cmap="inferno", vmin=None, vmax=None, norm=None):
+                       cmap="inferno", vmin=None, vmax=None, norm=None,
+                       scale_mode="value"):
+    """
+    Parameters
+    ----------
+    scale_mode : {"value", "std", "variance"}, default="value"
+        How to undo each scaler in ``scaler_dict``. ``"value"`` applies the scaler's
+        inverse transform. ``"std"``/``"variance"`` divide by ``scale_``/``scale_**2`` only, with
+        no shift, being correct for a quantity like aleatoric/epistemic/total std or
+        variance.
+    """
     temp = df_imputed.copy()
 
     # Undo scaling
@@ -753,7 +763,14 @@ def generate_animation(df_imputed, scaler_dict=None, parameter="P_TEMPERATURE",
         for param, scaler in scaler_dict.items():
             # Only unscale parameters
             if param in config.parameters:
-                temp[param] = scaler.inverse_transform(temp[param].values.reshape(-1, 1))
+                if scale_mode == "value":
+                    temp[param] = scaler.inverse_transform(temp[param].values.reshape(-1, 1))
+                elif scale_mode == "std":
+                    temp[param] = temp[param].values / scaler.scale_[0]
+                elif scale_mode == "variance":
+                    temp[param] = temp[param].values / scaler.scale_[0] ** 2
+                else:
+                    raise ValueError(f"generate_animation: unknown scale_mode {scale_mode!r} (expected 'value', 'std', or 'variance')")
 
     # Transform to xarray
     ds = df_to_gridded_da(temp, value_col=parameter)
