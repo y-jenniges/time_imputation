@@ -63,7 +63,7 @@ class TuningResult:
     mean_total_uncertainty: float = np.nan
     std_total_uncertainty: float = np.nan
 
-    stop_epoch: int | np.nan = np.nan
+    stop_epoch: int = np.nan
 
     reconstruction_rmse: float = np.nan
 
@@ -307,7 +307,7 @@ def load_geophysical_diffs(model_name, results_dir="output/testing"):
 
 def load_cmip_diff_pervar(model_name, results_dir="output/testing", seed_variance_dir=None, scaled=True):
     """
-    Load per-parameter CMIP difference (MAE, RMSE), averaged across training seeds where available.
+    Load per-parameter CMIP6 difference (MAE, RMSE), averaged across training seeds where available.
 
     Reads the ``{model_name}[_seed{N}]_cmip_diff_summary[_scaled].csv`` files written by
     cmip6_comparison.ipynb (one row per parameter). Non-deterministic models with a
