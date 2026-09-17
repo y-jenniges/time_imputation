@@ -1,7 +1,11 @@
 # MaSTNeT: Masked Spatio-Temporal Neighbourhood Transformer for Imputation of Sparse, Tabular Spatio-temporal data with uncertainty
 
 Code accompanying the paper *Jenniges et al. 2026*
-on imputation of sparse physical and biogeochemical ocean in-situ observations. We introduce **MaSTNeT** (Masked Spatio-Temporal Neighbourhood Transformer), a transformer that attends to k-nearest spatial and temporal neighbours to impute missing values. We benchmark MaSTNeT against a range of classical and deep-learning baselines on the [COMFORT dataset](https://doi.org/10.11582/2022.00039).
+on imputation of sparse physical and biogeochemical ocean in-situ observations. 
+We introduce **MaSTNeT** (Masked Spatio-Temporal Neighbourhood Transformer), a transformer 
+that attends to k-nearest spatial and temporal neighbours to impute missing values. 
+We compare MaSTNeT against a range of classical and deep-learning methods on 
+the oceanographic [COMFORT dataset](https://doi.org/10.11582/2022.00039).
 
 **Imputed variables:** Potential temperature, salinity, oxygen, nitrate, silicate, phosphate
 
@@ -9,9 +13,9 @@ on imputation of sparse physical and biogeochemical ocean in-situ observations. 
 
 MaSTNeT builds pre-computed spatio-temporal k-NN graphs over all observations and reconstructs each query point by attending to its nearest neighbours in separate spatial and temporal graphs. Key design choices:
 
-- **Separate neighbourhood graphs** For space and time (cross-attention per scope)
+- **Separate neighbourhood graphs**: For time and space (cross-attention per scope)
 - **Heteroscedastic uncertainty**: The model outputs both a mean and a per-point variance, quantifying aleatoric uncertainty
-- **Observation mask as input**: Missing-value indicators are appended to each token, so the model knows which features are truly observed vs. zero-filled
+- **Observation mask as input**: Missing-value indicators are passed along with the features through the feature mixer, so the model knows which features are truly observed vs. zero-filled
 - **Masked training objective**: Masking was applied randomly per sample and according to geographic blocks, forcing the model to reconstruct the hidden values from context
 
 ## Installation
@@ -57,7 +61,19 @@ python experiments/pytorch_study.py --model_name mastnet --n_trials 50
 
 Results (JSON metrics, loss plots, saved weights) are written to `output/tuning/`.
 
-### 3. Evaluation
+### 3. Final model training
+Non-deterministic models were trained five times with different seeds: 
+```bash
+python experiments/seed_variance_study.py --models mastnet,missforest,mlp,remasker --seeds 42,43,44,45,46
+```
+
+Deterministic models were trained once:
+```bash
+python experiments/train_final.py --model_name mean
+python experiments/train_final.py --model_name knn
+```
+
+### 4. Evaluation
 
 Evaluation notebooks in the repository root analyse results and produce the paper figures:
 
@@ -77,21 +93,13 @@ Evaluation notebooks in the repository root analyse results and produce the pape
 models/              Model definitions (MaSTNeT, MLP)
 nn_utils/            Training infrastructure (Trainer, datasets, graph, losses)
 utils/               Metrics, preprocessing, plotting utilities
-experiments/         ModelConfig ablation experiments; per-model tuning scripts
+experiments/         ModelConfig ablation experiments and per-model tuning scripts
 prepare_and_split/   Data gridding and cross-validation split generation
 config.py            Global paths, parameter names, grid configuration
-output/              Generated outputs (gitignored: gridding/, splits/, tuning/)
+output/              Generated outputs (gitignored)
 ```
 
 The sklearn-compatible `MaSTNetImputer` is developed as a separate, installable package in the companion repository [mastnet-imputer](https://github.com/yvjennig/mastnet-imputer).
-
-## Data
-
-- **COMFORT dataset** (ocean in-situ observations):
-  Korablev, A., Olsen, A., Geophysical Institute, University of Bergen, Bjerknes Centre for Climate Research (2022). *COMFORT Dataset*. Norstore. https://doi.org/10.11582/2022.00039
-
-- **Bathymetry** (GEBCO 2022, used for land masking):
-  GEBCO Bathymetric Compilation Group 2022 (2022). *The GEBCO_2022 Grid - a continuous terrain model of the global oceans and land.* NERC EDS British Oceanographic Data Centre NOC. https://doi.org/10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c
 
 ## Citation
 
@@ -108,5 +116,12 @@ If you use this code in your work, please cite:
 
 ## References
 
-Some utility code is adapted from:
-Jenniges et al. (2025). Unveiling 3D ocean biogeochemical provinces in the North Atlantic: A systematic comparison and validation of clustering methods. *Ecological Informatics*, 91, 103390. https://doi.org/10.1016/j.ecoinf.2025.103390
+### Data
+- **COMFORT dataset** (ocean in-situ observations):
+  Korablev, A., Olsen, A., Geophysical Institute, University of Bergen, Bjerknes Centre for Climate Research (2022). *COMFORT Dataset*. Norstore. https://doi.org/10.11582/2022.00039
+
+- **Bathymetry** (GEBCO 2022, used for land masking):
+  GEBCO Bathymetric Compilation Group 2022 (2022). *The GEBCO_2022 Grid - a continuous terrain model of the global oceans and land.* NERC EDS British Oceanographic Data Centre NOC. https://doi.org/10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c
+
+### Some utility code adapted from
+- Jenniges et al. (2025). Unveiling 3D ocean biogeochemical provinces in the North Atlantic: A systematic comparison and validation of clustering methods. *Ecological Informatics*, 91, 103390. https://doi.org/10.1016/j.ecoinf.2025.103390
