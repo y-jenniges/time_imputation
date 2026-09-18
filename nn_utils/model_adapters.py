@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import torch
 
 from nn_utils.masking import random_feature_mask, transect_feature_mask, spherical_feature_mask, \
-    random_per_feature_mask, random_token_mask
+    random_per_feature_mask, random_token_mask, copy_feature_mask
 
 
 class ModelAdapter(ABC):
@@ -146,6 +146,15 @@ class NeighbourAdapter(ModelAdapter):
                     if q_sphere_mask.any():
                         break
                 masks_list.append(q_sphere_mask)
+
+            if "copy" in masking_strategies:
+                q_copy_mask = torch.zeros(q_mask.shape, device=device)
+                for i in range(batch_size):
+                    q_copy_mask = copy_feature_mask(query_mask=q_mask, p=cfg.copy_mask_p, device=device,
+                                                    generator=generator)
+                    if q_copy_mask.any():
+                        break
+                masks_list.append(q_copy_mask)
 
             # Combine masks
             q_random_mask = masks_list[0]

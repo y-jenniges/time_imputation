@@ -60,7 +60,7 @@ class ModelConfig:
         Add a gated global context vector to each encoded token.
     masking_strategies : list[str] or None, default=None
         Active masking strategies: ``'random'`` | ``'transect'`` | ``'sphere'`` |
-        ``'per_feature'``.
+        ``'per_feature'`` | ``'copy'``.
     sphere_mask_radius : float, default=0.1
     sphere_mask_p : float, default=0.3
         Probability of applying the spherical mask per batch.
@@ -69,6 +69,12 @@ class ModelConfig:
         Probability of applying the transect mask per batch.
     transect_mask_orientation : float, default=0.0
         0 = fully random orientation; 1 = axis-aligned (lat/lon) only.
+    copy_mask_p : float, default=0.3
+        Probability of applying a copy mask per sample. Copy masking hides the
+        features missing in another, randomly drawn sample of the batch,
+        recycling real missingness patterns instead of sampling i.i.d. random
+        holes (CACTI, Gorla et al., PMLR 267:20187-20225, 2025,
+        https://pmc.ncbi.nlm.nih.gov/articles/PMC13060770/; github.com/sriramlab/CACTI).
     mask_ratio : float, default=0.3
         Fraction of observed values hidden during training.
     positional_encoding : bool, default=False
@@ -112,12 +118,13 @@ class ModelConfig:
     global_context: bool = False
 
     # Masking
-    masking_strategies: list[str] = None  # "random" | "transect" | "sphere" | "per_feature"
+    masking_strategies: list[str] = None  # "random" | "transect" | "sphere" | "per_feature" | "copy"
     sphere_mask_radius: float = 0.1
     sphere_mask_p: float = 0.3
     transect_mask_width: float = 0.05
     transect_mask_p: float = 0.3
     transect_mask_orientation: float = 0.0
+    copy_mask_p: float = 0.3  # CACTI-style copy masking (Gorla et al., PMLR 267:20187-20225, 2025)
     mask_ratio: float = 0.3
 
     # Positional encoding
@@ -4127,4 +4134,60 @@ ablation_study = {
             attention_type="time_space_attention"
         )},
 
+    # Copy masking, CACTI-inspired (Gorla et al., PMLR 267:20187-20225, 2025; github.com/sriramlab/CACTI) ------------ #
+    "exp320": {
+        "description": "Exp247 - Copy masking (p=0.1)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["copy"],
+            copy_mask_p=0.1,
+        )},
+    "exp321": {
+        "description": "Exp247 - Copy masking (p=0.3)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["copy"],
+            copy_mask_p=0.3,
+        )},
+    "exp322": {
+        "description": "Exp247 - Copy masking (p=0.5)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["copy"],
+            copy_mask_p=0.5,
+        )},
+    "exp323": {
+        "description": "Exp247 - Copy masking (p=0.7)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["copy"],
+            copy_mask_p=0.7,
+        )},
+    "exp324": {
+        "description": "Exp247 - Copy masking (p=0.9)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["copy"],
+            copy_mask_p=0.9,
+        )},
 }

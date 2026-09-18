@@ -1,4 +1,4 @@
-"""Masking utilities for MaSTNeT training: random, spherical, and transect masks."""
+"""Masking utilities for MaSTNeT training: random, spherical, transect and copy masks."""
 
 from typing import Tuple
 import torch
@@ -120,7 +120,8 @@ def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu",
 
 def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu",
                           orientation=0.0, generator: torch.Generator | None = None):
-    """Create a great-circle transect mask; applied with probability ``p``. ``orientation=0`` is fully random, ``1`` forces axis-aligned transects."""
+    """Create a great-circle transect mask; applied with probability ``p``. ``orientation=0`` is fully random, ``1``
+    forces axis-aligned transects."""
     lonlats = batch["query_coords"][:, :3]  # [B, 3]
     B = lonlats.shape[0]
 
@@ -156,3 +157,46 @@ def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu",
 
     mask_line = dist < width  # [B]
     return mask_line.unsqueeze(1).expand(B, feature_dim)
+
+
+def copy_feature_mask(query_mask: torch.Tensor,
+                      p: float = 0.3,
+                      device="cpu",
+                      generator: torch.Generator | None = None) -> torch.Tensor:
+    """
+    Copy masking: For each sample, additionally hide the features that are
+    missing in a different, randomly drawn sample from the same batch.
+
+    Adapted from the "copy masking" strategy in Gorla, Wang, Liu, An &
+    Sankararaman, "CACTI: Leveraging Copy Masking and Contextual Information to
+    Improve Tabular Data Imputation", PMLR 267:20187-20225, 2025,
+    https://pmc.ncbi.nlm.nih.gov/articles/PMC13060770/ with reference implementation
+    at github.com/sriramlab/CACTI, ``src/loaders/copyloader.py``.
+
+    Parameters
+    ----------
+    query_mask : Tensor, shape (B, F), dtype bool
+        True where the query feature is observed.
+    p : float, default=0.3
+        Probability of applying a copy mask to each sample.
+    device : str, default='cpu'
+    generator : torch.Generator, optional
+        Generator for reproducible masks across validation epochs.
+
+    Returns
+    -------
+    mask : Tensor, shape (B, F), dtype bool
+        True where a feature should be additionally hidden.
+    """
+    batch_size = query_mask.shape[0]
+    apply_mask = torch.rand(batch_size, device=device, generator=generator) < p
+    donor_idx = torch.randint(0, batch_size, (batch_size,), device=device, generator=generator)
+    donor_missing = ~query_mask[donor_idx]  # features missing in the donor sample
+
+    mask = donor_missing & apply_mask.unsqueeze(1)
+
+    # CACTI keeps at least 2 observed features per row (here 1 due to few features)
+    would_empty = (query_mask & ~mask).sum(dim=1) == 0
+    mask[would_empty] = False
+
+    return mask
