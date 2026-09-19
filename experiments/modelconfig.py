@@ -71,10 +71,17 @@ class ModelConfig:
         0 = fully random orientation; 1 = axis-aligned (lat/lon) only.
     copy_mask_p : float, default=0.3
         Probability of applying a copy mask per sample. Copy masking hides the
-        features missing in another, randomly drawn sample of the batch,
-        recycling real missingness patterns instead of sampling i.i.d. random
-        holes (CACTI, Gorla et al., PMLR 267:20187-20225, 2025,
+        features missing in another, randomly drawn donor sample, recycling
+        real missingness patterns instead of sampling i.i.d. random holes
+        (CACTI, Gorla et al., PMLR 267:20187-20225, 2025,
         https://pmc.ncbi.nlm.nih.gov/articles/PMC13060770/; github.com/sriramlab/CACTI).
+    copy_mask_min_observed : int, default=1
+        Minimum observed features to keep per row after copy masking; rows that
+        would drop below this are left unmasked. Set to 0 to allow fully-hidden
+        rows (as already happens with e.g. cylinder masking).
+    copy_mask_use_population_donor : bool, default=False
+        Draw copy-masking donors from the full training set instead of just the
+        current batch (matches the reference implementation).
     mask_ratio : float, default=0.3
         Fraction of observed values hidden during training.
     positional_encoding : bool, default=False
@@ -125,6 +132,8 @@ class ModelConfig:
     transect_mask_p: float = 0.3
     transect_mask_orientation: float = 0.0
     copy_mask_p: float = 0.3  # CACTI-style copy masking (Gorla et al., PMLR 267:20187-20225, 2025)
+    copy_mask_min_observed: int = 1
+    copy_mask_use_population_donor: bool = False
     mask_ratio: float = 0.3
 
     # Positional encoding
@@ -4189,5 +4198,31 @@ ablation_study = {
             mask_ratio=0.3,
             masking_strategies=["copy"],
             copy_mask_p=0.9,
+        )},
+    "exp325": {
+        "description": "Exp247 - Copy masking (p=1.0, no min-observed floor, population donor pool)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["copy"],
+            copy_mask_p=1.0,
+            copy_mask_min_observed=0,
+            copy_mask_use_population_donor=True,
+        )},
+    "exp326": {
+        "description": "Exp247 - Copy masking (p=1.0, no min-observed floor, batch donor pool)",
+        "config": ModelConfig(
+            feature_mixer=True,
+            feature_mixer_input="feat_mask",
+            attention_type="time_space_attention",
+
+            mask_ratio=0.3,
+            masking_strategies=["copy"],
+            copy_mask_p=1.0,
+            copy_mask_min_observed=0,
+            copy_mask_use_population_donor=False,
         )},
 }

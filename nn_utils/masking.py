@@ -161,11 +161,13 @@ def transect_feature_mask(batch, feature_dim, width=0.05, p=0.3, device="cpu",
 
 def copy_feature_mask(query_mask: torch.Tensor,
                       p: float = 0.3,
+                      min_observed: int = 1,
+                      donor_pool_mask: torch.Tensor | None = None,
                       device="cpu",
                       generator: torch.Generator | None = None) -> torch.Tensor:
     """
     Copy masking: For each sample, additionally hide the features that are
-    missing in a different, randomly drawn sample from the same batch.
+    missing in a different, randomly drawn donor sample.
 
     Adapted from the "copy masking" strategy in Gorla, Wang, Liu, An &
     Sankararaman, "CACTI: Leveraging Copy Masking and Contextual Information to
@@ -179,6 +181,13 @@ def copy_feature_mask(query_mask: torch.Tensor,
         True where the query feature is observed.
     p : float, default=0.3
         Probability of applying a copy mask to each sample.
+    min_observed : int, default=1
+        Minimum number of features that must remain observed after masking.
+    donor_pool_mask : Tensor, shape (N_pool, F), dtype bool, optional
+        Observation mask to draw donors from. If ``None``, donors are drawn
+        from ``query_mask`` (i.e. from the current batch only). Pass the
+        full training-set mask here to draw donors from the whole population,
+        as in the reference implementation.
     device : str, default='cpu'
     generator : torch.Generator, optional
         Generator for reproducible masks across validation epochs.
@@ -189,14 +198,17 @@ def copy_feature_mask(query_mask: torch.Tensor,
         True where a feature should be additionally hidden.
     """
     batch_size = query_mask.shape[0]
+    pool = donor_pool_mask if donor_pool_mask is not None else query_mask
     apply_mask = torch.rand(batch_size, device=device, generator=generator) < p
-    donor_idx = torch.randint(0, batch_size, (batch_size,), device=device, generator=generator)
-    donor_missing = ~query_mask[donor_idx]  # features missing in the donor sample
+    donor_idx = torch.randint(0, pool.shape[0], (batch_size,), device=device, generator=generator)
+    donor_missing = ~pool[donor_idx]  # features missing in the donor sample
 
+    # Mask replicates the missingness pattern of the donor sample
     mask = donor_missing & apply_mask.unsqueeze(1)
 
-    # CACTI keeps at least 2 observed features per row (here 1 due to few features)
-    would_empty = (query_mask & ~mask).sum(dim=1) == 0
-    mask[would_empty] = False
+    # Add the minimum-observed condition
+    if min_observed > 0:
+        would_drop_below_min = (query_mask & ~mask).sum(dim=1) < min_observed
+        mask[would_drop_below_min] = False
 
     return mask

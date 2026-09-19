@@ -72,6 +72,10 @@ class ModelAdapter(ABC):
 
 class NeighbourAdapter(ModelAdapter):
     """Adapter for MaSTNeT in graph-based attention modes (k-NN neighbourhood batches)."""
+
+    # Full training-set observation mask to draw copy-masking donors from (fallback: batch)
+    donor_pool_mask: torch.Tensor | None = None
+
     def batch_size(self, batch):
         return batch["query_features"].shape[0]
 
@@ -150,8 +154,10 @@ class NeighbourAdapter(ModelAdapter):
             if "copy" in masking_strategies:
                 q_copy_mask = torch.zeros(q_mask.shape, device=device)
                 for i in range(batch_size):
-                    q_copy_mask = copy_feature_mask(query_mask=q_mask, p=cfg.copy_mask_p, device=device,
-                                                    generator=generator)
+                    q_copy_mask = copy_feature_mask(query_mask=q_mask, p=cfg.copy_mask_p,
+                                                    min_observed=cfg.copy_mask_min_observed,
+                                                    donor_pool_mask=self.donor_pool_mask,
+                                                    device=device, generator=generator)
                     if q_copy_mask.any():
                         break
                 masks_list.append(q_copy_mask)

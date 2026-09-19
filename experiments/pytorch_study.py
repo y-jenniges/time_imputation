@@ -264,6 +264,10 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     full_loader, train_loader, val_loader, test_loader, scaler_dict, coord_dim, value_dim, dists, full_coords, full_values, full_mask = (
         loader_funcs[model_name](**loader_kwargs))
 
+    # Copy masking: Draw donors from the full training set (not only the batch)
+    if isinstance(adapter, NeighbourAdapter) and cfg.copy_mask_use_population_donor:
+        adapter.donor_pool_mask = full_mask[train_idx].to(device)
+
     # Adding global mean data and cfg to mastnet
     if model_name == "mastnet":
         total_sum, total_count = 0.0, 0.0
