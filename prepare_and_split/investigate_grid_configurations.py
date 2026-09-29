@@ -125,6 +125,9 @@ if __name__ == "__main__":
     df_scores = pd.DataFrame(results).sort_values("dt", ascending=True)
     print(df_scores)
 
+    # Filter for original elbow analysis (dt=35-40 was added later and a local dip there distorts results)
+    df_scores = df_scores[~df_scores["dt"].isin(range(35, 41))]
+
     # Plotting
     x = df_scores["dt"].values
     y = df_scores["mean_coverage"].values
@@ -146,9 +149,9 @@ if __name__ == "__main__":
     xticks = np.concatenate([x[~mask_dense], x[mask_dense][::10]])
     plt.xticks(sorted(xticks))
     plt.xlabel("Time resolution [years]")
-    plt.ylabel("Mean coverage")
+    plt.ylabel("Mean coverage [%]")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(config.output_dir_gridding + "/time_resolution_vs_coverage.png", dpi=1000)
+    plt.savefig(config.output_dir_gridding + "/time_resolution_vs_coverage.pdf", dpi=1000)
     plt.show()
