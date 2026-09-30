@@ -1,6 +1,6 @@
 # MaSTNeT: Masked Spatio-Temporal Neighbourhood Transformer for Imputation of Sparse, Tabular Spatio-temporal data with uncertainty
 
-Code accompanying the paper *Jenniges et al. 2026*
+Code accompanying the paper *Jenniges et al, in prep.*
 on imputation of sparse physical and biogeochemical ocean in-situ observations. 
 We introduce **MaSTNeT** (Masked Spatio-Temporal Neighbourhood Transformer), a transformer 
 that attends to k-nearest spatial and temporal neighbours to impute missing values. 
@@ -106,11 +106,11 @@ The sklearn-compatible `MaSTNetImputer` is developed as a separate, installable 
 If you use this code in your work, please cite:
 
 ```bibtex
-@article{TODO,
-  title   = {TODO},
-  author  = {TODO},
-  journal = {TODO},
-  year    = {TODO},
+@article{jenniges_inprep,
+  title   = {{MaSTNeT}: Masked spatio-temporal neighbourhood transformer for imputation of sparse, tabular, spatio-temporal data with uncertainty},
+  author  = {Yvonne Jenniges and Boris Peter Koch and Sebastian Maneth},
+  journal = {Environmental Data Science},
+  year    = {in prep.},
 }
 ```
 
