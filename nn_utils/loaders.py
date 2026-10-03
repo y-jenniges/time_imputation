@@ -1,4 +1,4 @@
-"""DataLoader factory functions for MaSTNeT training."""
+"""DataLoader factory functions for SONATI training."""
 
 from typing import Any
 

@@ -1,4 +1,4 @@
-"""PyTorch Dataset classes for MaSTNeT training."""
+"""PyTorch Dataset classes for SONATI training."""
 
 from typing import Dict, Any
 import numpy as np
@@ -12,7 +12,7 @@ class LearnedNeighbourDataset(Dataset):
     """
     PyTorch Dataset returning a query point and its k-NN neighbours per scope.
 
-    Used by MaSTNeT's graph-based attention modes. Neighbours are retrieved
+    Used by SONATI's graph-based attention modes. Neighbours are retrieved
     from a :class:`GraphProvider` at each ``__getitem__`` call.
 
     Parameters

@@ -1,4 +1,4 @@
-"""Trainer class orchestrating training, evaluation, graph updates, and early stopping for MaSTNeT."""
+"""Trainer class orchestrating training, evaluation, graph updates, and early stopping for SONATI."""
 
 import logging
 from typing import Union, Callable, Tuple
@@ -20,7 +20,7 @@ from utils.metrics import compute_metrics
 
 class Trainer:
     """
-    Training loop for MaSTNeT and related models.
+    Training loop for SONATI and related models.
 
     Handles forward/backward passes, graph updates (static / dynamic / frozen),
     early stopping via best-model checkpointing, and TensorBoard metric logging.
@@ -28,7 +28,7 @@ class Trainer:
     Parameters
     ----------
     model : torch.nn.Module
-        The model to train (e.g. :class:`models.mastnet.MaSTNeT`).
+        The model to train (e.g. :class:`models.sonati.SONATI`).
     adapter : ModelAdapter
         Adapter that prepares batches, generates masks, calls forward, and
         extracts outputs for the specific model/mode combination.

@@ -1,4 +1,4 @@
-﻿"""Single-split test script for MaSTNeT used for ablation studies, quick iteration and debugging."""
+﻿"""Single-split test script for SONATI used for ablation studies, quick iteration and debugging."""
 
 from pathlib import Path
 import torch
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         df = load_dataset()
 
     # Load study
-    model_name = "mastnet"
+    model_name = "sonati"
     model_class = get_model_class(model_name)
     device = torch.device("cuda")
 

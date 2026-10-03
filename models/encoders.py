@@ -1,4 +1,4 @@
-"""Coordinate and positional encoder modules that are part of the MaSTNeT architecture."""
+"""Coordinate and positional encoder modules that are part of the SONATI architecture."""
 
 import torch
 import torch.nn as nn

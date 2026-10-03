@@ -229,5 +229,5 @@ model_name_map = {"mean": "Mean",
                   "knn": "KNN",
                   "missforest": "MissForest",
                   "remasker": "ReMasker",
-                  "mastnet": "MaSTNeT",
+                  "sonati": "SONATI",
                   "mlp": "MLP"}

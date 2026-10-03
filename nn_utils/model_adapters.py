@@ -71,7 +71,7 @@ class ModelAdapter(ABC):
 
 
 class NeighbourAdapter(ModelAdapter):
-    """Adapter for MaSTNeT in graph-based attention modes (k-NN neighbourhood batches)."""
+    """Adapter for SONATI in graph-based attention modes (k-NN neighbourhood batches)."""
 
     # Full training-set observation mask to draw copy-masking donors from (fallback: batch)
     donor_pool_mask: torch.Tensor | None = None
@@ -264,7 +264,7 @@ class NeighbourAdapter(ModelAdapter):
 
 
 class TimeSequenceAdapter(ModelAdapter):
-    """Adapter for MaSTNeT in time_sequence graph mode (centred temporal window batches)."""
+    """Adapter for SONATI in time_sequence graph mode (centred temporal window batches)."""
 
     def batch_size(self, batch):
         return batch["query_features"].shape[0]
@@ -401,7 +401,7 @@ class TimeSequenceAdapter(ModelAdapter):
 
 
 class FeatureAdapter(ModelAdapter):
-    """Adapter for MaSTNeT in single_feature mode (per-feature token self-attention)."""
+    """Adapter for SONATI in single_feature mode (per-feature token self-attention)."""
 
     def batch_size(self, batch):
         return batch["features"].shape[0]

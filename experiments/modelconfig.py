@@ -1,4 +1,4 @@
-"""ModelConfig dataclass and ablation study dictionary for MaSTNeT experiments."""
+"""ModelConfig dataclass and ablation study dictionary for SONATI experiments."""
 
 from dataclasses import dataclass
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass
 @dataclass
 class ModelConfig:
     """
-    Configuration dataclass for a single MaSTNeT ablation experiment.
+    Configuration dataclass for a single SONATI ablation experiment.
 
     Controls various aspects of the model: graph construction, attention type, input
     encoders, masking strategy, and training loss. Instances are defined in the

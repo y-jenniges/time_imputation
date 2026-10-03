@@ -5,7 +5,7 @@ from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from hyperimpute.plugins.imputers import Imputers
 
-from models.mastnet import MaSTNeT
+from models.sonati import SONATI
 from models.mlp import MLP
 from remasker.remasker_impute import ReMasker
 
@@ -16,7 +16,7 @@ def get_model_class(model_name: str):
     Parameters
     ----------
     model_name : str
-        One of the registered model keys (e.g. ``'mastnet'``, ``'knn'``).
+        One of the registered model keys (e.g. ``'sonati'``, ``'knn'``).
 
     Returns
     -------
@@ -36,7 +36,7 @@ def get_model_class(model_name: str):
         "knn": KNNImputer,
         "missforest": MissForest,
         "mice": IterativeImputer,
-        "mastnet": MaSTNeT,
+        "sonati": SONATI,
         "remasker": ReMasker,
         "mlp": MLP,
 

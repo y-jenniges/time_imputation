@@ -21,7 +21,7 @@ from utils.tuning import load_optuna_study, set_seed
 
 def assemble_hyps(model_name: str, raw: dict) -> dict:
     """Re-structure flat Optuna params into the nested dict expected by train functions."""
-    if model_name == "mastnet":
+    if model_name == "sonati":
         strategy = raw.get("strategy", "random")
         radius = raw.get("sphere_mask_radius", 0.0) if strategy == "sphere" else 0.0
         width = raw.get("transect_mask_width", 0.0) if strategy == "transect" else 0.0
@@ -78,9 +78,9 @@ def assemble_hyps(model_name: str, raw: dict) -> dict:
 
 
 def build_pytorch_cfg(model_name, hyps, exp_id=247):
-    """Build the base config for MaSTNeT and MLP, applying Optuna overrides."""
+    """Build the base config for SONATI and MLP, applying Optuna overrides."""
     cfg = ablation_study[f"exp{exp_id}"]["config"]
-    if model_name != "mastnet":
+    if model_name != "sonati":
         # MLP does not use graph setup
         return cfg
 
@@ -99,7 +99,7 @@ def build_pytorch_cfg(model_name, hyps, exp_id=247):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Final model training with best Optuna params.")
     parser.add_argument("--model_name", type=str, required=True,
-                        help="Model name: mastnet, mlp, knn, mice, missforest, remasker, ...")
+                        help="Model name: sonati, mlp, knn, mice, missforest, remasker, ...")
     parser.add_argument("--n_inferences", type=int, default=50,
                         help="MC dropout passes for uncertainty estimation (PyTorch only)")
     parser.add_argument("--seed", type=int, default=42)
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     if isinstance(model_class, type) and issubclass(model_class, torch.nn.Module):
         logging.info("PyTorch model...")
 
-        # Load MaSTNeT architecture config and apply Optuna overrides
+        # Load SONATI architecture config and apply Optuna overrides
         cfg = build_pytorch_cfg(model_name, hyps, exp_id=73)
 
         results, y_true, y_pred, uncertainty_pair, scaler_dict = train_pytorch_single_split(

@@ -1,4 +1,4 @@
-"""Masking utilities for MaSTNeT training: random, spherical, transect and copy masks."""
+"""Masking utilities for SONATI training: random, spherical, transect and copy masks."""
 
 from typing import Tuple
 import torch

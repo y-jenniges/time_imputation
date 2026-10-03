@@ -34,7 +34,7 @@ class TuningResult:
         Path to the split JSON file used for this run.
     seed : int
     model : str
-        Model name (e.g. ``'mastnet'``, ``'mlp'``).
+        Model name (e.g. ``'sonati'``, ``'mlp'``).
     hyp_combo_id : int
         Index of the hyperparameter combination.
     hyps : dict
@@ -320,7 +320,7 @@ def load_cmip_diff_pervar(model_name, results_dir="output/testing", seed_varianc
         Directory containing ``{model_name}/{model_name}_cmip_diff_summary[_scaled].csv``.
     seed_variance_dir : str or Path, optional
         Directory containing ``{model_name}/{model_name}_seed{N}_cmip_diff_summary[_scaled].csv``.
-        Defaults to ``{results_dir}/seed_variance/seed_variance``.
+        Defaults to ``{results_dir}/seed_variance``.
     scaled : bool
         Whether to read the ``_scaled`` ([0,1] normalised) or physical-units summary.
 
@@ -334,7 +334,7 @@ def load_cmip_diff_pervar(model_name, results_dir="output/testing", seed_varianc
     # Get the seed variance files
     if seed_variance_dir is None:
         # Default seed_variance_dir
-        seed_variance_dir = Path(results_dir) / "seed_variance" / "seed_variance"
+        seed_variance_dir = Path(results_dir) / "seed_variance"
     seed_dir = Path(seed_variance_dir) / model_name
     seed_files = sorted(seed_dir.glob(f"{model_name}_seed*_cmip_diff_summary{suffix}.csv")) \
         if seed_dir.exists() else []
@@ -361,7 +361,7 @@ def load_seeded_predictions(model_name, results_dir="output/testing", seed_varia
     Load predictions for one model, averaged element-wise across training seeds where available.
 
     Non-deterministic models with runs from ``experiments/seed_variance_study.py``
-    (mastnet, mlp, remasker, missforest) get the element-wise mean of ``y_pred`` across all
+    (sonati, mlp, remasker, missforest) get the element-wise mean of ``y_pred`` across all
     ``{model_name}_seed*_y_pred.csv``. Models without seed-variance study fall back to the single
     "final" trial0 run.
 
@@ -372,7 +372,7 @@ def load_seeded_predictions(model_name, results_dir="output/testing", seed_varia
         Directory holding ``{model_name}/model{model_name}_y_pred.csv`` (trial0 fallback).
     seed_variance_dir : str or Path, optional
         Directory holding ``{model_name}/{model_name}_seed{N}_y_pred.csv`` per seed.
-        Defaults to ``{results_dir}/seed_variance/seed_variance``.
+        Defaults to ``{results_dir}/seed_variance``.
 
     Returns
     -------
@@ -382,7 +382,7 @@ def load_seeded_predictions(model_name, results_dir="output/testing", seed_varia
     """
     # Get seed variance result files
     if seed_variance_dir is None:
-        seed_variance_dir = Path(results_dir) / "seed_variance" / "seed_variance"
+        seed_variance_dir = Path(results_dir) / "seed_variance"
     seed_dir = Path(seed_variance_dir) / model_name
     pred_files = sorted(seed_dir.glob(f"{model_name}_seed*_y_pred.csv")) if seed_dir.exists() else []
 

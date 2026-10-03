@@ -65,7 +65,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "dropout": trial.suggest_float("dropout", 0.0, 0.4)
             }
         }
-    elif model_name == "mastnet":
+    elif model_name == "sonati":
         loss = "hetero"  # trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
         lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
 
@@ -219,17 +219,17 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     results = TuningResult(split=split_fname, seed=seed, model=model_name, hyp_combo_id=trial_id, hyps=hyps)
 
     # Adapter and data loaders
-    temp_mastnet_adapter = NeighbourAdapter
-    temp_mastnet_loader = prepare_learned_neighbourhood_loaders
+    temp_sonati_adapter = NeighbourAdapter
+    temp_sonati_loader = prepare_learned_neighbourhood_loaders
     if cfg.graph_mode == "time_sequence":
-        temp_mastnet_adapter = TimeSequenceAdapter
-        temp_mastnet_loader = prepare_time_sequence_loaders
+        temp_sonati_adapter = TimeSequenceAdapter
+        temp_sonati_loader = prepare_time_sequence_loaders
     elif cfg.graph_mode == "single_feature":
-        temp_mastnet_adapter = FeatureAdapter
-        temp_mastnet_loader = prepare_pointwise_loaders
+        temp_sonati_adapter = FeatureAdapter
+        temp_sonati_loader = prepare_pointwise_loaders
 
-    model_adapters = {"mastnet": temp_mastnet_adapter, "mlp": PointwiseAdapter}
-    loader_funcs = {"mastnet": temp_mastnet_loader, "mlp": prepare_pointwise_loaders}
+    model_adapters = {"sonati": temp_sonati_adapter, "mlp": PointwiseAdapter}
+    loader_funcs = {"sonati": temp_sonati_loader, "mlp": prepare_pointwise_loaders}
 
     if model_name not in model_adapters.keys():
         raise ValueError(f"Unknown model_name {model_name}")
@@ -242,7 +242,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
                          test_idx=test_idx,
                          batch_size=batch_size,
                          generator=generator)
-    if model_name == "mastnet":
+    if model_name == "sonati":
         graph_provider = GraphProvider(n_neighbours=n_neighbours,
                                        update_every=cfg.graph_update_frequency,
                                        cfg=cfg,
@@ -268,8 +268,8 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
     if isinstance(adapter, NeighbourAdapter) and cfg.copy_mask_use_population_donor:
         adapter.donor_pool_mask = full_mask[train_idx].to(device)
 
-    # Adding global mean data and cfg to mastnet
-    if model_name == "mastnet":
+    # Adding global mean data and cfg to sonati
+    if model_name == "sonati":
         total_sum, total_count = 0.0, 0.0
         for batch in train_loader:
             feats = batch["query_features"] if cfg.graph_mode != "single_feature" else batch["features"]
@@ -374,7 +374,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
         # True values
         if model_name == "mlp" or cfg.graph_mode == "single_feature":
             all_values = torch.cat([batch["features"] for batch in full_loader], dim=0)
-        elif model_name == "mastnet":
+        elif model_name == "sonati":
             all_values = torch.cat([batch["query_features"] for batch in full_loader], dim=0)
         else:
             raise ValueError(f"Unknown model_name {model_name}")
@@ -531,7 +531,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", type=str, default="mae", help="Model name")
     parser.add_argument("--output_dir", type=str, default="", help="Output directory")
     parser.add_argument("--base_exp", type=str, default="exp247",
-                        help="ablation_study key for the base architecture config (MaSTNeT only)")
+                        help="ablation_study key for the base architecture config (SONATI only)")
     args = parser.parse_args()
 
     # Setup logging
