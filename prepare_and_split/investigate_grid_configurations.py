@@ -125,33 +125,33 @@ if __name__ == "__main__":
     df_scores = pd.DataFrame(results).sort_values("dt", ascending=True)
     print(df_scores)
 
-    # Filter for original elbow analysis (dt=35-40 was added later and a local dip there distorts results)
-    df_scores = df_scores[~df_scores["dt"].isin(range(35, 41))]
-
     # Plotting
     x = df_scores["dt"].values
     y = df_scores["mean_coverage"].values
 
     # Smoothing
-    spline = UnivariateSpline(x, y, s=2)
+    spline = UnivariateSpline(x, y, s=10)
     y_smooth = spline(x)
 
     # KneeLocator automatically finds the "elbow"
     knee = KneeLocator(x, y_smooth, curve='convex', direction='increasing')
     print("Elbow detected at dt =", knee.knee)
 
+    # Final printed size (supplement text width = 6.69 in)
+    fontsize, tick_fontsize = 8, 8
+    figsize = (6.69, 2.8)
+
     # Plot
-    plt.figure(figsize=(10, 5))
-    plt.scatter(x, y, marker='o')
-    plt.plot(x, y_smooth, '-', label='Smoothed', color="orange")
-    plt.axvline(knee.knee, color='r', linestyle='--', label=f'Elbow at dt={knee.knee}')
-    mask_dense = (x >= 10) & (x <= 40)
-    xticks = np.concatenate([x[~mask_dense], x[mask_dense][::10]])
-    plt.xticks(sorted(xticks))
-    plt.xlabel("Time resolution [years]")
-    plt.ylabel("Mean coverage [%]")
-    plt.legend()
-    plt.grid(True)
+    plt.figure(figsize=figsize)
+    plt.scatter(x, y, marker='o', s=4, label='Mean coverage')
+    plt.plot(x, y_smooth, '-', label='Smoothed', color="orange", linewidth=1)
+    plt.axvline(knee.knee, color='r', linestyle='--', linewidth=1, label=f'Elbow at dt={knee.knee}')
+    plt.xticks([1, 10, 20, 30, 40, 50, 100, 300], fontsize=tick_fontsize)
+    plt.yticks(fontsize=tick_fontsize)
+    plt.xlabel("Time resolution [years]", fontsize=fontsize)
+    plt.ylabel("Mean coverage [%]", fontsize=fontsize)
+    plt.legend(fontsize=fontsize)
+    plt.grid(True, linewidth=0.5)
     plt.tight_layout()
     plt.savefig(config.output_dir_gridding + "/time_resolution_vs_coverage.pdf", dpi=1000)
     plt.show()
