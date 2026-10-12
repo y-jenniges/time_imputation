@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 import torch
 
-from nn_utils.masking import random_feature_mask, transect_feature_mask, spherical_feature_mask, \
+from nn_utils.masking import random_feature_mask, transect_feature_mask, cylindrical_feature_mask, \
     random_per_feature_mask, random_token_mask, copy_feature_mask
 
 
@@ -141,15 +141,15 @@ class NeighbourAdapter(ModelAdapter):
                         break
                 masks_list.append(q_transect_mask)
 
-            if "sphere" in masking_strategies:
-                q_sphere_mask = torch.zeros(q_mask.shape, device=device)
+            if "cylinder" in masking_strategies:
+                q_cylinder_mask = torch.zeros(q_mask.shape, device=device)
                 for i in range(batch_size):
-                    q_sphere_mask = spherical_feature_mask(batch=batch, feature_dim=q_mask.shape[1],
-                                                          size=cfg.sphere_mask_radius, p=cfg.sphere_mask_p, device=device,
+                    q_cylinder_mask = cylindrical_feature_mask(batch=batch, feature_dim=q_mask.shape[1],
+                                                          size=cfg.cylinder_mask_radius, p=cfg.cylinder_mask_p, device=device,
                                                           generator=generator)
-                    if q_sphere_mask.any():
+                    if q_cylinder_mask.any():
                         break
-                masks_list.append(q_sphere_mask)
+                masks_list.append(q_cylinder_mask)
 
             if "copy" in masking_strategies:
                 q_copy_mask = torch.zeros(q_mask.shape, device=device)

@@ -162,6 +162,31 @@ class TuningResult:
             return obj
 
 
+_LEGACY_MASKING_KEYS = {"sphere_mask_radius": "cylinder_mask_radius", "sphere_mask_p": "cylinder_mask_p"}
+
+
+def legacy_masking_names(params):
+    """Map ``sphere`` masking names to ``cylinder`` (to account for results generated before renaming spherical to
+    cylindrical masking). """
+    out = dict(params)
+
+    # Iterate over legacy masking keys
+    for old, new in _LEGACY_MASKING_KEYS.items():
+        if old in out:
+            # Rename if present
+            val = out.pop(old)
+            out.setdefault(new, val)
+
+    # Update masking strategy list
+    if out.get("strategy") == "sphere":
+        # Only one entry
+        out["strategy"] = "cylinder"
+    if isinstance(out.get("masking_strategies"), (list, tuple)):
+        # Multiple entries
+        out["masking_strategies"] = ["cylinder" if s == "sphere" else s for s in out["masking_strategies"]]
+    return out
+
+
 def set_seed(seed):
     """Set all random seeds for reproducibility; returns a seeded :class:`torch.Generator`."""
     np.random.seed(seed)

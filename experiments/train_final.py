@@ -16,17 +16,18 @@ from experiments.sklearn_study import train_sklearn_single_split
 from models.registry import get_model_class
 from utils.data import load_dataset
 from utils.plotting import generate_animation
-from utils.tuning import load_optuna_study, set_seed
+from utils.tuning import legacy_masking_names, load_optuna_study, set_seed
 
 
 def assemble_hyps(model_name: str, raw: dict) -> dict:
     """Re-structure flat Optuna params into the nested dict expected by train functions."""
     if model_name == "sonati":
+        raw = legacy_masking_names(raw)
         strategy = raw.get("strategy", "random")
-        radius = raw.get("sphere_mask_radius", 0.0) if strategy == "sphere" else 0.0
+        radius = raw.get("cylinder_mask_radius", 0.0) if strategy == "cylinder" else 0.0
         width = raw.get("transect_mask_width", 0.0) if strategy == "transect" else 0.0
         masking_strategies = (
-            ["random", "sphere"] if strategy == "sphere"
+            ["random", "cylinder"] if strategy == "cylinder"
             else ["random", "transect"] if strategy == "transect"
             else ["random"]
         )
@@ -41,7 +42,7 @@ def assemble_hyps(model_name: str, raw: dict) -> dict:
                 "loss": "hetero",
                 "optimizer": torch.optim.Adam,
                 "masking": {
-                    "sphere_mask_radius": radius,
+                    "cylinder_mask_radius": radius,
                     "transect_mask_width": width,
                     "masking_strategies": masking_strategies,
                 },
@@ -87,10 +88,10 @@ def build_pytorch_cfg(model_name, hyps, exp_id=247):
     cfg.dropout = hyps["model"]["dropout"]
     cfg.n_neighbours = hyps["train"]["n_neighbours"]
     cfg.mask_ratio = hyps["train"]["mask_ratio"]
-    masking = hyps["train"].get("masking", {})
+    masking = legacy_masking_names(hyps["train"].get("masking", {}))
     cfg.masking_strategies = masking.get("masking_strategies", ["random"])
-    cfg.sphere_mask_radius = masking.get("sphere_mask_radius", 0.0)
-    cfg.sphere_mask_p = 1.0
+    cfg.cylinder_mask_radius = masking.get("cylinder_mask_radius", 0.0)
+    cfg.cylinder_mask_p = 1.0
     cfg.transect_mask_width = masking.get("transect_mask_width", 0.0)
     cfg.transect_mask_p = 1.0
     return cfg

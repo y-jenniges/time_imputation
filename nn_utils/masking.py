@@ -1,4 +1,4 @@
-"""Masking utilities for SONATI training: random, spherical, transect and copy masks."""
+"""Masking utilities for SONATI training: random, cylindrical, transect and copy masks."""
 
 from typing import Tuple
 import torch
@@ -99,9 +99,9 @@ def random_feature_mask(batch_size: int,
     return query_mask, neighbour_mask
 
 
-def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu",
+def cylindrical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu",
                            generator: torch.Generator | None = None):
-    """Create a spherical block mask centred on a random query point, applied with probability ``p``."""
+    """Create a cylindrical block mask centred on a random query point, applied with probability ``p``."""
     lonlats = batch["query_coords"][:, :3]  # [B, 3]
     B = lonlats.shape[0]
 
@@ -109,7 +109,7 @@ def spherical_feature_mask(batch, feature_dim, size=0.1, p=0.3, device="cpu",
     if torch.rand(1, device=device, generator=generator) > p:
         return torch.zeros(B, feature_dim, dtype=torch.bool, device=device)
 
-    # Define spherical block mask
+    # Define cylindrical block mask
     idx = torch.randint(0, B, (1,), device=device, generator=generator)
     center = lonlats[idx]
     dist = torch.norm(lonlats - center, dim=1)

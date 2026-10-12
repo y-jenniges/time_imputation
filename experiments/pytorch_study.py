@@ -69,13 +69,13 @@ def suggest_hyperparameters(trial, model_name="mae"):
         loss = "hetero"  # trial.suggest_categorical("loss", ["mse", "hetero", "physics_hetero"])
         lambda_smooth = trial.suggest_float("lambda_smooth", 1e-4, 1e-3, log=True) if loss == "physics_hetero" else None
 
-        strategy = trial.suggest_categorical("strategy", ["sphere", "transect", "per_feature"])
+        strategy = trial.suggest_categorical("strategy", ["cylinder", "transect", "per_feature"])
         mask_ratio = trial.suggest_categorical("mask_ratio", [0.3, 0.4, 0.5])
         radius, width, masking_strategies = 0.0, 0.0, ["random"]
 
-        if strategy == "sphere":
-            radius = trial.suggest_categorical("sphere_mask_radius", [0.3, 0.4, 0.5])
-            masking_strategies = ["random", "sphere"]
+        if strategy == "cylinder":
+            radius = trial.suggest_categorical("cylinder_mask_radius", [0.3, 0.4, 0.5])
+            masking_strategies = ["random", "cylinder"]
         elif strategy == "transect":
             width = trial.suggest_categorical("transect_mask_width", [0.02, 0.05])
             masking_strategies = ["random", "transect"]
@@ -93,7 +93,7 @@ def suggest_hyperparameters(trial, model_name="mae"):
                 "loss": loss,
                 "lambda_smooth": lambda_smooth,
                 "optimizer": torch.optim.Adam,
-                "masking": {"sphere_mask_radius": radius, "transect_mask_width": width,
+                "masking": {"cylinder_mask_radius": radius, "transect_mask_width": width,
                             "masking_strategies": masking_strategies},
             },
             "model": {
@@ -209,7 +209,7 @@ def train_pytorch_single_split(coords_raw, values_raw, model_class, hyps, train_
 
     masking = get_hyp(hyps, "train", "masking", default=None)
     cfg.mask_ratio = mask_ratio
-    cfg.sphere_mask_radius = None if masking is None else masking["sphere_mask_radius"]
+    cfg.cylinder_mask_radius = None if masking is None else masking["cylinder_mask_radius"]
     cfg.transect_mask_width = None if masking is None else masking["transect_mask_width"]
     cfg.masking_strategies = None if masking is None else masking["masking_strategies"]
 
