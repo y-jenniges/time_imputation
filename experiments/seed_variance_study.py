@@ -1,10 +1,10 @@
-"""Multi-seed retraining of the final neural models (MaSTNeT, MLP, ReMasker)
+"""Multi-seed retraining of the final neural models (SONATI, MLP, ReMasker)
 and MissForest on the fixed test_train_split, to quantify how much the
 final test metrics vary.
 
 Usage
 -----
-    python experiments/seed_variance_study.py --models mastnet,mlp,remasker --seeds 42,43,44,45,46
+    python experiments/seed_variance_study.py --models sonati,mlp,remasker --seeds 42,43,44,45,46
 """
 
 import argparse
@@ -23,7 +23,7 @@ from models.registry import get_model_class
 from utils.data import load_dataset
 from utils.tuning import load_optuna_study, set_seed
 
-NEURAL_MODELS = ["mastnet", "mlp", "remasker"]
+NEURAL_MODELS = ["sonati", "mlp", "remasker"]
 
 
 def _test_metrics(results):
@@ -50,7 +50,7 @@ def run_one(model_name, seed, df, train_idx, test_idx, device, n_inferences, out
     set_seed(seed)
 
     if isinstance(model_class, type) and issubclass(model_class, torch.nn.Module):
-        # MaSTNeT and MLP go through the PyTorch training loop
+        # SONATI and MLP go through the PyTorch training loop
         cfg = build_pytorch_cfg(model_name, hyps=hyps, exp_id=247)
 
         results, y_true, y_pred, _, _ = train_pytorch_single_split(

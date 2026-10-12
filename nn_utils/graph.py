@@ -1,4 +1,4 @@
-"""k-NN graph construction, analytics, and the GraphProvider class for MaSTNeT."""
+"""k-NN graph construction, analytics, and the GraphProvider class for SONATI."""
 
 import logging
 import torch
@@ -61,7 +61,7 @@ def knn_overlap(prev_idx, new_idx, scope="default"):
 
 class GraphProvider:
     """
-    Manages k-NN graph construction, updates, and diagnostics for MaSTNeT.
+    Manages k-NN graph construction, updates, and diagnostics for SONATI.
 
     Supports static graphs (built once), dynamic graphs (periodically recomputed
     in latent space), and random graphs. Tracks graph quality metrics

@@ -1,17 +1,17 @@
-# MaSTNeT: Masked Spatio-Temporal Neighbourhood Transformer for Imputation of Sparse, Tabular Spatio-temporal data with uncertainty
+# SONATI: Spatio-temporal Ocean Neighbourhood Asymmetric Transformer for Imputation of sparse, tabular data with uncertainty
 
 Code accompanying the paper *Jenniges et al, in prep.*
 on imputation of sparse physical and biogeochemical ocean in-situ observations. 
-We introduce **MaSTNeT** (Masked Spatio-Temporal Neighbourhood Transformer), a transformer 
+We introduce **SONATI** (Spatio-temporal Ocean Neighbourhood Asymmetric Transformer for Imputation), a transformer 
 that attends to k-nearest spatial and temporal neighbours to impute missing values. 
-We compare MaSTNeT against a range of classical and deep-learning methods on 
+We compare SONATI against a range of classical and deep-learning methods on 
 the oceanographic [COMFORT dataset](https://doi.org/10.11582/2022.00039).
 
 **Imputed variables:** Potential temperature, salinity, oxygen, nitrate, silicate, phosphate
 
-## MaSTNeT
+## SONATI
 
-MaSTNeT builds pre-computed spatio-temporal k-NN graphs over all observations and reconstructs each query point by attending to its nearest neighbours in separate spatial and temporal graphs. Key design choices:
+SONATI builds pre-computed spatio-temporal k-NN graphs over all observations and reconstructs each query point by attending to its nearest neighbours in separate spatial and temporal graphs. Key design choices:
 
 - **Separate neighbourhood graphs**: For time and space (cross-attention per scope)
 - **Heteroscedastic uncertainty**: The model outputs both a mean and a per-point variance, quantifying aleatoric uncertainty
@@ -26,11 +26,11 @@ conda env create -f environment.yml
 conda activate time_imputation
 ```
 
-**Pip (standalone MaSTNetImputer only):**
+**Pip (standalone SONATIImputer only):**
 
-The sklearn-compatible `MaSTNetImputer` lives in the companion package [mastnet-imputer](https://github.com/y-jenniges/mastnet-imputer):
+The sklearn-compatible `SONATIImputer` lives in the companion package [sonati](https://github.com/y-jenniges/sonati):
 ```bash
-pip install mastnet-imputer
+pip install sonati
 ```
 
 ## Reproducing the paper experiments
@@ -49,14 +49,14 @@ This writes preprocessed CSVs to `output/gridding/` and split index files to `ou
 
 **Ablation / single-split run**:
 ```bash
-python experiments/mastnet_test.py --exp_id 0
+python experiments/sonati_test.py --exp_id 0
 ```
 
-`--exp_id` selects a named `ModelConfig` entry from `experiments/modelconfig.py` (e.g. `exp0`–`exp90+`). Results are written to `output/tuning/mastnet/architecture_ablation/`.
+`--exp_id` selects a named `ModelConfig` entry from `experiments/modelconfig.py` (e.g. `exp0`–`exp90+`). Results are written to `output/tuning/sonati/architecture_ablation/`.
 
 **Optuna hyperparameter search** (runs across all 5 selected splits):
 ```bash
-python experiments/pytorch_study.py --model_name mastnet --n_trials 50
+python experiments/pytorch_study.py --model_name sonati --n_trials 50
 ```
 
 Results (JSON metrics, loss plots, saved weights) are written to `output/tuning/`.
@@ -64,7 +64,7 @@ Results (JSON metrics, loss plots, saved weights) are written to `output/tuning/
 ### 3. Final model training
 Non-deterministic models were trained five times with different seeds: 
 ```bash
-python experiments/seed_variance_study.py --models mastnet,missforest,mlp,remasker --seeds 42,43,44,45,46
+python experiments/seed_variance_study.py --models sonati,missforest,mlp,remasker --seeds 42,43,44,45,46
 ```
 
 Deterministic models were trained once:
@@ -90,7 +90,7 @@ Evaluation notebooks in the repository root analyse results and produce the pape
 ## Repository structure
 
 ```
-models/              Model definitions (MaSTNeT, MLP)
+models/              Model definitions (SONATI, MLP)
 nn_utils/            Training infrastructure (Trainer, datasets, graph, losses)
 utils/               Metrics, preprocessing, plotting utilities
 experiments/         ModelConfig ablation experiments and per-model tuning scripts
@@ -99,7 +99,7 @@ config.py            Global paths, parameter names, grid configuration
 output/              Generated outputs (gitignored)
 ```
 
-The sklearn-compatible `MaSTNetImputer` is developed as a separate, installable package in the companion repository [mastnet-imputer](https://github.com/yvjennig/mastnet-imputer).
+The sklearn-compatible `SONATIImputer` is developed as a separate, installable package in the companion repository [sonati](https://github.com/y-jenniges/sonati).
 
 ## Citation
 
@@ -107,7 +107,7 @@ If you use this code in your work, please cite:
 
 ```bibtex
 @article{jenniges_inprep,
-  title   = {{MaSTNeT}: Masked spatio-temporal neighbourhood transformer for imputation of sparse, tabular, spatio-temporal data with uncertainty},
+  title   = {{SONATI}: Spatio-temporal ocean neighbourhood asymmetric transformer for imputation of sparse, tabular data with uncertainty},
   author  = {Yvonne Jenniges and Boris Peter Koch and Sebastian Maneth},
   journal = {Environmental Data Science},
   year    = {in prep.},

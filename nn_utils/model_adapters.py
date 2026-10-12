@@ -3,8 +3,8 @@
 from abc import ABC, abstractmethod
 import torch
 
-from nn_utils.masking import random_feature_mask, transect_feature_mask, spherical_feature_mask, \
-    random_per_feature_mask, random_token_mask
+from nn_utils.masking import random_feature_mask, transect_feature_mask, cylindrical_feature_mask, \
+    random_per_feature_mask, random_token_mask, copy_feature_mask
 
 
 class ModelAdapter(ABC):
@@ -71,7 +71,11 @@ class ModelAdapter(ABC):
 
 
 class NeighbourAdapter(ModelAdapter):
-    """Adapter for MaSTNeT in graph-based attention modes (k-NN neighbourhood batches)."""
+    """Adapter for SONATI in graph-based attention modes (k-NN neighbourhood batches)."""
+
+    # Full training-set observation mask to draw copy-masking donors from (fallback: batch)
+    donor_pool_mask: torch.Tensor | None = None
+
     def batch_size(self, batch):
         return batch["query_features"].shape[0]
 
@@ -137,15 +141,26 @@ class NeighbourAdapter(ModelAdapter):
                         break
                 masks_list.append(q_transect_mask)
 
-            if "sphere" in masking_strategies:
-                q_sphere_mask = torch.zeros(q_mask.shape, device=device)
+            if "cylinder" in masking_strategies:
+                q_cylinder_mask = torch.zeros(q_mask.shape, device=device)
                 for i in range(batch_size):
-                    q_sphere_mask = spherical_feature_mask(batch=batch, feature_dim=q_mask.shape[1],
-                                                          size=cfg.sphere_mask_radius, p=cfg.sphere_mask_p, device=device,
+                    q_cylinder_mask = cylindrical_feature_mask(batch=batch, feature_dim=q_mask.shape[1],
+                                                          size=cfg.cylinder_mask_radius, p=cfg.cylinder_mask_p, device=device,
                                                           generator=generator)
-                    if q_sphere_mask.any():
+                    if q_cylinder_mask.any():
                         break
-                masks_list.append(q_sphere_mask)
+                masks_list.append(q_cylinder_mask)
+
+            if "copy" in masking_strategies:
+                q_copy_mask = torch.zeros(q_mask.shape, device=device)
+                for i in range(batch_size):
+                    q_copy_mask = copy_feature_mask(query_mask=q_mask, p=cfg.copy_mask_p,
+                                                    min_observed=cfg.copy_mask_min_observed,
+                                                    donor_pool_mask=self.donor_pool_mask,
+                                                    device=device, generator=generator)
+                    if q_copy_mask.any():
+                        break
+                masks_list.append(q_copy_mask)
 
             # Combine masks
             q_random_mask = masks_list[0]
@@ -249,7 +264,7 @@ class NeighbourAdapter(ModelAdapter):
 
 
 class TimeSequenceAdapter(ModelAdapter):
-    """Adapter for MaSTNeT in time_sequence graph mode (centred temporal window batches)."""
+    """Adapter for SONATI in time_sequence graph mode (centred temporal window batches)."""
 
     def batch_size(self, batch):
         return batch["query_features"].shape[0]
@@ -386,7 +401,7 @@ class TimeSequenceAdapter(ModelAdapter):
 
 
 class FeatureAdapter(ModelAdapter):
-    """Adapter for MaSTNeT in single_feature mode (per-feature token self-attention)."""
+    """Adapter for SONATI in single_feature mode (per-feature token self-attention)."""
 
     def batch_size(self, batch):
         return batch["features"].shape[0]

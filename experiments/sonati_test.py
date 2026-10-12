@@ -1,4 +1,4 @@
-﻿"""Single-split test script for MaSTNeT used for ablation studies, quick iteration and debugging."""
+﻿"""Single-split test script for SONATI used for ablation studies, quick iteration and debugging."""
 
 from pathlib import Path
 import torch
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         df = load_dataset()
 
     # Load study
-    model_name = "mastnet"
+    model_name = "sonati"
     model_class = get_model_class(model_name)
     device = torch.device("cuda")
 
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         "mask_ratio": cfg.mask_ratio,
         "loss": cfg.loss_name,
         "optimizer": torch.optim.Adam,
-        "masking": {"sphere_mask_radius": cfg.sphere_mask_radius, "sphere_mask_p": cfg.sphere_mask_p,
+        "masking": {"cylinder_mask_radius": cfg.cylinder_mask_radius, "cylinder_mask_p": cfg.cylinder_mask_p,
                     "transect_mask_width": cfg.transect_mask_width, "transect_mask_p": cfg.transect_mask_p,
                     "transect_mask_orientation": cfg.transect_mask_orientation,
                     "masking_strategies": cfg.masking_strategies,

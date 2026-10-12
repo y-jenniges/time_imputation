@@ -1,4 +1,4 @@
-﻿"""MaSTNeT model - Masked Spatiotemporal Neighbourhood Transformer for ocean data imputation."""
+﻿"""SONATI model - Spatio-temporal Ocean Neighbourhood Asymmetric Transformer for Imputation."""
 
 import torch
 import torch.nn as nn
@@ -41,7 +41,7 @@ class CrossAttentionBlock(nn.Module):
 
         return q
 
-class MaSTNeT(nn.Module):
+class SONATI(nn.Module):
     """
     Masked Spatiotemporal Neighbourhood Transformer.
 
@@ -147,7 +147,7 @@ class MaSTNeT(nn.Module):
                     nn.Linear(self.value_dim, self.value_dim),
                 )
             else:
-                raise ValueError(f"MaSTNeT: Unknown feature_mixer_input {self.cfg.feature_mixer_input}")
+                raise ValueError(f"SONATI: Unknown feature_mixer_input {self.cfg.feature_mixer_input}")
         else:
             self.feature_mixer = None
 
@@ -258,7 +258,7 @@ class MaSTNeT(nn.Module):
             self.gate = nn.Linear(d_model, 3)
 
         else:
-            raise ValueError(f"MaSTNeT: Unknown attention_type {self.cfg.attention_type}")
+            raise ValueError(f"SONATI: Unknown attention_type {self.cfg.attention_type}")
 
         # Decoding
         output_dim = value_dim if self.cfg.graph_mode != "single_feature" else 1
@@ -552,7 +552,7 @@ class MaSTNeT(nn.Module):
                 q_dict[scope] = q_temp
 
             else:
-                raise ValueError(f"MaSTNeT: Unknown attention type: {self.cfg.attention_type}")
+                raise ValueError(f"SONATI: Unknown attention type: {self.cfg.attention_type}")
 
         if self.cfg.attention_type == "weighted_space_time_depth_attention":
             # print(q_dict["time"].shape, q_dict["space"].shape, q_dict["depth"].shape)

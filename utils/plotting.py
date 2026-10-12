@@ -378,9 +378,13 @@ def plot_geo_panels(
         output_path=None,
         filename=None,
         dpi=300,
+        width=None,
+        fontsize=None,
+        tick_fontsize=None,
+        nodate_colour=None,
 ):
     """
-    Generic geographic panel grid.
+    Generic geographic panel grid (keeps geographic proportions).
 
     Parameters
     ----------
@@ -400,7 +404,18 @@ def plot_geo_panels(
     output_path : str, optional
     filename : str, optional
     dpi : int
+    width : float, optional
+        Figure width in inches. If given (and ``figsize`` is None), the figure
+        height is derived from the map proportions.
+    fontsize : float, optional
+        Font size in points for column titles, row labels and the colourbar. If None,
+        the matplotlib default is used.
+    tick_fontsize : float, optional
+        Font size in points for the longitude/latitude labels of the map panels. If None, 8 is used.
+    nodate_colour : colour, optional
+        Background colour of ocean cells without data. If None, white is used.
     """
+    import textwrap
 
     def _normalise(items):
         """Accept dict, list-of-2-tuples, or plain list."""
@@ -421,20 +436,7 @@ def plot_geo_panels(
     vmin_cfg = cfg.get("vmin", None)
     vmax_cfg = cfg.get("vmax", None)
 
-    if figsize is None:
-        figsize = (ncols * 3.2, nrows * 2)
-
-    fig, axs = plt.subplots(
-        nrows=nrows, ncols=ncols, figsize=figsize,
-        subplot_kw={"projection": ccrs.PlateCarree()},
-    )
-
-    # Normalise axs to a 2-D array regardless of shape
-    axs = np.atleast_2d(axs) if nrows == 1 else np.array(axs)
-    if ncols == 1:
-        axs = axs.reshape(nrows, 1)
-
-    # Pre-fetch all data so we can derive a shared colour range
+    # Pre-fetch all data to derive a shared colour range and map proportions
     data_grid = {}
     for ri, (rk, _) in enumerate(row_items):
         for ci, (ck, _) in enumerate(col_items):
@@ -447,27 +449,74 @@ def plot_geo_panels(
     vmin_use = vmin_cfg if vmin_cfg is not None else (float(min(float(da.min()) for da in valid)) if valid else 0)
     vmax_use = vmax_cfg if vmax_cfg is not None else (float(max(float(da.max()) for da in valid)) if valid else 1)
 
+    # Set tick and label font sizes
+    tick_size = 8 if tick_fontsize is None else tick_fontsize
+    label_size = 10 if fontsize is None else fontsize
+
+    # Derive figure size
+    col_titles = [label for _, label in col_items]
+    layout = None
+    if figsize is None and width is not None and valid:
+        # Derive the figure height from true map proportions
+        d0 = valid[0]
+        aspect = (float(d0.lon.max()) - float(d0.lon.min())) / (float(d0.lat.max()) - float(d0.lat.min()))
+
+        # Space around the panels (inches): row label + latitude labels, colourbar + numbers + label, gaps
+        left = (label_size * 1.5 + tick_size * 3.8) / 72 + 0.1  # row label (~1.5 lines) +  degree labels (~3.8 font heights) + padding; pt -> in
+        right = 0.15 + (label_size * 4.8) / 72 + 0.1  # colourbar width + tick numbers and rotated label (~4.8 font heights) + padding
+        gap = 0.06  # horizontal gap between columns
+        panel_w = (width - left - right - gap * (ncols - 1)) / ncols  # width left for each map panel
+
+        # Wrap column titles to the panel width so neighbouring titles do not overlap
+        chars = max(int(panel_w * 72 / (0.45 * label_size)), 6)  # chars per line: an average char is ~0.45 x font size wide; at least 6
+        col_titles = [textwrap.fill(str(t), width=chars) for t in col_titles]  # insert line breaks at that width
+        title_lines = max(t.count("\n") + 1 for t in col_titles) if col_titles else 1  # lines of the longest title
+        top = title_lines * label_size * 1.25 / 72 + 0.08  # title height (line spacing ~1.25 x font size) + padding
+        bottom = tick_size * 1.5 / 72 + 0.1  # one row of longitude labels + padding
+        height = top + bottom + nrows * panel_w / aspect + (nrows - 1) * 0.08  # margins + map heights (width / aspect) + vertical gaps between rows
+
+        figsize = (width, height)  # final size in inches
+        layout = "constrained"  # let matplotlib fine-tune the placement inside this size
+
+    elif figsize is None:
+        # Use given figsize
+        figsize = (ncols * 3.2, nrows * 2)
+
+    # Plot
+    fig, axs = plt.subplots(
+        nrows=nrows, ncols=ncols, figsize=figsize,
+        subplot_kw={"projection": ccrs.PlateCarree()},
+        layout=layout,
+        squeeze=False,  # always return a 2d array of axes
+    )
+
     pcm_list = []
 
     for ri, (_, row_label) in enumerate(row_items):
-        for ci, (_, col_label) in enumerate(col_items):
+        for ci, _ in enumerate(col_items):
             ax = axs[ri, ci]
-            da2d = data_grid[(ri, ci)]
+            da2d = data_grid[(ri, ci)]  # filter data for current row/col
 
+            # No data
             if da2d is None:
                 ax.set_visible(False)
                 continue
 
+            # Basic map plot settings
             ax.set_extent(
                 [float(da2d.lon.min()), float(da2d.lon.max()),
                  float(da2d.lat.min()), float(da2d.lat.max())],
                 crs=ccrs.PlateCarree(),
             )
-            ax.set_aspect("auto")
+            ax.set_aspect("equal")  # true geographic proportions
+            ax.spines["geo"].set_visible(False)  # no frame around the panels
+            if nodate_colour is not None:
+                ax.set_facecolor(nodate_colour)
             ax.add_feature(cfeature.LAND, facecolor="lightgrey", zorder=0)
             ax.coastlines(linewidth=0.5)
             ax.add_feature(cfeature.BORDERS, linewidth=0.3)
 
+            # Draw the colourmesh
             if norm_use is not None:
                 pcm = ax.pcolormesh(da2d.lon, da2d.lat, da2d,
                                     cmap=cmap_use, norm=norm_use,
@@ -483,24 +532,30 @@ def plot_geo_panels(
             gl.right_labels = False
             gl.xformatter = LONGITUDE_FORMATTER
             gl.yformatter = LATITUDE_FORMATTER
-            gl.xlabel_style = {"size": 8}
-            gl.ylabel_style = {"size": 8}
+            gl.xlabel_style = {"size": tick_size}
+            gl.ylabel_style = {"size": tick_size}
             gl.left_labels = (ci == 0)
             gl.bottom_labels = (ri == nrows - 1)
 
+            # Column 0 gets row labels
             if ci == 0 and row_label:
-                ax.set_ylabel(row_label, labelpad=25)
+                ax.set_ylabel(row_label, labelpad=25 * tick_size / 8 + 4, fontsize=fontsize)
                 ax.set_yticks([])
                 ax.yaxis.set_visible(True)
 
-            if ri == 0 and col_label:
-                ax.set_title(col_label)
+            # Row 0 gets column titles
+            if ri == 0 and col_titles[ci]:
+                ax.set_title(col_titles[ci], fontsize=fontsize)
 
+    # Colourbar settings
     if shared_colorbar and pcm_list:
-        cbar = fig.colorbar(pcm_list[0], ax=axs, orientation="vertical",
-                            shrink=0.9, aspect=30, pad=0.02)
+        cbar = fig.colorbar(pcm_list[0], ax=axs, orientation="vertical", shrink=0.9, aspect=30, pad=0.02)
+        cbar.outline.set_visible(False)  # no frame around the colourbar
+        if fontsize is not None:
+            # Small, thin tick marks (seaborn.set_theme makes them long and thick)
+            cbar.ax.tick_params(labelsize=fontsize, length=2.5, width=0.5)
         if colorbar_label:
-            cbar.set_label(colorbar_label)
+            cbar.set_label(colorbar_label, fontsize=fontsize)
 
     if output_path and filename:
         import os
@@ -851,7 +906,22 @@ def plot_total_missingness(df, config, save_as=None, dpi=300):
         plt.savefig(save_as, dpi=dpi)
 
 
-def plot_missingness_over_column(df, config, col="DATEANDTIME", figsize=(8, 6), save_as=None, dpi=300):
+def plot_missingness_over_column(df, config, col="DATEANDTIME",
+                                 figsize=(8, 6), save_as=None, dpi=300,
+                                 percent=False, fontsize=None, palette=None, linestyles=None):
+    """
+    Plot missingness of each parameter over the values of one column (e.g. over years).
+
+    Parameters
+    ----------
+    percent : bool, default=False
+        Show the missingness as percent instead of fraction.
+    fontsize : float, optional
+        Font size in points for axis labels, tick labels and legend. If None, the matplotlib defaults are used.
+    palette, linestyles : list, optional
+        One colour and one line style per parameter (in the order of ``config.parameters``). If ``palette`` is
+        None, seaborn's default colours are used.
+    """
     # Infer missingness information
     temp = df.set_index(col)[config.parameters]
     missingness = temp.isna().groupby(col).mean().reset_index()
@@ -859,15 +929,28 @@ def plot_missingness_over_column(df, config, col="DATEANDTIME", figsize=(8, 6), 
                                    value_name="missingness")
     missingness["Parameter"] = missingness["Parameter"].map(config.parameter_name_map)
 
+    # Missingness in percent or as fraction
+    if percent:
+        missingness["missingness"] *= 100
+
     # Plot
-    fig = plt.figure(figsize=figsize)
-    sns.lineplot(data=missingness, x=col, y="missingness", hue="Parameter", marker="o")
+    plt.figure(figsize=figsize)
+    if palette is None:
+        # Default seaborn cmap
+        sns.lineplot(data=missingness, x=col, y="missingness", hue="Parameter", marker="o")
+    else:
+        # Custom line colours and styles
+        for i, (name, sub) in enumerate(missingness.groupby("Parameter", sort=False)):
+            plt.plot(sub[col], sub["missingness"], label=name, color=palette[i], marker="o", markersize=3,
+                     linewidth=1.2, linestyle="-" if linestyles is None else linestyles[i])
+        plt.legend(title="Parameter", fontsize=fontsize, title_fontsize=fontsize)
 
     plt.xlabel("")
-    plt.ylabel("Missingness [%]")
+    plt.ylabel("Missingness [%]" if percent else "Missingness", fontsize=fontsize)
 
     plt.gca().set_xticks(ticks=np.sort(missingness[col].unique()))
-    plt.xticks(rotation=90)
+    plt.xticks(rotation=90, fontsize=fontsize)
+    plt.yticks(fontsize=fontsize)
     plt.grid(True, color="black", alpha=0.1, linestyle="--")
     plt.tight_layout()
 
@@ -875,55 +958,92 @@ def plot_missingness_over_column(df, config, col="DATEANDTIME", figsize=(8, 6), 
         plt.savefig(save_as, dpi=dpi)
 
 
-def plot_missingness_panels(df, depth_levels, cmap="RdYlGn_r", ncols=3, vmin=0, vmax=1, save_as=None, dpi=300):
+def plot_missingness_panels(df, depth_levels, cmap="RdYlGn_r", ncols=3, vmin=0, vmax=1, save_as=None, dpi=300,
+                            figsize=None, fontsize=None, nodata_colour=None):
+    """
+    Map of mean missingness per grid cell, one panel per depth level.
+
+    Parameters
+    ----------
+    figsize : tuple of float, optional
+        Figure size in inches. Defaults to ``(ncols * 3.6, nrows * 3.2)``.
+    fontsize : float, optional
+        Base font size in points for tick labels, panel titles and the colourbar. If None, default
+        sizes (8 for ticks, 9 for titles, 10 for the colourbar label) are used.
+    nodata_colour : color, optional
+        Background colour of the ocean cells without data. If None, they stay white.
+    """
     n = len(depth_levels)
     nrows = int(np.ceil(n / ncols))
 
+    # Font sizes
+    tick_size = 8 if fontsize is None else fontsize
+    title_size = 9 if fontsize is None else fontsize + 1
+    label_size = 10 if fontsize is None else fontsize + 1
+
+    # Figure setup
     fig, axs = plt.subplots(
         nrows=nrows,
         ncols=ncols,
-        figsize=(ncols * 3.6, nrows * 3.2),
+        figsize=figsize if figsize is not None else (ncols * 3.6, nrows * 3.2),
         subplot_kw={"projection": ccrs.PlateCarree()},
         constrained_layout=True,
     )
     axs = np.atleast_1d(axs).flatten()
 
+    # Get lat/lon extends
     lon_min, lon_max = df["LONGITUDE"].min(), df["LONGITUDE"].max()
     lat_min, lat_max = df["LATITUDE"].min(), df["LATITUDE"].max()
     pcm = None
 
+    # Iterate over depth levels
     for i, d in enumerate(depth_levels):
         ax = axs[i]
-        sub = df[df["LEV_M"] == d]
+        sub = df[df["LEV_M"] == d]  # filter data for current depth level
         grid = sub.pivot_table(index="LATITUDE", columns="LONGITUDE", values="miss")
         lats = grid.index.values
         lons = grid.columns.values
 
+        # Map plot settings
         ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
+        ax.spines["geo"].set_visible(False)  # no frame around the panels
+        if nodata_colour is not None:
+            ax.set_facecolor(nodata_colour)
         ax.add_feature(cfeature.LAND, facecolor="0.92", zorder=0)
         ax.coastlines(linewidth=0.6, color="0.3")
 
-        row, col = i // ncols, i % ncols
+        # Grid lines
         gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                           linewidth=0.4, linestyle="--", color="gray")
+
+        # Labels
+        row, col = i // ncols, i % ncols
         gl.top_labels = gl.right_labels = gl.left_labels = gl.bottom_labels = False
         if col == 0:
+            # Column zero has row labels
             gl.left_labels = True
-            gl.ylabel_style = {"size": 8}
+            gl.ylabel_style = {"size": tick_size}
         if row == nrows - 1:
+            # Last row has bottom labels
             gl.bottom_labels = True
-            gl.xlabel_style = {"size": 8}
+            gl.xlabel_style = {"size": tick_size}
 
-        pcm = ax.pcolormesh(lons, lats, grid.values, cmap=cmap, vmin=vmin, vmax=vmax,
-                            shading="auto", transform=ccrs.PlateCarree())
-        ax.set_title(f"{int(d)} m", fontsize=9)
+        # Colour mesh
+        pcm = ax.pcolormesh(lons, lats, grid.values, cmap=cmap, vmin=vmin, vmax=vmax, shading="auto", transform=ccrs.PlateCarree())
+        ax.set_title(f"{int(d)} m", fontsize=title_size)
 
+    # Hide unused panels in the figure grid
     for j in range(i + 1, len(axs)):
         axs[j].axis("off")
 
+    # Colour bar
     cbar = fig.colorbar(pcm, ax=axs, orientation="vertical", pad=0.02, shrink=0.7)
-    cbar.set_label("Missingness", fontsize=10)
+    cbar.set_label("Missingness", fontsize=label_size)
+    cbar.outline.set_visible(False)  # no frame around the colourbar
+    if fontsize is not None:
+        cbar.ax.tick_params(labelsize=tick_size)
 
+    # Saving
     if save_as:
         plt.savefig(save_as, dpi=dpi, bbox_inches="tight", facecolor="white")
     plt.show()
@@ -990,13 +1110,17 @@ def _fmt_cell(v, std=None, decimals=4):
     if pd.isna(v):
         return "---"
     s = f"{v:.{decimals}f}"
+    if float(s) == 0:
+        s = s.lstrip("-")  # avoid "-0.00"
+    elif s.startswith("-"):
+        s = "$-$" + s[1:]  # proper minus sign instead of a hyphen
     if std is not None and pd.notna(std):
         s += rf" $\pm$ {std:.{decimals}f}"
     return s
 
 
 def _format_column(series, lower_is_better, decimals=4, std_series=None, bold_best=True):
-    """Format a numeric Series and bold the single best non-NaN value."""
+    """Format a numeric Series and bold the best non-NaN value(s), ties at the displayed precision are all bold."""
     # Get valid values
     valid = series.dropna()
     if valid.empty or not bold_best:
@@ -1004,13 +1128,15 @@ def _format_column(series, lower_is_better, decimals=4, std_series=None, bold_be
         return {i: _fmt_cell(v, std_series.get(i) if std_series is not None else None, decimals)
                 for i, v in series.items()}
 
-    # Determine best idx
-    best_idx = valid.idxmin() if lower_is_better else valid.idxmax()
+    # Determine best idx (all values that are equal to the best one at the displayed precision)
+    rounded = valid.round(decimals)
+    best_value = rounded.min() if lower_is_better else rounded.max()
+    best_idx = set(rounded.index[rounded == best_value])
     result = {}
     for idx, val in series.items():
         # Format series (with bold best value)
         s = _fmt_cell(val, std_series.get(idx) if std_series is not None else None, decimals)
-        result[idx] = rf"\textbf{{{s}}}" if idx == best_idx else s
+        result[idx] = rf"\textbf{{{s}}}" if idx in best_idx else s
     return result
 
 
@@ -1156,6 +1282,7 @@ def generate_latex_table(
         decimals: dict = None,
         caption: str = None,
         label: str = None,
+        sideways: bool = False,
 ) -> str:
     """
     Generate a LaTeX table: Model | RMSE↓ | KGE↑ | CMIP MAE↓ | [per-variable RMSE↓]
@@ -1188,6 +1315,8 @@ def generate_latex_table(
     caption, label : str, optional
         Override the default caption/``\\label{}``. Needed when generating more than one
         table with this function in the same document.
+    sideways : bool, default=False
+        Rotate the table by 90 degrees and scale it to the text height instead of the text width.
 
     Notes
     -----
@@ -1319,8 +1448,9 @@ def generate_latex_table(
     # LaTaX caption, label and table beginning
     caption = caption if caption is not None else "Model performance metrics (normalised space)"
     label = label if label is not None else "tab:model_performance"
+    env = "sidewaystable" if sideways else "table"
     lines = [
-        r"\begin{table}[htbp]",
+        rf"\begin{{{env}}}[htbp]",
         r"    \centering",
         rf"    \caption{{{caption}}}",
         rf"    \label{{{label}}}",
@@ -1328,7 +1458,8 @@ def generate_latex_table(
 
     # Optionally add per-variable table beginning
     if include_pervar:
-        lines.append(r"    \resizebox{\textwidth}{!}{%")
+        width = r"\textheight" if sideways else r"\textwidth"
+        lines.append(r"    \resizebox{" + width + r"}{!}{%")
     lines.append(rf"    \begin{{tabular}}{{{col_spec}}}")
     lines += [
         r"    \toprule",
@@ -1353,7 +1484,7 @@ def generate_latex_table(
     lines += [r"    \bottomrule", r"    \end{tabular}"]
     if include_pervar:
         lines.append(r"    }")
-    lines.append(r"\end{table}")
+    lines.append(rf"\end{{{env}}}")
     return "\n".join(lines)
 
 
@@ -1364,22 +1495,53 @@ Zenodo. https://doi.org/10.5281/zenodo.15827777
 """
 
 
-def plot_histograms(df, config, figsize=(12, 6), save_as=None, dpi=300):
+def plot_histograms(df, config, figsize=(12, 6), save_as=None,
+                    dpi=300, fontsize=None, panel_titles=True, grid=True):
+    """
+    Histograms (with kernel density estimate) of the observed values of each parameter.
+
+    Parameters
+    ----------
+    fontsize : float, optional
+        Font size in points for axis and tick labels. If None, the matplotlib defaults are used.
+    panel_titles : bool, default=True
+        If True, the parameter name and unit is the panel title and the x-axis reads "Value". If False, there
+        are no titles and the x-axis is labelled with the parameter name and unit.
+    grid : bool, default=True
+        Draw dashed grid lines.
+    """
+    # Proper parameter names for plotting
     temp = df.rename(columns={col: config.parameter_name_unit_map[col] for col in config.parameters})
     param_names = list(config.parameter_name_unit_map.values())
 
-    fig, axes = plt.subplots(2, 3, figsize=(12, 6))
+    # Create figure
+    fig, axes = plt.subplots(2, 3, figsize=figsize, layout="constrained")
     axes = axes.flatten()
 
+    # Iterate over axes (= parameters)
     for i, ax in enumerate(axes):
+        # Plot
         sns.histplot(data=temp, x=param_names[i], ax=ax, kde=True)
-        ax.set_title(param_names[i])
-        ax.set_xlabel('Value')
-        ax.set_ylabel('Frequency')
-        ax.grid(True, linestyle='--', alpha=0.4)
 
-    plt.tight_layout()
+        # Add titles, labels, ticks
+        if panel_titles:
+            ax.set_title(param_names[i])
+            ax.set_xlabel('Value', fontsize=fontsize)
+        else:
+            ax.set_xlabel(param_names[i], fontsize=fontsize)
+        ax.set_ylabel("")
+        ax.tick_params(labelsize=fontsize)
 
+        # Grid lines
+        if grid:
+            ax.grid(True, linestyle='--', alpha=0.4)
+        else:
+            ax.grid(False)
+
+    # Global y-label
+    fig.supylabel('Frequency', fontsize=fontsize)
+
+    # Save
     if save_as:
         plt.savefig(save_as, dpi=dpi)
 

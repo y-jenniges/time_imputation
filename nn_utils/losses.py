@@ -1,4 +1,4 @@
-"""Loss functions for MaSTNeT training: masked MSE, heteroscedastic NLL, physics and Fourier losses."""
+"""Loss functions for SONATI training: masked MSE, heteroscedastic NLL, physics and Fourier losses."""
 
 import torch
 import torch.nn as nn
