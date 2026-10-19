@@ -546,9 +546,9 @@ class SONATI(nn.Module):
                 else:
                     raise ValueError(f"Unknown attention scope {scope}")
 
-                q_temp = 0.0
+                q_temp = q
                 for layer in layers:
-                    q_temp = layer(q, n)
+                    q_temp = layer(q_temp, n)
                 q_dict[scope] = q_temp
 
             else:
