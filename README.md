@@ -9,6 +9,8 @@ the oceanographic [COMFORT dataset](https://doi.org/10.11582/2022.00039).
 
 **Imputed variables:** Potential temperature, salinity, oxygen, nitrate, silicate, phosphate
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23799887.svg)](https://doi.org/10.5281/zenodo.23799887)
+
 ## SONATI
 
 SONATI builds pre-computed spatio-temporal k-NN graphs over all observations and reconstructs each query point by attending to its nearest neighbours in separate spatial and temporal graphs. Key design choices:
