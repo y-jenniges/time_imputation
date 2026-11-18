@@ -73,7 +73,7 @@ if __name__ == "__main__":
         for feat in config.parameters:
             plt.plot(missing_fraction["Year"], missing_fraction[feat], label=config.parameter_name_map[feat], marker="o", markersize=3)
 
-        plt.ylabel("Missigness [%]")
+        plt.ylabel("Missingness [%]")
         plt.xlabel("Year")
         plt.legend()
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         plt.show()
 
     # --- Analyse grids ------------------------------------------------------------------------------- #
-    # Analyse trade-off between coverage and resolution
+    # Analyse trade-off between missingness and time resolution
     results = []
     for dt in config.time_steps:
         fname = "df_" + str(dt) + "y_na.csv"
@@ -110,16 +110,13 @@ if __name__ == "__main__":
         # Fraction of missing values [%]
         missing_fraction = missing_counts.div(total_grid_cells_per_time, axis=0) * 100
 
-        # Overall coverage per timestep
-        missing_fraction["coverage"] = 100 - missing_fraction.mean(axis=1)
-
-        # Mean coverage over all timesteps
-        mean_coverage = missing_fraction["coverage"].mean()
+        # Missingness per timestep (mean over the six parameters), then mean over all timesteps
+        mean_missingness = missing_fraction.mean(axis=1).mean()
 
         results.append({
             "grid_id": fname.replace(".csv", ""),
             "dt": dt,
-            "mean_coverage": mean_coverage,
+            "mean_missingness": mean_missingness,
         })
 
     df_scores = pd.DataFrame(results).sort_values("dt", ascending=True)
@@ -127,14 +124,14 @@ if __name__ == "__main__":
 
     # Plotting
     x = df_scores["dt"].values
-    y = df_scores["mean_coverage"].values
+    y = df_scores["mean_missingness"].values
 
     # Smoothing
     spline = UnivariateSpline(x, y, s=10)
     y_smooth = spline(x)
 
     # KneeLocator automatically finds the "elbow"
-    knee = KneeLocator(x, y_smooth, curve='convex', direction='increasing')
+    knee = KneeLocator(x, y_smooth, curve='concave', direction='decreasing')
     print("Elbow detected at dt =", knee.knee)
 
     # Final printed size (supplement text width = 6.69 in)
@@ -143,15 +140,15 @@ if __name__ == "__main__":
 
     # Plot
     plt.figure(figsize=figsize)
-    plt.scatter(x, y, marker='o', s=4, label='Mean coverage')
+    plt.scatter(x, y, marker='o', s=4, label='Mean missingness')
     plt.plot(x, y_smooth, '-', label='Smoothed', color="orange", linewidth=1)
     plt.axvline(knee.knee, color='r', linestyle='--', linewidth=1, label=f'Elbow at dt={knee.knee}')
     plt.xticks([1, 10, 20, 30, 40, 50, 100, 300], fontsize=tick_fontsize)
     plt.yticks(fontsize=tick_fontsize)
     plt.xlabel("Time resolution [years]", fontsize=fontsize)
-    plt.ylabel("Mean coverage [%]", fontsize=fontsize)
+    plt.ylabel("Mean missingness [%]", fontsize=fontsize)
     plt.legend(fontsize=fontsize)
     plt.grid(True, linewidth=0.5)
     plt.tight_layout()
-    plt.savefig(config.output_dir_gridding + "/time_resolution_vs_coverage.pdf", dpi=1000)
+    plt.savefig(config.output_dir_gridding + "/time_resolution_vs_missingness.pdf", dpi=1000)
     plt.show()

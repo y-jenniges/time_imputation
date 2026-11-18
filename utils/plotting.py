@@ -958,7 +958,7 @@ def plot_missingness_over_column(df, config, col="DATEANDTIME",
         plt.savefig(save_as, dpi=dpi)
 
 
-def plot_missingness_panels(df, depth_levels, cmap="RdYlGn_r", ncols=3, vmin=0, vmax=1, save_as=None, dpi=300,
+def plot_missingness_panels(df, depth_levels, cmap="RdYlGn_r", ncols=3, vmin=0, vmax=100, save_as=None, dpi=300,
                             figsize=None, fontsize=None, nodata_colour=None):
     """
     Map of mean missingness per grid cell, one panel per depth level.
@@ -1013,8 +1013,7 @@ def plot_missingness_panels(df, depth_levels, cmap="RdYlGn_r", ncols=3, vmin=0, 
         ax.coastlines(linewidth=0.6, color="0.3")
 
         # Grid lines
-        gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
-                          linewidth=0.4, linestyle="--", color="gray")
+        gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, linewidth=0.4, linestyle="--", color="gray")
 
         # Labels
         row, col = i // ncols, i % ncols
@@ -1038,7 +1037,7 @@ def plot_missingness_panels(df, depth_levels, cmap="RdYlGn_r", ncols=3, vmin=0, 
 
     # Colour bar
     cbar = fig.colorbar(pcm, ax=axs, orientation="vertical", pad=0.02, shrink=0.7)
-    cbar.set_label("Missingness", fontsize=label_size)
+    cbar.set_label("Missingness [%]", fontsize=label_size)
     cbar.outline.set_visible(False)  # no frame around the colourbar
     if fontsize is not None:
         cbar.ax.tick_params(labelsize=tick_size)
